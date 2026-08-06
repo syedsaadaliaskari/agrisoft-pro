@@ -539,6 +539,14 @@ export function registerSalesHandlers(): void {
     })
   );
 
+  ipcMain.handle(IPC.SALE_RETURNS_GET, async (_e, id: string): Promise<ActionResult<SaleReturn>> =>
+    guarded(() => requirePermission("sales.return"), async () => {
+      const doc = enrichSaleReturn(id, true);
+      if (!doc) return fail("Sale return not found");
+      return ok(doc);
+    })
+  );
+
   ipcMain.handle(
     IPC.SALE_RETURNS_CREATE,
     async (_e, input: CreateSaleReturnInput): Promise<ActionResult<SaleReturn>> =>

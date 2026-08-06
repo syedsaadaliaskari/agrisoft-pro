@@ -7,6 +7,7 @@ import { app } from "electron";
 import * as schema from "./schema";
 import { ensurePermissions, seedDatabase } from "./seed";
 import { seedDemoData } from "./seedDemo";
+import { seedDemoTransactions } from "./seedDemoTx";
 
 export type Db = ReturnType<typeof drizzle<typeof schema>>;
 
@@ -455,6 +456,7 @@ export async function initDatabase(): Promise<Db> {
   await seedDatabase(db);
   ensurePermissions(db);
   await seedDemoData(db);
+  await seedDemoTransactions(db);
   return db;
 }
 

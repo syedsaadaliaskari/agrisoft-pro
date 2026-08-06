@@ -91,6 +91,7 @@ export const IPC = {
   PURCHASES_CREATE: "purchases:create",
   PURCHASES_DELETE: "purchases:delete",
   PURCHASE_RETURNS_LIST: "purchaseReturns:list",
+  PURCHASE_RETURNS_GET: "purchaseReturns:get",
   PURCHASE_RETURNS_CREATE: "purchaseReturns:create",
 
   // Sales
@@ -100,6 +101,7 @@ export const IPC = {
   SALES_CREATE: "sales:create",
   SALES_DELETE: "sales:delete",
   SALE_RETURNS_LIST: "saleReturns:list",
+  SALE_RETURNS_GET: "saleReturns:get",
   SALE_RETURNS_CREATE: "saleReturns:create",
 
   // Dashboard / reports
@@ -839,6 +841,7 @@ export type DashboardDayPoint = {
   salesTotal: number;
   salesCount: number;
   purchasesTotal: number;
+  purchasesCount: number;
 };
 
 export type DashboardPaymentSlice = {
@@ -847,20 +850,54 @@ export type DashboardPaymentSlice = {
   count: number;
 };
 
+export type DashboardTopProduct = {
+  productName: string;
+  quantity: number;
+  revenue: number;
+};
+
+export type DashboardLowStockItem = {
+  productName: string;
+  size: string | null;
+  color: string | null;
+  stockQty: number;
+  reorderLevel: number;
+};
+
+export type DashboardRecentSale = {
+  id: string;
+  invoiceNo: string;
+  invoiceDate: string;
+  customerName: string | null;
+  grandTotal: number;
+  paymentMode: string;
+};
+
 export type DashboardSummary = {
   todaySalesTotal: number;
   todaySalesCount: number;
+  todayPurchasesTotal: number;
+  todayPurchasesCount: number;
+  monthSalesTotal: number;
+  monthPurchasesTotal: number;
+  monthProfitEstimate: number;
   cashBalance: number;
   bankBalance: number;
   arBalance: number;
   apBalance: number;
+  inventoryValue: number;
   lowStockCount: number;
   productCount: number;
   customerCount: number;
   vendorCount: number;
+  openSaleInvoices: number;
   currencySymbol: string;
   last7Days: DashboardDayPoint[];
+  last30Days: DashboardDayPoint[];
   salesByPaymentMode: DashboardPaymentSlice[];
+  topProducts: DashboardTopProduct[];
+  lowStockItems: DashboardLowStockItem[];
+  recentSales: DashboardRecentSale[];
 };
 
 export type SalesReportRow = {
@@ -1153,6 +1190,7 @@ export type ElectronAPI = {
   createPurchase: (input: CreatePurchaseInput) => Promise<ActionResult<Purchase>>;
   deletePurchase: (id: string) => Promise<ActionResult>;
   listPurchaseReturns: () => Promise<ActionResult<PurchaseReturn[]>>;
+  getPurchaseReturn: (id: string) => Promise<ActionResult<PurchaseReturn>>;
   createPurchaseReturn: (input: CreatePurchaseReturnInput) => Promise<ActionResult<PurchaseReturn>>;
 
   listSales: () => Promise<ActionResult<Sale[]>>;
@@ -1161,6 +1199,7 @@ export type ElectronAPI = {
   createSale: (input: CreateSaleInput) => Promise<ActionResult<Sale>>;
   deleteSale: (id: string) => Promise<ActionResult>;
   listSaleReturns: () => Promise<ActionResult<SaleReturn[]>>;
+  getSaleReturn: (id: string) => Promise<ActionResult<SaleReturn>>;
   createSaleReturn: (input: CreateSaleReturnInput) => Promise<ActionResult<SaleReturn>>;
 
   getDashboardSummary: () => Promise<ActionResult<DashboardSummary>>;

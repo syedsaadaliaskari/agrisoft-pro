@@ -14,6 +14,8 @@
     "start": "cross-env NODE_ENV=production electron .",
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio",
+    "db:reset": "node scripts/reset-db.js",
+    "db:reseed": "npm run build:electron && electron scripts/reseed-demo.js",
     "postinstall": "electron-builder install-app-deps",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder"

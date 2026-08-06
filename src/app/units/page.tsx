@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
+import { ExportMenu } from "@/components/ExportMenu";
 import {
   Alert,
   Button,
@@ -97,7 +98,28 @@ export default function UnitsPage() {
         </div>
       ) : null}
 
-      <PageToolbar search={search} onSearch={setSearch} onAdd={openCreate} addLabel="Add unit" />
+      <PageToolbar
+        search={search}
+        onSearch={setSearch}
+        onAdd={openCreate}
+        addLabel="Add unit"
+        actions={
+          <ExportMenu
+            filename="units"
+            title="Units"
+            columns={[
+              { key: "name", label: "Name" },
+              { key: "shortName", label: "Short" },
+              { key: "status", label: "Status" },
+            ]}
+            rows={filtered.map((r) => ({
+              name: r.name,
+              shortName: r.shortName,
+              status: r.isActive ? "Active" : "Inactive",
+            }))}
+          />
+        }
+      />
 
       {loading ? (
         <p className="text-sm text-[var(--text-muted)]">Loading...</p>
@@ -145,13 +167,11 @@ export default function UnitsPage() {
           label="Name"
           value={form.name}
           onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-          placeholder="Kilogram"
         />
         <Input
           label="Short name"
           value={form.shortName}
           onChange={(e) => setForm((f) => ({ ...f, shortName: e.target.value }))}
-          placeholder="kg"
         />
         <Checkbox
           label="Active"

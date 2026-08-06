@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
+import { ExportMenu } from "@/components/ExportMenu";
 import { Alert, Button, DataTable, Input, Select } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
 import type { AppUser, PermissionInfo, RoleInfo } from "@shared/ipc";
@@ -287,7 +288,29 @@ export default function UsersPage() {
 
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold">Users</h2>
-</div>
+          <ExportMenu
+            filename="users"
+            title="Users"
+            columns={[
+              { key: "username", label: "Username" },
+              { key: "fullName", label: "Name" },
+              { key: "email", label: "Email" },
+              { key: "phone", label: "Phone" },
+              { key: "roleName", label: "Role" },
+              { key: "status", label: "Status" },
+              { key: "lastLoginAt", label: "Last login" },
+            ]}
+            rows={users.map((u) => ({
+              username: u.username,
+              fullName: u.fullName,
+              email: u.email ?? "",
+              phone: u.phone ?? "",
+              roleName: u.roleName,
+              status: u.isActive ? "Active" : "Inactive",
+              lastLoginAt: u.lastLoginAt ? u.lastLoginAt.replace("T", " ").slice(0, 19) : "",
+            }))}
+          />
+        </div>
 
         <DataTable
           headers={["Username", "Name", "Email", "Phone", "Role", "Status", "Last login", ""]}

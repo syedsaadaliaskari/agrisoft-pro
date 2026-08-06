@@ -1,8 +1,10 @@
 ﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Eye, Plus, Printer, Trash2, X } from "lucide-react";
+import { Eye, Plus, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
+import { ExportMenu } from "@/components/ExportMenu";
+import { PrintMenu } from "@/components/PrintMenu";
 import {
   Alert,
   Button,
@@ -14,7 +16,7 @@ import {
   Textarea,
 } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
-import { buildSaleReceiptHtml } from "@/lib/receipt";
+import { buildSalePrintHtml } from "@/lib/print";
 import { hasPermission } from "@/lib/permissions";
 import { useAuthStore } from "@/store/auth";
 import type {
@@ -22,6 +24,7 @@ import type {
   Customer,
   InventoryRow,
   PaymentMode,
+  ReceiptSize,
   Sale,
 } from "@shared/ipc";
 
@@ -177,7 +180,7 @@ export default function SalesPage() {
 
   const removeLine = (key: string) => setLines((prev) => prev.filter((l) => l.key !== key));
 
-  const printSale = async (sale: Sale) => {
+  const printSale = async (sale: Sale, size: ReceiptSize = "thermal") => {
     let toPrint = sale;
     if (!sale.items) {
       const res = await getApi().getSale(sale.id);
@@ -187,7 +190,7 @@ export default function SalesPage() {
       }
       toPrint = res.data;
     }
-    const html = buildSaleReceiptHtml(toPrint);
+    const html = buildSalePrintHtml(toPrint, size);
     const res = await getApi().printHtml(html);
     if (!res.ok) setError(res.error);
   };
@@ -260,6 +263,30 @@ export default function SalesPage() {
         onSearch={setSearch}
         onAdd={canCreate ? openComposer : undefined}
         addLabel="New sale"
+        actions={
+          <ExportMenu
+            filename="sales"
+            title="Sales list"
+            columns={[
+              { key: "invoiceNo", label: "Invoice" },
+              { key: "invoiceDate", label: "Date" },
+              { key: "customerName", label: "Customer" },
+              { key: "paymentMode", label: "Mode" },
+              { key: "grandTotal", label: "Total" },
+              { key: "paidAmount", label: "Paid" },
+              { key: "status", label: "Status" },
+            ]}
+            rows={filtered.map((r) => ({
+              invoiceNo: r.invoiceNo,
+              invoiceDate: r.invoiceDate,
+              customerName: r.customerName || "Walk-in",
+              paymentMode: r.paymentMode,
+              grandTotal: r.grandTotal,
+              paidAmount: r.paidAmount,
+              status: r.status,
+            }))}
+          />
+        }
       />
 
       {loading ? (
@@ -283,9 +310,7 @@ export default function SalesPage() {
                   <Button variant="ghost" size="sm" onClick={() => void openView(row)} title="View">
                     <Eye size={14} />
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => void printSale(row)} title="Print">
-                    <Printer size={14} />
-                  </Button>
+                  <PrintMenu onPrint={(size) => printSale(row, size)} />
                   {canCreate ? (
                     <Button variant="ghost" size="sm" onClick={() => void onDelete(row)} title="Delete">
                       <Trash2 size={14} />
@@ -451,7 +476,7 @@ export default function SalesPage() {
             step="0.01"
             value={paidAmount}
             onChange={(e) => setPaidAmount(e.target.value)}
-            placeholder={String(grand)}
+            placeholder={grand ? String(grand) : undefined}
           />
         </div>
 
@@ -474,9 +499,12 @@ export default function SalesPage() {
               Close
             </Button>
             {viewing ? (
-              <Button onClick={() => void printSale(viewing)}>
-                <Printer size={14} /> Print
-              </Button>
+              <PrintMenu
+                variant="primary"
+                size="md"
+                label="Print"
+                onPrint={(size) => printSale(viewing, size)}
+              />
             ) : null}
           </>
         }

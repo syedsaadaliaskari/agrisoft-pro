@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
+import { ExportMenu } from "@/components/ExportMenu";
 import {
   Alert,
   Button,
@@ -137,7 +138,36 @@ export default function CustomersPage() {
         </div>
       ) : null}
 
-      <PageToolbar search={search} onSearch={setSearch} onAdd={openCreate} addLabel="Add customer" />
+      <PageToolbar
+        search={search}
+        onSearch={setSearch}
+        onAdd={openCreate}
+        addLabel="Add customer"
+        actions={
+          <ExportMenu
+            filename="customers"
+            title="Customers"
+            columns={[
+              { key: "code", label: "Code" },
+              { key: "name", label: "Name" },
+              { key: "phone", label: "Phone" },
+              { key: "city", label: "City" },
+              { key: "opening", label: "Opening" },
+              { key: "creditLimit", label: "Credit limit" },
+              { key: "status", label: "Status" },
+            ]}
+            rows={filtered.map((r) => ({
+              code: r.code,
+              name: r.name,
+              phone: r.phone ?? "",
+              city: r.city ?? "",
+              opening: `${r.openingBalance} ${r.balanceType === "debit" ? "Dr" : "Cr"}`,
+              creditLimit: r.creditLimit,
+              status: r.isActive ? "Active" : "Inactive",
+            }))}
+          />
+        }
+      />
 
       {loading ? (
         <p className="text-sm text-[var(--text-muted)]">Loading...</p>
@@ -196,13 +226,11 @@ export default function CustomersPage() {
             label="Code (auto if blank)"
             value={form.code}
             onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
-            placeholder="CUS-00004"
           />
           <Input
             label="Name"
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            placeholder="Ahmed Farmer"
           />
           <Input
             label="Phone"

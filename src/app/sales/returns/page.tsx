@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
+import { ExportMenu } from "@/components/ExportMenu";
+import { PrintMenu } from "@/components/PrintMenu";
 import {
   Alert,
   Button,
@@ -14,11 +16,13 @@ import {
   Textarea,
 } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
+import { buildSaleReturnPrintHtml } from "@/lib/print";
 import type {
   Account,
   Customer,
   InventoryRow,
   PaymentMode,
+  ReceiptSize,
   Sale,
   SaleReturn,
 } from "@shared/ipc";
@@ -196,6 +200,21 @@ export default function SaleReturnsPage() {
     await load();
   };
 
+  const printReturn = async (row: SaleReturn, size: ReceiptSize = "thermal") => {
+    let toPrint = row;
+    if (!row.items?.length) {
+      const res = await getApi().getSaleReturn(row.id);
+      if (!res.ok) {
+        setError(res.error);
+        return;
+      }
+      toPrint = res.data;
+    }
+    const html = buildSaleReturnPrintHtml(toPrint, size);
+    const res = await getApi().printHtml(html);
+    if (!res.ok) setError(res.error);
+  };
+
   return (
     <AppShell
       title="Sale Return"
@@ -208,13 +227,38 @@ export default function SaleReturnsPage() {
         </div>
       ) : null}
 
-      <PageToolbar search={search} onSearch={setSearch} onAdd={openCreate} addLabel="New return" />
+      <PageToolbar
+        search={search}
+        onSearch={setSearch}
+        onAdd={openCreate}
+        addLabel="New return"
+        actions={
+          <ExportMenu
+            filename="sale-returns"
+            title="Sale returns"
+            columns={[
+              { key: "returnNo", label: "Return #" },
+              { key: "returnDate", label: "Date" },
+              { key: "customerName", label: "Customer" },
+              { key: "grandTotal", label: "Total" },
+              { key: "notes", label: "Notes" },
+            ]}
+            rows={filtered.map((r) => ({
+              returnNo: r.returnNo,
+              returnDate: r.returnDate,
+              customerName: r.customerName ?? "",
+              grandTotal: r.grandTotal,
+              notes: r.notes ?? "",
+            }))}
+          />
+        }
+      />
 
       {loading ? (
         <p className="text-sm text-[var(--text-muted)]">Loading...</p>
       ) : (
         <DataTable
-          headers={["Return #", "Date", "Customer", "Total", "Notes"]}
+          headers={["Return #", "Date", "Customer", "Total", "Notes", "Actions"]}
           empty={filtered.length === 0}
         >
           {filtered.map((row) => (
@@ -224,6 +268,9 @@ export default function SaleReturnsPage() {
               <td className="px-4 py-3">{row.customerName || "—"}</td>
               <td className="px-4 py-3">{row.grandTotal.toLocaleString()}</td>
               <td className="px-4 py-3 text-[var(--text-muted)]">{row.notes || "—"}</td>
+              <td className="px-4 py-3">
+                <PrintMenu onPrint={(size) => printReturn(row, size)} />
+              </td>
             </tr>
           ))}
         </DataTable>

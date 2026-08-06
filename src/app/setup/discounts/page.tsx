@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
+import { ExportMenu } from "@/components/ExportMenu";
 import {
   Alert,
   Button,
@@ -111,7 +112,26 @@ export default function DiscountsPage() {
         search={search}
         onSearch={setSearch}
         onAdd={openCreate}
-        addLabel="Add discount" />
+        addLabel="Add discount"
+        actions={
+          <ExportMenu
+            filename="discounts"
+            title="Discounts"
+            columns={[
+              { key: "name", label: "Name" },
+              { key: "type", label: "Type" },
+              { key: "value", label: "Value" },
+              { key: "status", label: "Status" },
+            ]}
+            rows={filtered.map((r) => ({
+              name: r.name,
+              type: r.type,
+              value: r.type === "percent" ? `${r.value}%` : r.value,
+              status: r.isActive ? "Active" : "Inactive",
+            }))}
+          />
+        }
+      />
 
       {loading ? (
         <p className="text-sm text-[var(--text-muted)]">Loading...</p>
@@ -162,7 +182,6 @@ export default function DiscountsPage() {
           label="Name"
           value={form.name}
           onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-          placeholder="Festival 10%"
         />
         <Select
           label="Type"

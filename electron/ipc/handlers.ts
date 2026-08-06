@@ -19,6 +19,9 @@ import { registerProductHandlers } from "./products";
 import { registerPartyHandlers } from "./parties";
 import { registerAccountHandlers } from "./accounts";
 import { registerSalesHandlers } from "./sales";
+import { registerPurchaseHandlers } from "./purchases";
+import { registerLedgerHandlers } from "./ledger";
+import { registerDashboardHandlers } from "./dashboard";
 import { registerSettingsHandlers } from "./settings";
 import { registerUserHandlers } from "./users";
 import { getCurrentSession, setCurrentSession } from "./session";
@@ -57,11 +60,6 @@ function loadUserSession(userId: string): SessionUser | null {
     permissions: perms.map((p) => p.code),
   };
 }
-
-const notReady = (): { ok: false; error: string } => ({
-  ok: false,
-  error: "Not implemented yet — coming in a later build step",
-});
 
 export function registerIpcHandlers(appVersion: string, isDev: boolean): void {
   ipcMain.handle(IPC.PING, async () => "pong");
@@ -150,36 +148,9 @@ export function registerIpcHandlers(appVersion: string, isDev: boolean): void {
   registerPartyHandlers();
   registerAccountHandlers();
   registerSalesHandlers();
+  registerPurchaseHandlers();
+  registerLedgerHandlers();
+  registerDashboardHandlers();
   registerSettingsHandlers();
   registerUserHandlers();
-
-  const stubChannels = [
-    IPC.VOUCHERS_POST,
-    IPC.VOUCHERS_GET,
-    IPC.VOUCHERS_CANCEL,
-    IPC.LEDGER_ACCOUNT,
-    IPC.LEDGER_PARTY,
-    IPC.TX_RECEIVE,
-    IPC.TX_PAY,
-    IPC.TX_EXPENSE,
-    IPC.TX_INCOME,
-    IPC.PURCHASES_LIST,
-    IPC.PURCHASES_GET,
-    IPC.PURCHASES_LIST_BY_VENDOR,
-    IPC.PURCHASES_CREATE,
-    IPC.PURCHASES_DELETE,
-    IPC.PURCHASE_RETURNS_LIST,
-    IPC.PURCHASE_RETURNS_CREATE,
-    IPC.DASHBOARD_SUMMARY,
-    IPC.REPORTS_SALES,
-    IPC.REPORTS_PURCHASES,
-    IPC.REPORTS_PROFIT,
-    IPC.REPORTS_STOCK,
-    IPC.REPORTS_TAX,
-    IPC.REPORTS_DELETED,
-  ] as const;
-
-  for (const channel of stubChannels) {
-    ipcMain.handle(channel, async () => notReady());
-  }
 }

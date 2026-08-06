@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
+import { ExportMenu } from "@/components/ExportMenu";
 import {
   Alert,
   Button,
@@ -130,7 +131,30 @@ export default function CategoriesPage() {
         </div>
       ) : null}
 
-      <PageToolbar search={search} onSearch={setSearch} onAdd={openCreate} addLabel="Add category" />
+      <PageToolbar
+        search={search}
+        onSearch={setSearch}
+        onAdd={openCreate}
+        addLabel="Add category"
+        actions={
+          <ExportMenu
+            filename="categories"
+            title="Categories"
+            columns={[
+              { key: "name", label: "Name" },
+              { key: "parent", label: "Parent" },
+              { key: "description", label: "Description" },
+              { key: "status", label: "Status" },
+            ]}
+            rows={filtered.map((r) => ({
+              name: r.name,
+              parent: r.parentId ? byId[r.parentId]?.name ?? "" : "",
+              description: r.description ?? "",
+              status: r.isActive ? "Active" : "Inactive",
+            }))}
+          />
+        }
+      />
 
       {loading ? (
         <p className="text-sm text-[var(--text-muted)]">Loading...</p>
@@ -184,7 +208,6 @@ export default function CategoriesPage() {
           label="Name"
           value={form.name}
           onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-          placeholder="Seeds"
         />
         <Select
           label="Parent category"

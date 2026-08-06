@@ -80,6 +80,7 @@ const api: ElectronAPI = {
   createPurchase: (input) => ipcRenderer.invoke(IPC.PURCHASES_CREATE, input),
   deletePurchase: (id) => ipcRenderer.invoke(IPC.PURCHASES_DELETE, id),
   listPurchaseReturns: () => ipcRenderer.invoke(IPC.PURCHASE_RETURNS_LIST),
+  getPurchaseReturn: (id) => ipcRenderer.invoke(IPC.PURCHASE_RETURNS_GET, id),
   createPurchaseReturn: (input) => ipcRenderer.invoke(IPC.PURCHASE_RETURNS_CREATE, input),
 
   listSales: () => ipcRenderer.invoke(IPC.SALES_LIST),
@@ -88,6 +89,7 @@ const api: ElectronAPI = {
   createSale: (input) => ipcRenderer.invoke(IPC.SALES_CREATE, input),
   deleteSale: (id) => ipcRenderer.invoke(IPC.SALES_DELETE, id),
   listSaleReturns: () => ipcRenderer.invoke(IPC.SALE_RETURNS_LIST),
+  getSaleReturn: (id) => ipcRenderer.invoke(IPC.SALE_RETURNS_GET, id),
   createSaleReturn: (input) => ipcRenderer.invoke(IPC.SALE_RETURNS_CREATE, input),
 
   getDashboardSummary: () => ipcRenderer.invoke(IPC.DASHBOARD_SUMMARY),

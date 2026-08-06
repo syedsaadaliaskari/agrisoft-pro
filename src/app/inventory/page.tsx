@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { SlidersHorizontal } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
+import { ExportMenu } from "@/components/ExportMenu";
 import {
   Alert,
   Button,
@@ -99,13 +100,43 @@ export default function InventoryPage() {
         search={search}
         onSearch={setSearch}
         actions={
-          <Button
-            variant={lowOnly ? "primary" : "secondary"}
-            size="sm"
-            onClick={() => setLowOnly((v) => !v)}
-          >
-            {lowOnly ? "Showing low stock" : "Low stock only"}
-          </Button>
+          <>
+            <ExportMenu
+              filename="inventory"
+              title="Inventory"
+              columns={[
+                { key: "product", label: "Product" },
+                { key: "productSku", label: "Product SKU" },
+                { key: "size", label: "Pack" },
+                { key: "color", label: "Grade" },
+                { key: "variantSku", label: "SKU" },
+                { key: "stockQty", label: "Stock" },
+                { key: "reorderLevel", label: "Reorder" },
+                { key: "costPrice", label: "Cost" },
+                { key: "salePrice", label: "Sale" },
+                { key: "status", label: "Status" },
+              ]}
+              rows={filtered.map((r) => ({
+                product: r.productName,
+                productSku: r.productSku,
+                size: r.size,
+                color: r.color,
+                variantSku: r.variantSku,
+                stockQty: r.stockQty,
+                reorderLevel: r.reorderLevel,
+                costPrice: r.costPrice,
+                salePrice: r.salePrice,
+                status: r.isActive ? "Active" : "Inactive",
+              }))}
+            />
+            <Button
+              variant={lowOnly ? "primary" : "secondary"}
+              size="sm"
+              onClick={() => setLowOnly((v) => !v)}
+            >
+              {lowOnly ? "Showing low stock" : "Low stock only"}
+            </Button>
+          </>
         }
       />
 
@@ -190,12 +221,7 @@ export default function InventoryPage() {
           value={newQty}
           onChange={(e) => setNewQty(e.target.value)}
         />
-        <Textarea
-          label="Notes"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Physical count / correction"
-        />
+        <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
       </Modal>
     </AppShell>
   );

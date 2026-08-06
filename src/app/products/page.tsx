@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Layers, Pencil, Plus, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
+import { ExportMenu } from "@/components/ExportMenu";
 import {
   Alert,
   Button,
@@ -246,7 +247,40 @@ export default function ProductsPage() {
         </div>
       ) : null}
 
-      <PageToolbar search={search} onSearch={setSearch} onAdd={openCreate} addLabel="Add product" />
+      <PageToolbar
+        search={search}
+        onSearch={setSearch}
+        onAdd={openCreate}
+        addLabel="Add product"
+        actions={
+          <ExportMenu
+            filename="products"
+            title="Products"
+            columns={[
+              { key: "sku", label: "SKU" },
+              { key: "name", label: "Name" },
+              { key: "category", label: "Category" },
+              { key: "unit", label: "Unit" },
+              { key: "costPrice", label: "Cost" },
+              { key: "salePrice", label: "Sale" },
+              { key: "stock", label: "Stock" },
+              { key: "packs", label: "Packs" },
+              { key: "status", label: "Status" },
+            ]}
+            rows={filtered.map((r) => ({
+              sku: r.sku,
+              name: r.name,
+              category: r.categoryName ?? "",
+              unit: r.unitName ?? "",
+              costPrice: r.costPrice,
+              salePrice: r.salePrice,
+              stock: r.totalStock ?? 0,
+              packs: r.variantCount ?? 0,
+              status: r.isActive ? "Active" : "Inactive",
+            }))}
+          />
+        }
+      />
 
       {loading ? (
         <p className="text-sm text-[var(--text-muted)]">Loading...</p>
@@ -329,7 +363,6 @@ export default function ProductsPage() {
             label="Name"
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            placeholder="Urea Fertilizer"
           />
           <Input
             label="Brand"
@@ -367,7 +400,6 @@ export default function ProductsPage() {
             label="Season / crop cycle"
             value={form.season}
             onChange={(e) => setForm((f) => ({ ...f, season: e.target.value }))}
-            placeholder="Rabi / Kharif"
           />
           <Input
             label="Cost price"
@@ -441,13 +473,11 @@ export default function ProductsPage() {
               label="Pack size"
               value={packForm.size}
               onChange={(e) => setPackForm((f) => ({ ...f, size: e.target.value }))}
-              placeholder="50kg"
             />
             <Input
               label="Grade / type"
               value={packForm.color}
               onChange={(e) => setPackForm((f) => ({ ...f, color: e.target.value }))}
-              placeholder="Standard"
             />
             <Input
               label="SKU (auto if blank)"

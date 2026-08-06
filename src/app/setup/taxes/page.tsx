@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
+import { ExportMenu } from "@/components/ExportMenu";
 import {
   Alert,
   Button,
@@ -108,7 +109,26 @@ export default function TaxesPage() {
         search={search}
         onSearch={setSearch}
         onAdd={openCreate}
-        addLabel="Add tax" />
+        addLabel="Add tax"
+        actions={
+          <ExportMenu
+            filename="taxes"
+            title="Taxes"
+            columns={[
+              { key: "name", label: "Name" },
+              { key: "rate", label: "Rate" },
+              { key: "mode", label: "Mode" },
+              { key: "status", label: "Status" },
+            ]}
+            rows={filtered.map((r) => ({
+              name: r.name,
+              rate: `${r.rate}%`,
+              mode: r.isInclusive ? "Inclusive" : "Exclusive",
+              status: r.isActive ? "Active" : "Inactive",
+            }))}
+          />
+        }
+      />
 
       {loading ? (
         <p className="text-sm text-[var(--text-muted)]">Loading...</p>
@@ -162,7 +182,6 @@ export default function TaxesPage() {
           label="Name"
           value={form.name}
           onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-          placeholder="GST 5%"
         />
         <Input
           label="Rate (%)"
