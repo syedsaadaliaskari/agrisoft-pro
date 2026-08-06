@@ -24,6 +24,7 @@ import { registerLedgerHandlers } from "./ledger";
 import { registerDashboardHandlers } from "./dashboard";
 import { registerSettingsHandlers } from "./settings";
 import { registerUserHandlers } from "./users";
+import { registerCompanyHandlers } from "./companies";
 import { getCurrentSession, setCurrentSession } from "./session";
 import { writeAuditLog } from "../db/audit";
 
@@ -153,4 +154,5 @@ export function registerIpcHandlers(appVersion: string, isDev: boolean): void {
   registerDashboardHandlers();
   registerSettingsHandlers();
   registerUserHandlers();
+  registerCompanyHandlers();
 }

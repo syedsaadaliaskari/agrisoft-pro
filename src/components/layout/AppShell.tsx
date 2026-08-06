@@ -28,13 +28,24 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
     }
   }, [hydrated, user, router]);
 
-  if (!hydrated || !user) {
+  // Only block first paint — keep shell visible while session soft-refreshes
+  if (!hydrated && !user) {
     return (
       <div className="flex min-h-screen items-center justify-center text-[var(--text-muted)]">
         Loading…
       </div>
     );
   }
+
+  if (hydrated && !user) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-[var(--text-muted)]">
+        Redirecting…
+      </div>
+    );
+  }
+
+  if (!user) return null;
 
   if (permission && !hasPermission(user, permission)) {
     return (

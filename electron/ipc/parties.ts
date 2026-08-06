@@ -12,7 +12,9 @@ import {
 } from "../../shared/ipc";
 import { getDb } from "../db";
 import { nextDocumentNumber } from "../db/counters";
-import { customers, vendors, sales, purchases } from "../db/schema";
+import { requireAccountByCode } from "../db/accounts";
+import { money } from "../db/ledger";
+import { customers, vendors, sales, purchases, accounts } from "../db/schema";
 import { requirePermission, PermissionError } from "./session";
 
 function ok<T>(data: T): ActionResult<T> {
@@ -31,6 +33,40 @@ function asError(err: unknown, fallback = "Request failed"): string {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+/** Party opening signed: debit = positive (customer owes / vendor prepaid). */
+function partyOpeningSigned(amount: number, balanceType: string): number {
+  const amt = money(Number(amount) || 0);
+  return balanceType === "debit" ? amt : -amt;
+}
+
+/**
+ * Keep AR (1300) / AP (2100) account opening in sync with party openings.
+ * Customer debit OB increases AR; vendor credit OB increases AP.
+ */
+function syncControlOpening(
+  partyType: "customer" | "vendor",
+  oldSigned: number,
+  newSigned: number
+) {
+  const delta = money(newSigned - oldSigned);
+  if (delta === 0) return;
+  const db = getDb();
+  if (partyType === "customer") {
+    const ar = requireAccountByCode(db, "1300", "Accounts Receivable");
+    db.update(accounts)
+      .set({ openingBalance: money(ar.openingBalance + delta), updatedAt: nowIso() })
+      .where(eq(accounts.id, ar.id))
+      .run();
+  } else {
+    // Vendor credit OB (negative partySigned) increases AP liability opening
+    const ap = requireAccountByCode(db, "2100", "Accounts Payable");
+    db.update(accounts)
+      .set({ openingBalance: money(ap.openingBalance - delta), updatedAt: nowIso() })
+      .where(eq(accounts.id, ap.id))
+      .run();
+  }
 }
 
 type Handler<T> = () => Promise<ActionResult<T>> | ActionResult<T>;
@@ -116,6 +152,8 @@ export function registerPartyHandlers(): void {
       );
 
       const id = randomUUID();
+      const openingBalance = Number(input.openingBalance ?? 0);
+      const balanceType = input.balanceType ?? "debit";
       db.insert(customers)
         .values({
           id,
@@ -125,12 +163,14 @@ export function registerPartyHandlers(): void {
           email: input.email?.trim() || null,
           address: input.address?.trim() || null,
           city: input.city?.trim() || null,
-          openingBalance: Number(input.openingBalance ?? 0),
-          balanceType: input.balanceType ?? "debit",
+          openingBalance,
+          balanceType,
           creditLimit: Number(input.creditLimit ?? 0),
           isActive: input.isActive ?? true,
         })
         .run();
+
+      syncControlOpening("customer", 0, partyOpeningSigned(openingBalance, balanceType));
 
       const row = db.select().from(customers).where(eq(customers.id, id)).get()!;
       return ok(mapCustomer(row));
@@ -155,6 +195,13 @@ export function registerPartyHandlers(): void {
           code = input.code.trim();
         }
 
+        const oldSigned = partyOpeningSigned(current.openingBalance, current.balanceType);
+        const openingBalance =
+          input.openingBalance === undefined
+            ? current.openingBalance
+            : Number(input.openingBalance);
+        const balanceType = input.balanceType ?? current.balanceType;
+
         db.update(customers)
           .set({
             code,
@@ -163,11 +210,8 @@ export function registerPartyHandlers(): void {
             email: input.email === undefined ? current.email : input.email?.trim() || null,
             address: input.address === undefined ? current.address : input.address?.trim() || null,
             city: input.city === undefined ? current.city : input.city?.trim() || null,
-            openingBalance:
-              input.openingBalance === undefined
-                ? current.openingBalance
-                : Number(input.openingBalance),
-            balanceType: input.balanceType ?? current.balanceType,
+            openingBalance,
+            balanceType,
             creditLimit:
               input.creditLimit === undefined ? current.creditLimit : Number(input.creditLimit),
             isActive: input.isActive ?? current.isActive,
@@ -175,6 +219,8 @@ export function registerPartyHandlers(): void {
           })
           .where(eq(customers.id, id))
           .run();
+
+        syncControlOpening("customer", oldSigned, partyOpeningSigned(openingBalance, balanceType));
 
         const row = db.select().from(customers).where(eq(customers.id, id)).get()!;
         return ok(mapCustomer(row));
@@ -191,6 +237,11 @@ export function registerPartyHandlers(): void {
         db.select({ value: count() }).from(sales).where(eq(sales.customerId, id)).get()?.value ?? 0;
       if (used > 0) return fail("Cannot delete: customer has sales. Deactivate instead.");
 
+      syncControlOpening(
+        "customer",
+        partyOpeningSigned(current.openingBalance, current.balanceType),
+        0
+      );
       db.delete(customers).where(eq(customers.id, id)).run();
       return ok(undefined);
     })
@@ -214,6 +265,8 @@ export function registerPartyHandlers(): void {
       );
 
       const id = randomUUID();
+      const openingBalance = Number(input.openingBalance ?? 0);
+      const balanceType = input.balanceType ?? "credit";
       db.insert(vendors)
         .values({
           id,
@@ -223,11 +276,13 @@ export function registerPartyHandlers(): void {
           email: input.email?.trim() || null,
           address: input.address?.trim() || null,
           city: input.city?.trim() || null,
-          openingBalance: Number(input.openingBalance ?? 0),
-          balanceType: input.balanceType ?? "credit",
+          openingBalance,
+          balanceType,
           isActive: input.isActive ?? true,
         })
         .run();
+
+      syncControlOpening("vendor", 0, partyOpeningSigned(openingBalance, balanceType));
 
       const row = db.select().from(vendors).where(eq(vendors.id, id)).get()!;
       return ok(mapVendor(row));
@@ -252,6 +307,13 @@ export function registerPartyHandlers(): void {
           code = input.code.trim();
         }
 
+        const oldSigned = partyOpeningSigned(current.openingBalance, current.balanceType);
+        const openingBalance =
+          input.openingBalance === undefined
+            ? current.openingBalance
+            : Number(input.openingBalance);
+        const balanceType = input.balanceType ?? current.balanceType;
+
         db.update(vendors)
           .set({
             code,
@@ -260,16 +322,15 @@ export function registerPartyHandlers(): void {
             email: input.email === undefined ? current.email : input.email?.trim() || null,
             address: input.address === undefined ? current.address : input.address?.trim() || null,
             city: input.city === undefined ? current.city : input.city?.trim() || null,
-            openingBalance:
-              input.openingBalance === undefined
-                ? current.openingBalance
-                : Number(input.openingBalance),
-            balanceType: input.balanceType ?? current.balanceType,
+            openingBalance,
+            balanceType,
             isActive: input.isActive ?? current.isActive,
             updatedAt: nowIso(),
           })
           .where(eq(vendors.id, id))
           .run();
+
+        syncControlOpening("vendor", oldSigned, partyOpeningSigned(openingBalance, balanceType));
 
         const row = db.select().from(vendors).where(eq(vendors.id, id)).get()!;
         return ok(mapVendor(row));
@@ -287,6 +348,11 @@ export function registerPartyHandlers(): void {
         0;
       if (used > 0) return fail("Cannot delete: vendor has purchases. Deactivate instead.");
 
+      syncControlOpening(
+        "vendor",
+        partyOpeningSigned(current.openingBalance, current.balanceType),
+        0
+      );
       db.delete(vendors).where(eq(vendors.id, id)).run();
       return ok(undefined);
     })

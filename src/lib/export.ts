@@ -1,4 +1,5 @@
 import type { ActionResult } from "@shared/ipc";
+import { getApi, isElectron } from "@/lib/api";
 
 export type ExportColumn<T extends Record<string, unknown> = Record<string, unknown>> = {
   key: keyof T & string;
@@ -13,7 +14,36 @@ function cellValue(v: unknown): string {
   return String(v);
 }
 
-function downloadBlob(filename: string, blob: Blob) {
+function stamp() {
+  return new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+}
+
+function toBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+async function saveBytes(
+  filename: string,
+  bytes: Uint8Array,
+  filters: { name: string; extensions: string[] }[]
+): Promise<string | null> {
+  if (isElectron()) {
+    const res = await getApi().saveFile({
+      defaultPath: filename,
+      dataBase64: toBase64(bytes),
+      filters,
+    });
+    if (!res.ok) return res.error;
+    return null;
+  }
+
+  // Browser fallback
+  const blob = new Blob([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer]);
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -22,34 +52,37 @@ function downloadBlob(filename: string, blob: Blob) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1500);
+  return null;
 }
 
-function stamp() {
-  return new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+function textEncoder(s: string): Uint8Array {
+  return new TextEncoder().encode(s);
 }
 
-export function exportJson(filename: string, rows: unknown[]) {
-  const blob = new Blob([JSON.stringify(rows, null, 2)], { type: "application/json;charset=utf-8" });
-  downloadBlob(`${filename}-${stamp()}.json`, blob);
+export async function exportJson(filename: string, rows: unknown[]): Promise<string | null> {
+  const name = `${filename}-${stamp()}.json`;
+  return saveBytes(name, textEncoder(JSON.stringify(rows, null, 2)), [
+    { name: "JSON", extensions: ["json"] },
+  ]);
 }
 
 /** Excel-friendly CSV (UTF-8 BOM). Opens cleanly in Excel. */
-export function exportExcelCsv<T extends Record<string, unknown>>(
+export async function exportExcelCsv<T extends Record<string, unknown>>(
   filename: string,
   columns: ExportColumn<T>[],
   rows: T[]
-) {
+): Promise<string | null> {
   const escape = (s: string) => {
     if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
     return s;
   };
   const header = columns.map((c) => escape(c.label)).join(",");
-  const lines = rows.map((row) =>
-    columns.map((c) => escape(cellValue(row[c.key]))).join(",")
-  );
+  const lines = rows.map((row) => columns.map((c) => escape(cellValue(row[c.key]))).join(","));
   const csv = "\uFEFF" + [header, ...lines].join("\r\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  downloadBlob(`${filename}-${stamp()}.csv`, blob);
+  const name = `${filename}-${stamp()}.csv`;
+  return saveBytes(name, textEncoder(csv), [
+    { name: "Excel CSV", extensions: ["csv"] },
+  ]);
 }
 
 function escHtml(s: string) {
@@ -103,12 +136,25 @@ export function buildExportPdfHtml<T extends Record<string, unknown>>(opts: {
 </html>`;
 }
 
+/** Save PDF as HTML file (open in browser → Print → Save as PDF). No popup window. */
+export async function exportPdfFile<T extends Record<string, unknown>>(opts: {
+  title: string;
+  columns: ExportColumn<T>[];
+  rows: T[];
+  shopName?: string;
+  filename?: string;
+}): Promise<string | null> {
+  const html = buildExportPdfHtml(opts);
+  const name = `${opts.filename || "export"}-${stamp()}.html`;
+  return saveBytes(name, textEncoder(html), [
+    { name: "HTML (print to PDF)", extensions: ["html"] },
+  ]);
+}
+
+/** @deprecated prefer exportPdfFile — kept for any callers using print window */
 export async function exportPdfViaPrint<T extends Record<string, unknown>>(
-  printHtml: (html: string) => Promise<ActionResult<void>>,
+  printHtml: (html: string) => Promise<ActionResult>,
   opts: { title: string; columns: ExportColumn<T>[]; rows: T[]; shopName?: string }
 ): Promise<string | null> {
-  const html = buildExportPdfHtml(opts);
-  const res = await printHtml(html);
-  if (!res.ok) return res.error;
-  return null;
+  return exportPdfFile(opts);
 }

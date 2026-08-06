@@ -37,6 +37,11 @@ export const PERMISSION_CATALOG = [
   { code: "reports.view", module: "reports", description: "View reports" },
   { code: "settings.manage", module: "settings", description: "Manage settings" },
   { code: "users.manage", module: "users", description: "Manage users & roles" },
+  {
+    code: "platform.view",
+    module: "platform",
+    description: "Super Admin: client companies & demand by area",
+  },
 ] as const;
 
 const DEFAULT_ACCOUNTS = [
@@ -85,6 +90,21 @@ export function ensurePermissions(db: Db): void {
   const adminRole = db.select().from(roles).where(eq(roles.name, "Admin")).get();
   if (!adminRole) return;
 
+  // Ensure Super Admin role exists (same access as Admin + platform catalog)
+  let superRole = db.select().from(roles).where(eq(roles.name, "Super Admin")).get();
+  if (!superRole) {
+    const id = randomUUID();
+    db.insert(roles)
+      .values({
+        id,
+        name: "Super Admin",
+        description: "Vendor control: companies registry & full access",
+        isSystem: true,
+      })
+      .run();
+    superRole = db.select().from(roles).where(eq(roles.id, id)).get()!;
+  }
+
   const linked = new Set(
     db
       .select({ permissionId: rolePermissions.permissionId })
@@ -103,6 +123,32 @@ export function ensurePermissions(db: Db): void {
         permissionId: p.id,
       })
       .run();
+  }
+
+  // Mirror all permissions onto Super Admin
+  const superLinked = new Set(
+    db
+      .select({ permissionId: rolePermissions.permissionId })
+      .from(rolePermissions)
+      .where(eq(rolePermissions.roleId, superRole.id))
+      .all()
+      .map((r) => r.permissionId)
+  );
+  for (const p of byCode.values()) {
+    if (superLinked.has(p.id)) continue;
+    db.insert(rolePermissions)
+      .values({
+        id: randomUUID(),
+        roleId: superRole.id,
+        permissionId: p.id,
+      })
+      .run();
+  }
+
+  // Promote default admin user to Super Admin when that role exists
+  const adminUser = db.select().from(users).where(eq(users.username, "admin")).get();
+  if (adminUser && adminUser.roleId === adminRole.id && superRole) {
+    db.update(users).set({ roleId: superRole.id, updatedAt: new Date().toISOString() }).where(eq(users.id, adminUser.id)).run();
   }
 }
 

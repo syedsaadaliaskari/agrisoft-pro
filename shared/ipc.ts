@@ -106,7 +106,10 @@ export const IPC = {
   TX_PAY: "transactions:pay",
   TX_PAY_UPDATE: "transactions:payUpdate",
   TX_EXPENSE: "transactions:expense",
+  TX_EXPENSE_UPDATE: "transactions:expenseUpdate",
   TX_INCOME: "transactions:income",
+  TX_INCOME_UPDATE: "transactions:incomeUpdate",
+  VOUCHERS_UPDATE: "vouchers:update",
   // Dashboard / reports
   DASHBOARD_SUMMARY: "dashboard:summary",
   REPORTS_SALES: "reports:sales",
@@ -115,6 +118,13 @@ export const IPC = {
   REPORTS_STOCK: "reports:stock",
   REPORTS_TAX: "reports:tax",
   REPORTS_DELETED: "reports:deleted",
+
+  // Platform — local client companies registry (software vendor view)
+  COMPANIES_LIST: "companies:list",
+  COMPANIES_CREATE: "companies:create",
+  COMPANIES_UPDATE: "companies:update",
+  COMPANIES_DELETE: "companies:delete",
+  COMPANIES_DEMAND: "companies:demand",
 
   // Settings / users / audit
   SETTINGS_GET_ALL: "settings:getAll",
@@ -128,8 +138,9 @@ export const IPC = {
   ROLES_SET_PERMISSIONS: "roles:setPermissions",
   AUDIT_LIST: "audit:list",
 
-  // App utilities — print self-contained HTML in a dedicated window
+  // App utilities
   APP_PRINT_HTML: "app:printHtml",
+  APP_SAVE_FILE: "app:saveFile",
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
@@ -1020,6 +1031,7 @@ export type DeletedDocumentRow = {
   paymentMode: string;
   grandTotal: number;
   deletedAt: string;
+  /** Display name of the user who deleted (full name or username) */
   deletedBy: string | null;
   details: string | null;
 };
@@ -1031,6 +1043,37 @@ export type DeletedDocumentsReport = {
   totalAmount: number;
   salesCount: number;
   purchasesCount: number;
+};
+
+/** Software-vendor registry: companies that started using Agri Soft Pro (local on this PC). */
+export type ClientCompany = {
+  id: string;
+  companyName: string;
+  area: string;
+  joinedAt: string;
+  notes: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ClientCompanyInput = {
+  companyName: string;
+  area: string;
+  joinedAt: string;
+  notes?: string | null;
+  isActive?: boolean;
+};
+
+export type AreaDemandRow = {
+  area: string;
+  companyCount: number;
+};
+
+export type CompaniesDemandSummary = {
+  totalCompanies: number;
+  activeCompanies: number;
+  areaDemand: AreaDemandRow[];
 };
 
 export type AppSetting = {
@@ -1178,6 +1221,7 @@ export type ElectronAPI = {
   listAccounts: (filter?: AccountListFilter) => Promise<ActionResult<Account[]>>;
   getAccount: (id: string) => Promise<ActionResult<Account>>;
   postVoucher: (input: PostVoucherInput) => Promise<ActionResult<Voucher>>;
+  updateVoucher: (id: string, input: PostVoucherInput) => Promise<ActionResult<Voucher>>;
   getVoucher: (id: string) => Promise<ActionResult<Voucher>>;
   listVouchers: (filter?: VoucherListFilter) => Promise<ActionResult<Voucher[]>>;
   cancelVoucher: (id: string) => Promise<ActionResult>;
@@ -1193,7 +1237,9 @@ export type ElectronAPI = {
   makePayment: (input: MakePaymentInput) => Promise<ActionResult<Voucher>>;
   updateMakePayment: (id: string, input: MakePaymentInput) => Promise<ActionResult<Voucher>>;
   postExpense: (input: ExpenseVoucherInput) => Promise<ActionResult<Voucher>>;
+  updateExpense: (id: string, input: ExpenseVoucherInput) => Promise<ActionResult<Voucher>>;
   postIncome: (input: IncomeVoucherInput) => Promise<ActionResult<Voucher>>;
+  updateIncome: (id: string, input: IncomeVoucherInput) => Promise<ActionResult<Voucher>>;
 
   listPurchases: () => Promise<ActionResult<Purchase[]>>;
   getPurchase: (id: string) => Promise<ActionResult<Purchase>>;
@@ -1223,6 +1269,12 @@ export type ElectronAPI = {
   getTaxReport: (query?: ReportDateRange) => Promise<ActionResult<TaxReport>>;
   getDeletedDocumentsReport: (query?: ReportDateRange) => Promise<ActionResult<DeletedDocumentsReport>>;
 
+  listClientCompanies: () => Promise<ActionResult<ClientCompany[]>>;
+  createClientCompany: (input: ClientCompanyInput) => Promise<ActionResult<ClientCompany>>;
+  updateClientCompany: (id: string, input: ClientCompanyInput) => Promise<ActionResult<ClientCompany>>;
+  deleteClientCompany: (id: string) => Promise<ActionResult>;
+  getCompaniesDemand: () => Promise<ActionResult<CompaniesDemandSummary>>;
+
   getSettings: () => Promise<ActionResult<SettingsMap>>;
   updateSettings: (input: SettingsUpdateInput) => Promise<ActionResult<SettingsMap>>;
 
@@ -1237,6 +1289,12 @@ export type ElectronAPI = {
 
   /** Print self-contained HTML via a dedicated Electron print window. */
   printHtml: (html: string) => Promise<ActionResult>;
+  /** Save file bytes via native Save dialog (real download). */
+  saveFile: (input: {
+    defaultPath: string;
+    dataBase64: string;
+    filters?: { name: string; extensions: string[] }[];
+  }) => Promise<ActionResult<{ path: string } | null>>;
 };
 
 declare global {

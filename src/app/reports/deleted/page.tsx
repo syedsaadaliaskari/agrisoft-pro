@@ -28,7 +28,11 @@ export default function DeletedReportPage() {
 
   return (
     <AppShell title="Deleted Data" subtitle="Soft-deleted sales and purchases" permission="reports.view">
-      {error ? <div className="mb-4"><Alert>{error}</Alert></div> : null}
+      {error ? (
+        <div className="mb-4">
+          <Alert>{error}</Alert>
+        </div>
+      ) : null}
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <Input label="From" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
         <Input label="To" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
@@ -43,6 +47,7 @@ export default function DeletedReportPage() {
               { key: "documentDate", label: "Date" },
               { key: "partyName", label: "Party" },
               { key: "grandTotal", label: "Total" },
+              { key: "deletedBy", label: "Deleted by" },
               { key: "deletedAt", label: "Deleted at" },
             ]}
             rows={report.rows.map((r) => ({
@@ -51,6 +56,7 @@ export default function DeletedReportPage() {
               documentDate: r.documentDate,
               partyName: r.partyName ?? "",
               grandTotal: r.grandTotal,
+              deletedBy: r.deletedBy ?? "",
               deletedAt: r.deletedAt.slice(0, 19),
             }))}
           />
@@ -63,7 +69,7 @@ export default function DeletedReportPage() {
             {report.totalAmount.toLocaleString()}
           </p>
           <DataTable
-            headers={["Type", "Doc #", "Date", "Party", "Total", "Deleted at"]}
+            headers={["Type", "Doc #", "Date", "Party", "Total", "Deleted by", "Deleted at"]}
             empty={report.rows.length === 0}
           >
             {report.rows.map((r) => (
@@ -73,6 +79,7 @@ export default function DeletedReportPage() {
                 <td className="px-4 py-3">{r.documentDate}</td>
                 <td className="px-4 py-3">{r.partyName || "—"}</td>
                 <td className="px-4 py-3">{r.grandTotal.toLocaleString()}</td>
+                <td className="px-4 py-3 font-medium">{r.deletedBy || "—"}</td>
                 <td className="px-4 py-3 text-xs text-[var(--text-muted)]">{r.deletedAt.slice(0, 19)}</td>
               </tr>
             ))}

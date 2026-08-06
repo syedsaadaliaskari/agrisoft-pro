@@ -11,9 +11,10 @@ export default function LoginPage() {
   const router = useRouter();
   const { user, hydrated, hydrate, login, loading } = useAuthStore();
   const { theme, toggleTheme } = useTheme();
-  const [username, setUsername] = useState("admin");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     void hydrate();
@@ -27,57 +28,89 @@ export default function LoginPage() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting || loading) return;
     setError("");
+    if (!username.trim() || !password) {
+      setError("Enter username and password");
+      return;
+    }
     if (!isElectron()) {
       setError("Open the desktop app with npm run dev — login needs Electron + SQLite.");
       return;
     }
-    const result = await login(username.trim(), password);
-    if (result.ok) {
-      router.replace("/dashboard");
-    } else {
-      setError(result.error ?? "Login failed");
+    setSubmitting(true);
+    try {
+      const result = await login(username.trim(), password);
+      if (result.ok) {
+        router.replace("/dashboard");
+      } else {
+        setError(result.error ?? "Login failed");
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
+  const busy = loading || submitting;
+
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4">
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage:
+            "radial-gradient(ellipse 70% 55% at 15% 10%, var(--atmosphere-1), transparent), radial-gradient(ellipse 50% 40% at 90% 80%, var(--atmosphere-2), transparent)",
+        }}
+      />
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.35]"
+        style={{
+          backgroundImage:
+            "linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px)",
+          backgroundSize: "56px 56px",
+          maskImage: "radial-gradient(ellipse 70% 70% at 50% 45%, black, transparent)",
+        }}
+      />
+
       <button
         type="button"
         onClick={toggleTheme}
-        className="absolute right-4 top-4 z-10 inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-xs text-[var(--text-muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+        className="absolute right-4 top-4 z-10 inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--bg-elevated)]/90 px-3 py-1.5 text-xs text-[var(--text-muted)] backdrop-blur transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
         title={theme === "light" ? "Switch to dark theme" : "Switch to light theme"}
       >
         {theme === "light" ? <Moon size={14} /> : <Sun size={14} />}
         {theme === "light" ? "Dark" : "Light"}
       </button>
 
-      <div
-        className="pointer-events-none absolute inset-0 opacity-40"
-        style={{
-          backgroundImage:
-            "linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px)",
-          backgroundSize: "48px 48px",
-        }}
-      />
-
-      <div className="relative w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] p-8 shadow-2xl shadow-black/20">
+      <div className="relative w-full max-w-[400px]">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-[var(--accent)] text-[var(--logo-ink)]">
-            <Sprout size={28} strokeWidth={1.75} />
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--accent)] text-[var(--logo-ink)] shadow-lg shadow-[var(--accent)]/25">
+            <Sprout size={32} strokeWidth={1.75} />
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Agri Soft Pro</h1>
-          <p className="mt-1 text-sm text-[var(--text-muted)]">Sign in to continue</p>
+          <h1
+            className="text-3xl font-semibold tracking-tight text-[var(--text)]"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            Agri Soft Pro
+          </h1>
+          <p className="mt-2 text-sm text-[var(--text-muted)]">Sign in to your workspace</p>
         </div>
 
-        <form onSubmit={onSubmit} className="space-y-4">
+        <form
+          onSubmit={onSubmit}
+          className="space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)]/95 p-7 shadow-2xl shadow-black/15 backdrop-blur"
+          autoComplete="off"
+        >
           <div>
             <label className="mb-1.5 block text-xs font-medium text-[var(--text-muted)]">Username</label>
             <input
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5 text-sm outline-none ring-[var(--accent)] focus:ring-1"
+              placeholder="Enter username"
+              className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5 text-sm outline-none ring-[var(--accent)] placeholder:text-[var(--text-muted)]/50 focus:ring-1"
               autoComplete="username"
+              autoFocus
+              disabled={busy}
             />
           </div>
           <div>
@@ -86,8 +119,10 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5 text-sm outline-none ring-[var(--accent)] focus:ring-1"
+              placeholder="Enter password"
+              className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5 text-sm outline-none ring-[var(--accent)] placeholder:text-[var(--text-muted)]/50 focus:ring-1"
               autoComplete="current-password"
+              disabled={busy}
             />
           </div>
 
@@ -99,17 +134,12 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={busy}
             className="w-full rounded-lg bg-[var(--accent)] py-2.5 text-sm font-semibold text-[var(--logo-ink)] transition hover:bg-[var(--accent-hover)] disabled:opacity-60"
           >
-            {loading ? "Signing in…" : "Sign in"}
+            {busy ? "Signing in…" : "Sign in"}
           </button>
         </form>
-
-        <p className="mt-5 text-center text-xs text-[var(--text-muted)]">
-          Default: <span className="font-mono text-[var(--text)]">admin</span> /{" "}
-          <span className="font-mono text-[var(--text)]">admin123</span>
-        </p>
       </div>
     </div>
   );

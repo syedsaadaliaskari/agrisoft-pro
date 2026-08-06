@@ -257,6 +257,59 @@ export function registerLedgerHandlers(): void {
   );
 
   ipcMain.handle(
+    IPC.VOUCHERS_UPDATE,
+    async (_e, id: string, input: PostVoucherInput): Promise<ActionResult<Voucher>> =>
+      guarded(() => requirePermission("transactions.create"), async () => {
+        if (!input.entries?.length) return fail("Entries required");
+        validateBalanced(input.entries);
+        const db = getDb();
+        const existing = db.select().from(vouchers).where(eq(vouchers.id, id)).get();
+        if (!existing || existing.voucherType !== "journal") return fail("Journal voucher not found");
+        if (existing.status === "cancelled") return fail("Cannot edit cancelled voucher");
+
+        const session = getCurrentSession();
+        const ts = nowIso();
+        const total = money(input.entries.reduce((s, e) => s + Number(e.debit || 0), 0));
+
+        db.delete(voucherEntries).where(eq(voucherEntries.voucherId, id)).run();
+        db.update(vouchers)
+          .set({
+            voucherDate: input.voucherDate,
+            partyType: input.partyType ?? null,
+            partyId: input.partyId ?? null,
+            accountId: input.accountId ?? null,
+            referenceNo: input.referenceNo?.trim() || null,
+            notes: input.notes?.trim() || null,
+            subtotal: money(input.subtotal ?? total),
+            discountAmount: money(input.discountAmount ?? 0),
+            additionAmount: money(input.additionAmount ?? 0),
+            taxAmount: money(input.taxAmount ?? 0),
+            grandTotal: money(input.grandTotal ?? total),
+            paidAmount: money(input.paidAmount ?? total),
+            status: "posted",
+            updatedAt: ts,
+          })
+          .where(eq(vouchers.id, id))
+          .run();
+
+        input.entries.forEach((e, i) => {
+          const acct = db.select().from(accounts).where(eq(accounts.id, e.accountId)).get();
+          if (!acct) throw new Error(`Account not found: ${e.accountId}`);
+          insertVoucherEntry(db, id, e.accountId, Number(e.debit || 0), Number(e.credit || 0), e.narration || "", i);
+        });
+
+        writeAuditLog(db, {
+          userId: session?.id ?? null,
+          action: "update",
+          module: "transactions",
+          entityId: id,
+          details: `Updated journal ${existing.voucherNo}`,
+        });
+        return ok(enrichVoucher(id)!);
+      })
+  );
+
+  ipcMain.handle(
     IPC.LEDGER_ACCOUNT,
     async (_e, accountId: string, query?: LedgerQuery): Promise<ActionResult<AccountLedger>> =>
       guarded(() => requirePermission("ledgers.view"), async () => {
@@ -351,16 +404,23 @@ export function registerLedgerHandlers(): void {
           // Returns { debit, credit } from party perspective
           const t = v.voucherType;
           const amt = money(v.grandTotal);
+          // Cash/bank returns settle via cash — do not move party AR/AP again
+          // (credit refunds use paidAmount === 0)
+          const isCreditRefund = money(v.paidAmount) === 0;
           if (partyType === "customer") {
             if (t === "sale") return { debit: amt, credit: money(v.paidAmount) };
-            if (t === "sale_return") return { debit: 0, credit: amt };
+            if (t === "sale_return") {
+              return isCreditRefund ? { debit: 0, credit: amt } : { debit: 0, credit: 0 };
+            }
             if (t === "receipt") return { debit: 0, credit: money(v.paidAmount || v.grandTotal) };
             if (t === "income") return { debit: 0, credit: 0 };
             return { debit: 0, credit: 0 };
           }
           // vendor
           if (t === "purchase") return { debit: money(v.paidAmount), credit: amt };
-          if (t === "purchase_return") return { debit: amt, credit: 0 };
+          if (t === "purchase_return") {
+            return isCreditRefund ? { debit: amt, credit: 0 } : { debit: 0, credit: 0 };
+          }
           if (t === "payment") return { debit: money(v.paidAmount || v.grandTotal), credit: 0 };
           return { debit: 0, credit: 0 };
         };
@@ -639,8 +699,62 @@ export function registerLedgerHandlers(): void {
         .run();
       insertVoucherEntry(db, id, input.expenseAccountId, amount, 0, `Expense ${voucherNo}`, 0);
       insertVoucherEntry(db, id, input.accountId, 0, amount, `Expense ${voucherNo}`, 1);
+      writeAuditLog(db, {
+        userId: session?.id ?? null,
+        action: "create",
+        module: "transactions",
+        entityId: id,
+        details: `Expense ${voucherNo} ${amount}`,
+      });
       return ok(enrichVoucher(id)!);
     })
+  );
+
+  ipcMain.handle(
+    IPC.TX_EXPENSE_UPDATE,
+    async (_e, id: string, input: ExpenseVoucherInput): Promise<ActionResult<Voucher>> =>
+      guarded(() => requirePermission("transactions.create"), async () => {
+        const amount = money(Number(input.amount));
+        if (amount <= 0) return fail("Amount must be positive");
+        const db = getDb();
+        const existing = db.select().from(vouchers).where(eq(vouchers.id, id)).get();
+        if (!existing || existing.voucherType !== "expense") return fail("Expense not found");
+        if (existing.status === "cancelled") return fail("Cannot edit cancelled expense");
+
+        const exp = db.select().from(accounts).where(eq(accounts.id, input.expenseAccountId)).get();
+        if (!exp || exp.accountType !== "expense") return fail("Expense account required");
+        const cash = db.select().from(accounts).where(eq(accounts.id, input.accountId)).get();
+        if (!cash) return fail("Cash/Bank account not found");
+        const session = getCurrentSession();
+        const ts = nowIso();
+
+        db.delete(voucherEntries).where(eq(voucherEntries.voucherId, id)).run();
+        db.update(vouchers)
+          .set({
+            voucherDate: input.voucherDate,
+            partyType: input.vendorId ? "vendor" : null,
+            partyId: input.vendorId ?? null,
+            accountId: input.accountId,
+            referenceNo: input.referenceNo?.trim() || null,
+            notes: input.notes?.trim() || null,
+            grandTotal: amount,
+            paidAmount: amount,
+            status: "posted",
+            updatedAt: ts,
+          })
+          .where(eq(vouchers.id, id))
+          .run();
+        insertVoucherEntry(db, id, input.expenseAccountId, amount, 0, `Expense ${existing.voucherNo}`, 0);
+        insertVoucherEntry(db, id, input.accountId, 0, amount, `Expense ${existing.voucherNo}`, 1);
+        writeAuditLog(db, {
+          userId: session?.id ?? null,
+          action: "update",
+          module: "transactions",
+          entityId: id,
+          details: `Updated expense ${existing.voucherNo} ${amount}`,
+        });
+        return ok(enrichVoucher(id)!);
+      })
   );
 
   ipcMain.handle(IPC.TX_INCOME, async (_e, input: IncomeVoucherInput): Promise<ActionResult<Voucher>> =>
@@ -677,7 +791,61 @@ export function registerLedgerHandlers(): void {
         .run();
       insertVoucherEntry(db, id, input.accountId, amount, 0, `Income ${voucherNo}`, 0);
       insertVoucherEntry(db, id, input.incomeAccountId, 0, amount, `Income ${voucherNo}`, 1);
+      writeAuditLog(db, {
+        userId: session?.id ?? null,
+        action: "create",
+        module: "transactions",
+        entityId: id,
+        details: `Income ${voucherNo} ${amount}`,
+      });
       return ok(enrichVoucher(id)!);
     })
+  );
+
+  ipcMain.handle(
+    IPC.TX_INCOME_UPDATE,
+    async (_e, id: string, input: IncomeVoucherInput): Promise<ActionResult<Voucher>> =>
+      guarded(() => requirePermission("transactions.create"), async () => {
+        const amount = money(Number(input.amount));
+        if (amount <= 0) return fail("Amount must be positive");
+        const db = getDb();
+        const existing = db.select().from(vouchers).where(eq(vouchers.id, id)).get();
+        if (!existing || existing.voucherType !== "income") return fail("Income not found");
+        if (existing.status === "cancelled") return fail("Cannot edit cancelled income");
+
+        const inc = db.select().from(accounts).where(eq(accounts.id, input.incomeAccountId)).get();
+        if (!inc || inc.accountType !== "income") return fail("Income account required");
+        const cash = db.select().from(accounts).where(eq(accounts.id, input.accountId)).get();
+        if (!cash) return fail("Cash/Bank account not found");
+        const session = getCurrentSession();
+        const ts = nowIso();
+
+        db.delete(voucherEntries).where(eq(voucherEntries.voucherId, id)).run();
+        db.update(vouchers)
+          .set({
+            voucherDate: input.voucherDate,
+            partyType: input.customerId ? "customer" : null,
+            partyId: input.customerId ?? null,
+            accountId: input.accountId,
+            referenceNo: input.referenceNo?.trim() || null,
+            notes: input.notes?.trim() || null,
+            grandTotal: amount,
+            paidAmount: amount,
+            status: "posted",
+            updatedAt: ts,
+          })
+          .where(eq(vouchers.id, id))
+          .run();
+        insertVoucherEntry(db, id, input.accountId, amount, 0, `Income ${existing.voucherNo}`, 0);
+        insertVoucherEntry(db, id, input.incomeAccountId, 0, amount, `Income ${existing.voucherNo}`, 1);
+        writeAuditLog(db, {
+          userId: session?.id ?? null,
+          action: "update",
+          module: "transactions",
+          entityId: id,
+          details: `Updated income ${existing.voucherNo} ${amount}`,
+        });
+        return ok(enrichVoucher(id)!);
+      })
   );
 }

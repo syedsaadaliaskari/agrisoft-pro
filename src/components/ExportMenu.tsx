@@ -4,11 +4,10 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/form";
-import { getApi } from "@/lib/api";
 import {
   exportExcelCsv,
   exportJson,
-  exportPdfViaPrint,
+  exportPdfFile,
   type ExportColumn,
 } from "@/lib/export";
 
@@ -93,17 +92,12 @@ export function ExportMenu<T extends Record<string, unknown>>({
     }
     setBusy(true);
     try {
-      if (kind === "json") exportJson(filename, rows);
-      else if (kind === "excel") exportExcelCsv(filename, columns, rows);
-      else {
-        const err = await exportPdfViaPrint((html) => getApi().printHtml(html), {
-          title,
-          columns,
-          rows,
-        });
-        if (err) setError(err);
-      }
-      setOpen(false);
+      let err: string | null = null;
+      if (kind === "json") err = await exportJson(filename, rows);
+      else if (kind === "excel") err = await exportExcelCsv(filename, columns, rows);
+      else err = await exportPdfFile({ title, columns, rows, filename });
+      if (err) setError(err);
+      else setOpen(false);
     } finally {
       setBusy(false);
     }
@@ -136,7 +130,7 @@ export function ExportMenu<T extends Record<string, unknown>>({
               className="block w-full px-3 py-2 text-left text-sm text-[var(--text)] hover:bg-[var(--bg-soft)]"
               onClick={() => void run("pdf")}
             >
-              PDF
+              PDF (HTML)
             </button>
           </div>,
           document.body

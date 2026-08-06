@@ -25,6 +25,8 @@ import {
   customers,
   vendors,
   categories,
+  auditLogs,
+  users,
 } from "../db/schema";
 import { requirePermission, PermissionError } from "./session";
 
@@ -38,6 +40,22 @@ function asError(err: unknown, fallback = "Request failed"): string {
   if (err instanceof PermissionError) return err.message;
   if (err instanceof Error) return err.message;
   return fallback;
+}
+
+function resolveDeletedByName(entityId: string, module: string): string | null {
+  const db = getDb();
+  const log = db
+    .select()
+    .from(auditLogs)
+    .where(
+      and(eq(auditLogs.entityId, entityId), eq(auditLogs.action, "delete"), eq(auditLogs.module, module))
+    )
+    .orderBy(desc(auditLogs.createdAt))
+    .get();
+  if (!log?.userId) return null;
+  const u = db.select().from(users).where(eq(users.id, log.userId)).get();
+  if (!u) return null;
+  return u.fullName?.trim() || u.username;
 }
 type Handler<T> = () => Promise<ActionResult<T>> | ActionResult<T>;
 async function guarded<T>(check: () => void, fn: Handler<T>): Promise<ActionResult<T>> {
@@ -558,7 +576,7 @@ export function registerDashboardHandlers(): void {
             paymentMode: r.paymentMode,
             grandTotal: r.grandTotal,
             deletedAt: r.updatedAt,
-            deletedBy: r.createdBy,
+            deletedBy: resolveDeletedByName(r.id, "sales"),
             details: r.notes,
           })),
           ...pRows.map((r) => ({
@@ -572,7 +590,7 @@ export function registerDashboardHandlers(): void {
             paymentMode: r.paymentMode,
             grandTotal: r.grandTotal,
             deletedAt: r.updatedAt,
-            deletedBy: r.createdBy,
+            deletedBy: resolveDeletedByName(r.id, "purchases"),
             details: r.notes,
           })),
         ].sort((a, b) => b.deletedAt.localeCompare(a.deletedAt));

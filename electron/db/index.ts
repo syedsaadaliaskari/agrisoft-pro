@@ -8,6 +8,7 @@ import * as schema from "./schema";
 import { ensurePermissions, seedDatabase } from "./seed";
 import { seedDemoData } from "./seedDemo";
 import { seedDemoTransactions } from "./seedDemoTx";
+import { ensureDemoClientCompanies } from "./seedCompanies";
 
 export type Db = ReturnType<typeof drizzle<typeof schema>>;
 
@@ -415,6 +416,19 @@ CREATE TABLE IF NOT EXISTS document_counters (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS client_companies (
+  id TEXT PRIMARY KEY,
+  company_name TEXT NOT NULL,
+  area TEXT NOT NULL,
+  joined_at TEXT NOT NULL,
+  notes TEXT,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS client_companies_area_idx ON client_companies(area);
+CREATE INDEX IF NOT EXISTS client_companies_joined_idx ON client_companies(joined_at);
 `;
 }
 
@@ -457,6 +471,7 @@ export async function initDatabase(): Promise<Db> {
   ensurePermissions(db);
   await seedDemoData(db);
   await seedDemoTransactions(db);
+  ensureDemoClientCompanies(db);
   return db;
 }
 

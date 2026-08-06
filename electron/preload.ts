@@ -63,6 +63,7 @@ const api: ElectronAPI = {
   listAccounts: (filter) => ipcRenderer.invoke(IPC.ACCOUNTS_LIST, filter),
   getAccount: (id) => ipcRenderer.invoke(IPC.ACCOUNTS_GET, id),
   postVoucher: (input) => ipcRenderer.invoke(IPC.VOUCHERS_POST, input),
+  updateVoucher: (id, input) => ipcRenderer.invoke(IPC.VOUCHERS_UPDATE, id, input),
   getVoucher: (id) => ipcRenderer.invoke(IPC.VOUCHERS_GET, id),
   listVouchers: (filter) => ipcRenderer.invoke(IPC.VOUCHERS_LIST, filter),
   cancelVoucher: (id) => ipcRenderer.invoke(IPC.VOUCHERS_CANCEL, id),
@@ -75,7 +76,9 @@ const api: ElectronAPI = {
   makePayment: (input) => ipcRenderer.invoke(IPC.TX_PAY, input),
   updateMakePayment: (id, input) => ipcRenderer.invoke(IPC.TX_PAY_UPDATE, id, input),
   postExpense: (input) => ipcRenderer.invoke(IPC.TX_EXPENSE, input),
+  updateExpense: (id, input) => ipcRenderer.invoke(IPC.TX_EXPENSE_UPDATE, id, input),
   postIncome: (input) => ipcRenderer.invoke(IPC.TX_INCOME, input),
+  updateIncome: (id, input) => ipcRenderer.invoke(IPC.TX_INCOME_UPDATE, id, input),
 
   listPurchases: () => ipcRenderer.invoke(IPC.PURCHASES_LIST),
   getPurchase: (id) => ipcRenderer.invoke(IPC.PURCHASES_GET, id),
@@ -105,6 +108,12 @@ const api: ElectronAPI = {
   getTaxReport: (query) => ipcRenderer.invoke(IPC.REPORTS_TAX),
   getDeletedDocumentsReport: (query) => ipcRenderer.invoke(IPC.REPORTS_DELETED, query),
 
+  listClientCompanies: () => ipcRenderer.invoke(IPC.COMPANIES_LIST),
+  createClientCompany: (input) => ipcRenderer.invoke(IPC.COMPANIES_CREATE, input),
+  updateClientCompany: (id, input) => ipcRenderer.invoke(IPC.COMPANIES_UPDATE, id, input),
+  deleteClientCompany: (id) => ipcRenderer.invoke(IPC.COMPANIES_DELETE, id),
+  getCompaniesDemand: () => ipcRenderer.invoke(IPC.COMPANIES_DEMAND),
+
   getSettings: () => ipcRenderer.invoke(IPC.SETTINGS_GET_ALL),
   updateSettings: (input) => ipcRenderer.invoke(IPC.SETTINGS_UPDATE, input),
   listUsers: () => ipcRenderer.invoke(IPC.USERS_LIST),
@@ -117,6 +126,7 @@ const api: ElectronAPI = {
     ipcRenderer.invoke(IPC.ROLES_SET_PERMISSIONS, roleId, permissionCodes),
   listAuditLogs: (query) => ipcRenderer.invoke(IPC.AUDIT_LIST, query),
   printHtml: (html) => ipcRenderer.invoke(IPC.APP_PRINT_HTML, html),
+  saveFile: (input) => ipcRenderer.invoke(IPC.APP_SAVE_FILE, input),
 };
 
 contextBridge.exposeInMainWorld("api", api);

@@ -470,3 +470,18 @@ export const documentCounters = sqliteTable("document_counters", {
   padLength: integer("pad_length").notNull().default(5),
   ...timestamps,
 });
+
+/** Local registry of client companies using Agri Soft Pro (vendor / Super Admin view). */
+export const clientCompanies = sqliteTable(
+  "client_companies",
+  {
+    id: text("id").primaryKey(),
+    companyName: text("company_name").notNull(),
+    area: text("area").notNull(),
+    joinedAt: text("joined_at").notNull(),
+    notes: text("notes"),
+    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    ...timestamps,
+  },
+  (t) => [index("client_companies_area_idx").on(t.area), index("client_companies_joined_idx").on(t.joinedAt)]
+);

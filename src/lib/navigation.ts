@@ -24,6 +24,7 @@ import {
   PlusCircle,
   Receipt,
   Trash2,
+  MapPinned,
   type LucideIcon,
 } from "lucide-react";
 
@@ -135,6 +136,17 @@ export const navigation: NavGroup[] = [
       { label: "Stock Report", href: "/reports/stock", icon: Warehouse, permission: "reports.view" },
       { label: "Tax Report", href: "/reports/tax", icon: Receipt, permission: "reports.view" },
       { label: "Deleted Data", href: "/reports/deleted", icon: Trash2, permission: "reports.view" },
+    ],
+  },
+  {
+    title: "Platform",
+    items: [
+      {
+        label: "Client Companies",
+        href: "/platform/companies",
+        icon: MapPinned,
+        permission: "platform.view",
+      },
     ],
   },
   {

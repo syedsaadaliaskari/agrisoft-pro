@@ -405,19 +405,33 @@ export function registerPurchaseHandlers(): void {
         const session = getCurrentSession();
         const existing = db.select().from(purchases).where(eq(purchases.id, id)).get();
         if (!existing || existing.status === "deleted") return fail("Purchase not found");
+        if (existing.status === "returned") return fail("Cannot edit a returned purchase");
+        const purchaseHasReturns = db
+          .select()
+          .from(purchaseReturns)
+          .where(eq(purchaseReturns.purchaseId, id))
+          .all();
+        if (purchaseHasReturns.length > 0) {
+          return fail("Cannot edit: purchase has returns");
+        }
 
         const vendor = db.select().from(vendors).where(eq(vendors.id, input.vendorId)).get();
         if (!vendor || !vendor.isActive) return fail("Vendor not found or inactive");
 
         const oldItems = db.select().from(purchaseItems).where(eq(purchaseItems.purchaseId, id)).all();
+        const oldQtyByVariant = new Map<string, number>();
+        for (const item of oldItems) {
+          oldQtyByVariant.set(item.variantId, money((oldQtyByVariant.get(item.variantId) ?? 0) + item.quantity));
+        }
         const ts = nowIso();
 
-        // Validate reverse is possible before mutating
-        for (const item of oldItems) {
-          const variant = db.select().from(productVariants).where(eq(productVariants.id, item.variantId)).get();
+        // Validate reverse is possible before mutating (aggregate duplicate lines)
+        for (const [variantId, totalOld] of oldQtyByVariant) {
+          const variant = db.select().from(productVariants).where(eq(productVariants.id, variantId)).get();
           if (!variant) continue;
-          if (variant.stockQty < item.quantity) {
-            return fail(`Cannot edit: insufficient stock to reverse ${item.productName}`);
+          if (variant.stockQty < totalOld) {
+            const name = oldItems.find((i) => i.variantId === variantId)?.productName ?? variant.sku;
+            return fail(`Cannot edit: insufficient stock to reverse ${name}`);
           }
         }
 
@@ -494,12 +508,12 @@ export function registerPurchaseHandlers(): void {
         const apAcct = requireAccountByCode(db, "2100", "Accounts Payable");
         const voucherId = existing.voucherId;
 
-        // Reverse previous stock-in only after validation
-        for (const item of oldItems) {
-          const variant = db.select().from(productVariants).where(eq(productVariants.id, item.variantId)).get();
+        // Reverse previous stock-in only after validation (aggregate by variant)
+        for (const [variantId, totalOld] of oldQtyByVariant) {
+          const variant = db.select().from(productVariants).where(eq(productVariants.id, variantId)).get();
           if (!variant) continue;
           db.update(productVariants)
-            .set({ stockQty: money(variant.stockQty - item.quantity), updatedAt: ts })
+            .set({ stockQty: money(variant.stockQty - totalOld), updatedAt: ts })
             .where(eq(productVariants.id, variant.id))
             .run();
         }
@@ -615,17 +629,39 @@ export function registerPurchaseHandlers(): void {
       const purchase = db.select().from(purchases).where(eq(purchases.id, id)).get();
       if (!purchase || purchase.status === "deleted") return fail("Purchase not found");
 
-      const items = db.select().from(purchaseItems).where(eq(purchaseItems.purchaseId, id)).all();
-      const ts = nowIso();
+      const linkedReturns = db
+        .select()
+        .from(purchaseReturns)
+        .where(eq(purchaseReturns.purchaseId, id))
+        .all();
+      if (linkedReturns.length > 0) {
+        return fail("Cannot delete: purchase has returns. Stock was already adjusted by the return.");
+      }
 
+      const items = db.select().from(purchaseItems).where(eq(purchaseItems.purchaseId, id)).all();
+      const qtyByVariant = new Map<string, { qty: number; name: string }>();
       for (const item of items) {
-        const variant = db.select().from(productVariants).where(eq(productVariants.id, item.variantId)).get();
+        const prev = qtyByVariant.get(item.variantId);
+        qtyByVariant.set(item.variantId, {
+          qty: money((prev?.qty ?? 0) + item.quantity),
+          name: item.productName,
+        });
+      }
+
+      for (const [variantId, { qty, name }] of qtyByVariant) {
+        const variant = db.select().from(productVariants).where(eq(productVariants.id, variantId)).get();
         if (!variant) continue;
-        if (variant.stockQty < item.quantity) {
-          return fail(`Cannot delete: insufficient stock to reverse ${item.productName}`);
+        if (variant.stockQty < qty) {
+          return fail(`Cannot delete: insufficient stock to reverse ${name}`);
         }
+      }
+
+      const ts = nowIso();
+      for (const [variantId, { qty }] of qtyByVariant) {
+        const variant = db.select().from(productVariants).where(eq(productVariants.id, variantId)).get();
+        if (!variant) continue;
         db.update(productVariants)
-          .set({ stockQty: money(variant.stockQty - item.quantity), updatedAt: ts })
+          .set({ stockQty: money(variant.stockQty - qty), updatedAt: ts })
           .where(eq(productVariants.id, variant.id))
           .run();
         db.insert(stockMovements)
@@ -633,7 +669,7 @@ export function registerPurchaseHandlers(): void {
             id: randomUUID(),
             variantId: variant.id,
             movementType: "out",
-            quantity: item.quantity,
+            quantity: qty,
             referenceType: "purchase",
             referenceId: id,
             notes: `Delete purchase ${purchase.invoiceNo}`,
@@ -689,14 +725,49 @@ export function registerPurchaseHandlers(): void {
         const vendor = db.select().from(vendors).where(eq(vendors.id, input.vendorId)).get();
         if (!vendor) return fail("Vendor not found");
 
+        let remainingByVariant: Map<string, number> | null = null;
         if (input.purchaseId) {
           const p = db.select().from(purchases).where(eq(purchases.id, input.purchaseId)).get();
           if (!p || p.status === "deleted") return fail("Original purchase not found");
+
+          const purchasedQty = new Map<string, number>();
+          for (const item of db
+            .select()
+            .from(purchaseItems)
+            .where(eq(purchaseItems.purchaseId, input.purchaseId))
+            .all()) {
+            purchasedQty.set(item.variantId, money((purchasedQty.get(item.variantId) ?? 0) + item.quantity));
+          }
+          const alreadyReturned = new Map<string, number>();
+          for (const ret of db
+            .select()
+            .from(purchaseReturns)
+            .where(eq(purchaseReturns.purchaseId, input.purchaseId))
+            .all()) {
+            for (const ri of db
+              .select()
+              .from(purchaseReturnItems)
+              .where(eq(purchaseReturnItems.purchaseReturnId, ret.id))
+              .all()) {
+              alreadyReturned.set(
+                ri.variantId,
+                money((alreadyReturned.get(ri.variantId) ?? 0) + ri.quantity)
+              );
+            }
+          }
+          remainingByVariant = new Map<string, number>();
+          for (const [variantId, bought] of purchasedQty) {
+            remainingByVariant.set(variantId, money(bought - (alreadyReturned.get(variantId) ?? 0)));
+          }
+          if (![...remainingByVariant.values()].some((q) => q > 0)) {
+            return fail("This purchase is already fully returned");
+          }
         }
 
         type Built = { variantId: string; quantity: number; unitCost: number; lineTotal: number };
         const built: Built[] = [];
         let subtotal = 0;
+        const returnQtyByVariant = new Map<string, number>();
 
         for (let i = 0; i < input.items.length; i++) {
           const line = input.items[i];
@@ -705,7 +776,23 @@ export function registerPurchaseHandlers(): void {
           if (!line.variantId || Number.isNaN(qty) || qty <= 0) return fail(`Line ${i + 1} invalid`);
           const variant = db.select().from(productVariants).where(eq(productVariants.id, line.variantId)).get();
           if (!variant) return fail(`Line ${i + 1}: pack not found`);
-          if (variant.stockQty < qty) {
+
+          if (remainingByVariant) {
+            const remaining = remainingByVariant.get(variant.id) ?? 0;
+            const alreadyInThis = returnQtyByVariant.get(variant.id) ?? 0;
+            if (alreadyInThis + qty > remaining) {
+              return fail(
+                `Line ${i + 1}: cannot return more than remaining purchased qty (${money(remaining - alreadyInThis)})`
+              );
+            }
+          }
+          returnQtyByVariant.set(
+            variant.id,
+            money((returnQtyByVariant.get(variant.id) ?? 0) + qty)
+          );
+
+          const alreadyNeeded = returnQtyByVariant.get(variant.id)! - qty;
+          if (variant.stockQty < alreadyNeeded + qty) {
             return fail(`Insufficient stock to return for ${variant.sku}`);
           }
           const lineTotal = money(qty * unitCost);
@@ -817,6 +904,23 @@ export function registerPurchaseHandlers(): void {
           entityId: returnId,
           details: `Purchase return ${returnNo} total ${grandTotal}`,
         });
+
+        if (input.purchaseId && remainingByVariant) {
+          let fullyReturned = true;
+          for (const [variantId, remaining] of remainingByVariant) {
+            const returnedNow = returnQtyByVariant.get(variantId) ?? 0;
+            if (money(remaining - returnedNow) > 0) {
+              fullyReturned = false;
+              break;
+            }
+          }
+          if (fullyReturned) {
+            db.update(purchases)
+              .set({ status: "returned", updatedAt: ts })
+              .where(eq(purchases.id, input.purchaseId))
+              .run();
+          }
+        }
 
         return ok(enrichReturn(returnId, true)!);
       })

@@ -1,5 +1,6 @@
-import { app, BrowserWindow, shell, ipcMain, protocol, net } from "electron";
+import { app, BrowserWindow, shell, ipcMain, protocol, net, dialog } from "electron";
 import path from "path";
+import fs from "fs";
 import { pathToFileURL } from "url";
 import { initDatabase, closeDatabase } from "./db";
 import { registerIpcHandlers } from "./ipc/handlers";
@@ -166,6 +167,41 @@ app.whenReady().then(async () => {
     }
     return printHtmlDocument(html);
   });
+
+  ipcMain.handle(
+    IPC.APP_SAVE_FILE,
+    async (
+      _event,
+      input: {
+        defaultPath: string;
+        dataBase64: string;
+        filters?: { name: string; extensions: string[] }[];
+      }
+    ): Promise<ActionResult<{ path: string } | null>> => {
+      try {
+        if (!input?.dataBase64 || typeof input.dataBase64 !== "string") {
+          return { ok: false, error: "Nothing to save" };
+        }
+        const result = await dialog.showSaveDialog({
+          defaultPath: input.defaultPath || "export.txt",
+          filters: input.filters?.length
+            ? input.filters
+            : [{ name: "All files", extensions: ["*"] }],
+        });
+        if (result.canceled || !result.filePath) {
+          return { ok: true, data: null };
+        }
+        const buf = Buffer.from(input.dataBase64, "base64");
+        fs.writeFileSync(result.filePath, buf);
+        return { ok: true, data: { path: result.filePath } };
+      } catch (err) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : "Save failed",
+        };
+      }
+    }
+  );
 
   await createWindow();
 

@@ -269,6 +269,7 @@ export function registerSalesHandlers(): void {
       const built: BuiltLine[] = [];
       let computedSubtotal = 0;
       let lineTaxSum = 0;
+      const neededByVariant = new Map<string, number>();
 
       for (let i = 0; i < input.items.length; i++) {
         const line = input.items[i];
@@ -284,11 +285,14 @@ export function registerSalesHandlers(): void {
           .where(eq(productVariants.id, line.variantId))
           .get();
         if (!variant || !variant.isActive) return fail(`Line ${i + 1}: pack not found or inactive`);
-        if (variant.stockQty < qty) {
+
+        const alreadyNeeded = neededByVariant.get(variant.id) ?? 0;
+        if (variant.stockQty < alreadyNeeded + qty) {
           return fail(
-            `Insufficient stock for ${variant.sku}: available ${variant.stockQty}, needed ${qty}`
+            `Insufficient stock for ${variant.sku}: available ${money(variant.stockQty - alreadyNeeded)}, needed ${qty}`
           );
         }
+        neededByVariant.set(variant.id, money(alreadyNeeded + qty));
 
         const product = db.select().from(products).where(eq(products.id, variant.productId)).get();
         if (!product || !product.isActive) return fail(`Line ${i + 1}: product not found or inactive`);
@@ -489,6 +493,14 @@ export function registerSalesHandlers(): void {
         const existing = db.select().from(sales).where(eq(sales.id, id)).get();
         if (!existing || existing.status === "deleted") return fail("Sale not found");
         if (existing.status === "returned") return fail("Cannot edit a returned sale");
+        const saleHasReturns = db
+          .select()
+          .from(saleReturns)
+          .where(eq(saleReturns.saleId, id))
+          .all();
+        if (saleHasReturns.length > 0) {
+          return fail("Cannot edit: sale has returns");
+        }
 
         if (input.customerId) {
           const customer = db.select().from(customers).where(eq(customers.id, input.customerId)).get();
@@ -734,6 +746,15 @@ export function registerSalesHandlers(): void {
       const sale = db.select().from(sales).where(eq(sales.id, id)).get();
       if (!sale || sale.status === "deleted") return fail("Sale not found");
 
+      const linkedReturns = db
+        .select()
+        .from(saleReturns)
+        .where(eq(saleReturns.saleId, id))
+        .all();
+      if (linkedReturns.length > 0) {
+        return fail("Cannot delete: sale has returns. Stock was already restored by the return.");
+      }
+
       const items = db.select().from(saleItems).where(eq(saleItems.saleId, id)).all();
       const ts = nowIso();
 
@@ -816,9 +837,39 @@ export function registerSalesHandlers(): void {
         const db = getDb();
         const session = getCurrentSession();
 
+        let remainingByVariant: Map<string, number> | null = null;
         if (input.saleId) {
           const sale = db.select().from(sales).where(eq(sales.id, input.saleId)).get();
           if (!sale || sale.status === "deleted") return fail("Original sale not found");
+
+          const soldQty = new Map<string, number>();
+          for (const item of db.select().from(saleItems).where(eq(saleItems.saleId, input.saleId)).all()) {
+            soldQty.set(item.variantId, money((soldQty.get(item.variantId) ?? 0) + item.quantity));
+          }
+          const alreadyReturned = new Map<string, number>();
+          const priorReturns = db
+            .select()
+            .from(saleReturns)
+            .where(eq(saleReturns.saleId, input.saleId))
+            .all();
+          for (const ret of priorReturns) {
+            for (const ri of db
+              .select()
+              .from(saleReturnItems)
+              .where(eq(saleReturnItems.saleReturnId, ret.id))
+              .all()) {
+              alreadyReturned.set(
+                ri.variantId,
+                money((alreadyReturned.get(ri.variantId) ?? 0) + ri.quantity)
+              );
+            }
+          }
+          remainingByVariant = new Map<string, number>();
+          for (const [variantId, sold] of soldQty) {
+            remainingByVariant.set(variantId, money(sold - (alreadyReturned.get(variantId) ?? 0)));
+          }
+          const anyLeft = [...remainingByVariant.values()].some((q) => q > 0);
+          if (!anyLeft) return fail("This sale is already fully returned");
         }
 
         if (input.customerId) {
@@ -835,6 +886,7 @@ export function registerSalesHandlers(): void {
         };
         const built: Built[] = [];
         let subtotal = 0;
+        const returnQtyByVariant = new Map<string, number>();
 
         for (let i = 0; i < input.items.length; i++) {
           const line = input.items[i];
@@ -850,6 +902,21 @@ export function registerSalesHandlers(): void {
             .where(eq(productVariants.id, line.variantId))
             .get();
           if (!variant) return fail(`Line ${i + 1}: pack not found`);
+
+          if (remainingByVariant) {
+            const remaining = remainingByVariant.get(variant.id) ?? 0;
+            const alreadyInThis = returnQtyByVariant.get(variant.id) ?? 0;
+            if (alreadyInThis + qty > remaining) {
+              return fail(
+                `Line ${i + 1}: cannot return more than remaining sold qty (${money(remaining - alreadyInThis)})`
+              );
+            }
+          }
+          returnQtyByVariant.set(
+            variant.id,
+            money((returnQtyByVariant.get(variant.id) ?? 0) + qty)
+          );
+
           const product = db.select().from(products).where(eq(products.id, variant.productId)).get();
           const lineTotal = money(qty * unitPrice);
           built.push({
@@ -975,11 +1042,27 @@ export function registerSalesHandlers(): void {
             .run();
         }
 
-        if (input.saleId) {
-          db.update(sales)
-            .set({ status: "returned", updatedAt: ts })
-            .where(eq(sales.id, input.saleId))
-            .run();
+        if (input.saleId && remainingByVariant) {
+          let fullyReturned = true;
+          for (const [variantId, remaining] of remainingByVariant) {
+            const returnedNow = returnQtyByVariant.get(variantId) ?? 0;
+            if (money(remaining - returnedNow) > 0) {
+              fullyReturned = false;
+              break;
+            }
+          }
+          for (const [variantId] of returnQtyByVariant) {
+            if (!remainingByVariant.has(variantId)) {
+              fullyReturned = false;
+              break;
+            }
+          }
+          if (fullyReturned) {
+            db.update(sales)
+              .set({ status: "returned", updatedAt: ts })
+              .where(eq(sales.id, input.saleId))
+              .run();
+          }
         }
 
         writeAuditLog(db, {
