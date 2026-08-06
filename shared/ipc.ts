@@ -69,26 +69,11 @@ export const IPC = {
   VENDORS_UPDATE: "vendors:update",
   VENDORS_DELETE: "vendors:delete",
 
-  // Ledger / vouchers
-  ACCOUNTS_LIST: "accounts:list",
-  ACCOUNTS_GET: "accounts:get",
-  VOUCHERS_POST: "vouchers:post",
-  VOUCHERS_GET: "vouchers:get",
-  VOUCHERS_CANCEL: "vouchers:cancel",
-  LEDGER_ACCOUNT: "ledger:account",
-  LEDGER_PARTY: "ledger:party",
-
-  // Transactions (convenience posters)
-  TX_RECEIVE: "transactions:receive",
-  TX_PAY: "transactions:pay",
-  TX_EXPENSE: "transactions:expense",
-  TX_INCOME: "transactions:income",
-
-  // Purchases
   PURCHASES_LIST: "purchases:list",
   PURCHASES_GET: "purchases:get",
   PURCHASES_LIST_BY_VENDOR: "purchases:listByVendor",
   PURCHASES_CREATE: "purchases:create",
+  PURCHASES_UPDATE: "purchases:update",
   PURCHASES_DELETE: "purchases:delete",
   PURCHASE_RETURNS_LIST: "purchaseReturns:list",
   PURCHASE_RETURNS_GET: "purchaseReturns:get",
@@ -99,11 +84,29 @@ export const IPC = {
   SALES_GET: "sales:get",
   SALES_LIST_BY_CUSTOMER: "sales:listByCustomer",
   SALES_CREATE: "sales:create",
+  SALES_UPDATE: "sales:update",
   SALES_DELETE: "sales:delete",
   SALE_RETURNS_LIST: "saleReturns:list",
   SALE_RETURNS_GET: "saleReturns:get",
   SALE_RETURNS_CREATE: "saleReturns:create",
 
+  // Ledger / vouchers
+  ACCOUNTS_LIST: "accounts:list",
+  ACCOUNTS_GET: "accounts:get",
+  VOUCHERS_POST: "vouchers:post",
+  VOUCHERS_GET: "vouchers:get",
+  VOUCHERS_LIST: "vouchers:list",
+  VOUCHERS_CANCEL: "vouchers:cancel",
+  LEDGER_ACCOUNT: "ledger:account",
+  LEDGER_PARTY: "ledger:party",
+
+  // Transactions (convenience posters)
+  TX_RECEIVE: "transactions:receive",
+  TX_RECEIVE_UPDATE: "transactions:receiveUpdate",
+  TX_PAY: "transactions:pay",
+  TX_PAY_UPDATE: "transactions:payUpdate",
+  TX_EXPENSE: "transactions:expense",
+  TX_INCOME: "transactions:income",
   // Dashboard / reports
   DASHBOARD_SUMMARY: "dashboard:summary",
   REPORTS_SALES: "reports:sales",
@@ -570,6 +573,11 @@ export type PartyLedger = {
 export type LedgerQuery = {
   fromDate?: string | null;
   toDate?: string | null;
+};
+
+export type VoucherListFilter = {
+  voucherType?: VoucherType | VoucherType[];
+  includeCancelled?: boolean;
 };
 
 export type ReceivePaymentInput = {
@@ -1171,6 +1179,7 @@ export type ElectronAPI = {
   getAccount: (id: string) => Promise<ActionResult<Account>>;
   postVoucher: (input: PostVoucherInput) => Promise<ActionResult<Voucher>>;
   getVoucher: (id: string) => Promise<ActionResult<Voucher>>;
+  listVouchers: (filter?: VoucherListFilter) => Promise<ActionResult<Voucher[]>>;
   cancelVoucher: (id: string) => Promise<ActionResult>;
   getAccountLedger: (accountId: string, query?: LedgerQuery) => Promise<ActionResult<AccountLedger>>;
   getPartyLedger: (
@@ -1180,7 +1189,9 @@ export type ElectronAPI = {
   ) => Promise<ActionResult<PartyLedger>>;
 
   receivePayment: (input: ReceivePaymentInput) => Promise<ActionResult<Voucher>>;
+  updateReceivePayment: (id: string, input: ReceivePaymentInput) => Promise<ActionResult<Voucher>>;
   makePayment: (input: MakePaymentInput) => Promise<ActionResult<Voucher>>;
+  updateMakePayment: (id: string, input: MakePaymentInput) => Promise<ActionResult<Voucher>>;
   postExpense: (input: ExpenseVoucherInput) => Promise<ActionResult<Voucher>>;
   postIncome: (input: IncomeVoucherInput) => Promise<ActionResult<Voucher>>;
 
@@ -1188,6 +1199,7 @@ export type ElectronAPI = {
   getPurchase: (id: string) => Promise<ActionResult<Purchase>>;
   listPurchasesByVendor: (vendorId: string) => Promise<ActionResult<Purchase[]>>;
   createPurchase: (input: CreatePurchaseInput) => Promise<ActionResult<Purchase>>;
+  updatePurchase: (id: string, input: CreatePurchaseInput) => Promise<ActionResult<Purchase>>;
   deletePurchase: (id: string) => Promise<ActionResult>;
   listPurchaseReturns: () => Promise<ActionResult<PurchaseReturn[]>>;
   getPurchaseReturn: (id: string) => Promise<ActionResult<PurchaseReturn>>;
@@ -1197,6 +1209,7 @@ export type ElectronAPI = {
   getSale: (id: string) => Promise<ActionResult<Sale>>;
   listSalesByCustomer: (customerId: string) => Promise<ActionResult<Sale[]>>;
   createSale: (input: CreateSaleInput) => Promise<ActionResult<Sale>>;
+  updateSale: (id: string, input: CreateSaleInput) => Promise<ActionResult<Sale>>;
   deleteSale: (id: string) => Promise<ActionResult>;
   listSaleReturns: () => Promise<ActionResult<SaleReturn[]>>;
   getSaleReturn: (id: string) => Promise<ActionResult<SaleReturn>>;

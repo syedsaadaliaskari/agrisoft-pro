@@ -1,5 +1,5 @@
 import { ipcMain } from "electron";
-import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import {
   IPC,
@@ -10,12 +10,14 @@ import {
   type AccountLedger,
   type PartyLedger,
   type LedgerQuery,
+  type VoucherListFilter,
   type ReceivePaymentInput,
   type MakePaymentInput,
   type ExpenseVoucherInput,
   type IncomeVoucherInput,
   type PartyType,
   type Account,
+  type VoucherType,
 } from "../../shared/ipc";
 import { getDb } from "../db";
 import { nextDocumentNumber } from "../db/counters";
@@ -217,6 +219,26 @@ export function registerLedgerHandlers(): void {
       const v = enrichVoucher(id);
       if (!v) return fail("Voucher not found");
       return ok(v);
+    })
+  );
+
+  ipcMain.handle(IPC.VOUCHERS_LIST, async (_e, filter?: VoucherListFilter): Promise<ActionResult<Voucher[]>> =>
+    guarded(() => requirePermission("transactions.create"), async () => {
+      const db = getDb();
+      const types = filter?.voucherType
+        ? Array.isArray(filter.voucherType)
+          ? filter.voucherType
+          : [filter.voucherType]
+        : null;
+
+      let rows = db.select().from(vouchers).orderBy(desc(vouchers.voucherDate), desc(vouchers.createdAt)).all();
+      if (types?.length) {
+        rows = rows.filter((r) => types.includes(r.voucherType as VoucherType));
+      }
+      if (!filter?.includeCancelled) {
+        rows = rows.filter((r) => r.status !== "cancelled");
+      }
+      return ok(rows.map((r) => enrichVoucher(r.id)!).filter(Boolean));
     })
   );
 
@@ -441,6 +463,54 @@ export function registerLedgerHandlers(): void {
     })
   );
 
+  ipcMain.handle(
+    IPC.TX_RECEIVE_UPDATE,
+    async (_e, id: string, input: ReceivePaymentInput): Promise<ActionResult<Voucher>> =>
+      guarded(() => requirePermission("transactions.create"), async () => {
+        const amount = money(Number(input.amount));
+        if (amount <= 0) return fail("Amount must be positive");
+        const db = getDb();
+        const existing = db.select().from(vouchers).where(eq(vouchers.id, id)).get();
+        if (!existing || existing.voucherType !== "receipt") return fail("Receipt not found");
+        if (existing.status === "cancelled") return fail("Cannot edit cancelled receipt");
+
+        const customer = db.select().from(customers).where(eq(customers.id, input.customerId)).get();
+        if (!customer) return fail("Customer not found");
+        const cash = db.select().from(accounts).where(eq(accounts.id, input.accountId)).get();
+        if (!cash) return fail("Account not found");
+        const ar = requireAccountByCode(db, "1300", "Accounts Receivable");
+        const session = getCurrentSession();
+        const ts = nowIso();
+
+        db.delete(voucherEntries).where(eq(voucherEntries.voucherId, id)).run();
+        db.update(vouchers)
+          .set({
+            voucherDate: input.voucherDate,
+            partyType: "customer",
+            partyId: input.customerId,
+            accountId: input.accountId,
+            referenceNo: input.referenceNo?.trim() || null,
+            notes: input.notes?.trim() || null,
+            grandTotal: amount,
+            paidAmount: amount,
+            status: "posted",
+            updatedAt: ts,
+          })
+          .where(eq(vouchers.id, id))
+          .run();
+        insertVoucherEntry(db, id, input.accountId, amount, 0, `Receipt ${existing.voucherNo}`, 0);
+        insertVoucherEntry(db, id, ar.id, 0, amount, `Receipt ${existing.voucherNo}`, 1);
+        writeAuditLog(db, {
+          userId: session?.id ?? null,
+          action: "update",
+          module: "transactions",
+          entityId: id,
+          details: `Updated receipt ${existing.voucherNo} ${amount}`,
+        });
+        return ok(enrichVoucher(id)!);
+      })
+  );
+
   ipcMain.handle(IPC.TX_PAY, async (_e, input: MakePaymentInput): Promise<ActionResult<Voucher>> =>
     guarded(() => requirePermission("transactions.create"), async () => {
       const amount = money(Number(input.amount));
@@ -485,6 +555,54 @@ export function registerLedgerHandlers(): void {
       });
       return ok(enrichVoucher(id)!);
     })
+  );
+
+  ipcMain.handle(
+    IPC.TX_PAY_UPDATE,
+    async (_e, id: string, input: MakePaymentInput): Promise<ActionResult<Voucher>> =>
+      guarded(() => requirePermission("transactions.create"), async () => {
+        const amount = money(Number(input.amount));
+        if (amount <= 0) return fail("Amount must be positive");
+        const db = getDb();
+        const existing = db.select().from(vouchers).where(eq(vouchers.id, id)).get();
+        if (!existing || existing.voucherType !== "payment") return fail("Payment not found");
+        if (existing.status === "cancelled") return fail("Cannot edit cancelled payment");
+
+        const vendor = db.select().from(vendors).where(eq(vendors.id, input.vendorId)).get();
+        if (!vendor) return fail("Vendor not found");
+        const cash = db.select().from(accounts).where(eq(accounts.id, input.accountId)).get();
+        if (!cash) return fail("Account not found");
+        const ap = requireAccountByCode(db, "2100", "Accounts Payable");
+        const session = getCurrentSession();
+        const ts = nowIso();
+
+        db.delete(voucherEntries).where(eq(voucherEntries.voucherId, id)).run();
+        db.update(vouchers)
+          .set({
+            voucherDate: input.voucherDate,
+            partyType: "vendor",
+            partyId: input.vendorId,
+            accountId: input.accountId,
+            referenceNo: input.referenceNo?.trim() || null,
+            notes: input.notes?.trim() || null,
+            grandTotal: amount,
+            paidAmount: amount,
+            status: "posted",
+            updatedAt: ts,
+          })
+          .where(eq(vouchers.id, id))
+          .run();
+        insertVoucherEntry(db, id, ap.id, amount, 0, `Payment ${existing.voucherNo}`, 0);
+        insertVoucherEntry(db, id, input.accountId, 0, amount, `Payment ${existing.voucherNo}`, 1);
+        writeAuditLog(db, {
+          userId: session?.id ?? null,
+          action: "update",
+          module: "transactions",
+          entityId: id,
+          details: `Updated payment ${existing.voucherNo} ${amount}`,
+        });
+        return ok(enrichVoucher(id)!);
+      })
   );
 
   ipcMain.handle(IPC.TX_EXPENSE, async (_e, input: ExpenseVoucherInput): Promise<ActionResult<Voucher>> =>

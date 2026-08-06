@@ -23,6 +23,7 @@ import {
   purchaseReturns,
   purchaseReturnItems,
   vouchers,
+  voucherEntries,
   productVariants,
   products,
   vendors,
@@ -387,6 +388,224 @@ export function registerPurchaseHandlers(): void {
 
       return ok(enrichPurchase(purchaseId, true)!);
     })
+  );
+
+  ipcMain.handle(
+    IPC.PURCHASES_UPDATE,
+    async (_e, id: string, input: CreatePurchaseInput): Promise<ActionResult<Purchase>> =>
+      guarded(() => requirePermission("purchases.create"), async () => {
+        if (!input.items?.length) return fail("Add at least one line item");
+        if (!input.invoiceDate?.trim()) return fail("Invoice date is required");
+        if (!input.vendorId) return fail("Vendor is required");
+
+        const mode = (input.paymentMode || "credit") as PaymentMode;
+        if (!["cash", "credit", "bank"].includes(mode)) return fail("Invalid payment mode");
+
+        const db = getDb();
+        const session = getCurrentSession();
+        const existing = db.select().from(purchases).where(eq(purchases.id, id)).get();
+        if (!existing || existing.status === "deleted") return fail("Purchase not found");
+
+        const vendor = db.select().from(vendors).where(eq(vendors.id, input.vendorId)).get();
+        if (!vendor || !vendor.isActive) return fail("Vendor not found or inactive");
+
+        const oldItems = db.select().from(purchaseItems).where(eq(purchaseItems.purchaseId, id)).all();
+        const ts = nowIso();
+
+        // Validate reverse is possible before mutating
+        for (const item of oldItems) {
+          const variant = db.select().from(productVariants).where(eq(productVariants.id, item.variantId)).get();
+          if (!variant) continue;
+          if (variant.stockQty < item.quantity) {
+            return fail(`Cannot edit: insufficient stock to reverse ${item.productName}`);
+          }
+        }
+
+        type Built = {
+          variantId: string;
+          productName: string;
+          size: string | null;
+          color: string | null;
+          quantity: number;
+          unitCost: number;
+          discountAmount: number;
+          taxAmount: number;
+          lineTotal: number;
+        };
+        const built: Built[] = [];
+        let computedSubtotal = 0;
+        let lineTaxSum = 0;
+
+        for (let i = 0; i < input.items.length; i++) {
+          const line = input.items[i];
+          const qty = Number(line.quantity);
+          const unitCost = Number(line.unitCost);
+          if (!line.variantId) return fail(`Line ${i + 1}: variant required`);
+          if (Number.isNaN(qty) || qty <= 0) return fail(`Line ${i + 1}: quantity must be positive`);
+          if (Number.isNaN(unitCost) || unitCost < 0) return fail(`Line ${i + 1}: invalid unit cost`);
+
+          const variant = db.select().from(productVariants).where(eq(productVariants.id, line.variantId)).get();
+          if (!variant || !variant.isActive) return fail(`Line ${i + 1}: pack not found`);
+          const product = db.select().from(products).where(eq(products.id, variant.productId)).get();
+          if (!product) return fail(`Line ${i + 1}: product not found`);
+
+          const discountAmount = money(Number(line.discountAmount ?? 0));
+          const taxAmount = money(Number(line.taxAmount ?? 0));
+          const lineTotal = money(qty * unitCost - discountAmount + taxAmount);
+          built.push({
+            variantId: variant.id,
+            productName: product.name,
+            size: variant.size,
+            color: variant.color,
+            quantity: qty,
+            unitCost: money(unitCost),
+            discountAmount,
+            taxAmount,
+            lineTotal,
+          });
+          computedSubtotal = money(computedSubtotal + qty * unitCost);
+          lineTaxSum = money(lineTaxSum + taxAmount);
+        }
+
+        const discountAmount = money(Number(input.discountAmount ?? 0));
+        const additionAmount = money(Number(input.additionAmount ?? 0));
+        const taxAmount = money(Number(input.taxAmount ?? lineTaxSum));
+        const grandTotal = money(computedSubtotal - discountAmount + additionAmount + taxAmount);
+        if (grandTotal < 0) return fail("Grand total cannot be negative");
+
+        let paidAmount = money(Number(input.paidAmount ?? 0));
+        if (mode === "cash" || mode === "bank") {
+          if (paidAmount <= 0) paidAmount = grandTotal;
+        }
+        if (paidAmount < 0 || paidAmount > grandTotal) return fail("Invalid paid amount");
+        const due = money(grandTotal - paidAmount);
+
+        let payAccountId: string | null = input.accountId ?? null;
+        if (paidAmount > 0) {
+          if (!payAccountId) {
+            payAccountId = requireAccountByCode(db, mode === "bank" ? "1200" : "1100", "Cash/Bank").id;
+          } else {
+            const acct = db.select().from(accounts).where(eq(accounts.id, payAccountId)).get();
+            if (!acct) return fail("Payment account not found");
+          }
+        }
+
+        const invAcct = requireAccountByCode(db, "1400", "Inventory Asset");
+        const apAcct = requireAccountByCode(db, "2100", "Accounts Payable");
+        const voucherId = existing.voucherId;
+
+        // Reverse previous stock-in only after validation
+        for (const item of oldItems) {
+          const variant = db.select().from(productVariants).where(eq(productVariants.id, item.variantId)).get();
+          if (!variant) continue;
+          db.update(productVariants)
+            .set({ stockQty: money(variant.stockQty - item.quantity), updatedAt: ts })
+            .where(eq(productVariants.id, variant.id))
+            .run();
+        }
+
+        db.delete(purchaseItems).where(eq(purchaseItems.purchaseId, id)).run();
+        db.delete(voucherEntries).where(eq(voucherEntries.voucherId, voucherId)).run();
+
+        db.update(vouchers)
+          .set({
+            voucherDate: input.invoiceDate,
+            partyType: "vendor",
+            partyId: input.vendorId,
+            accountId: payAccountId,
+            referenceNo: input.referenceNo?.trim() || null,
+            notes: input.notes?.trim() || null,
+            subtotal: computedSubtotal,
+            discountAmount,
+            additionAmount,
+            taxAmount,
+            grandTotal,
+            paidAmount,
+            status: "posted",
+            updatedAt: ts,
+          })
+          .where(eq(vouchers.id, voucherId))
+          .run();
+
+        let order = 0;
+        insertVoucherEntry(db, voucherId, invAcct.id, grandTotal, 0, `Purchase ${existing.invoiceNo}`, order++);
+        if (paidAmount > 0 && payAccountId) {
+          insertVoucherEntry(db, voucherId, payAccountId, 0, paidAmount, `Purchase ${existing.invoiceNo} paid`, order++);
+        }
+        if (due > 0) {
+          insertVoucherEntry(db, voucherId, apAcct.id, 0, due, `Purchase ${existing.invoiceNo} payable`, order++);
+        }
+
+        db.update(purchases)
+          .set({
+            invoiceDate: input.invoiceDate,
+            vendorId: input.vendorId,
+            paymentMode: mode,
+            subtotal: computedSubtotal,
+            discountAmount,
+            additionAmount,
+            taxAmount,
+            grandTotal,
+            paidAmount,
+            notes: input.notes?.trim() || null,
+            status: "completed",
+            updatedAt: ts,
+          })
+          .where(eq(purchases.id, id))
+          .run();
+
+        built.forEach((line, idx) => {
+          db.insert(purchaseItems)
+            .values({
+              id: randomUUID(),
+              purchaseId: id,
+              variantId: line.variantId,
+              productName: line.productName,
+              size: line.size,
+              color: line.color,
+              quantity: line.quantity,
+              unitCost: line.unitCost,
+              discountAmount: line.discountAmount,
+              taxAmount: line.taxAmount,
+              lineTotal: line.lineTotal,
+              lineOrder: idx,
+            })
+            .run();
+
+          const variant = db.select().from(productVariants).where(eq(productVariants.id, line.variantId)).get()!;
+          db.update(productVariants)
+            .set({
+              stockQty: money(variant.stockQty + line.quantity),
+              costPrice: line.unitCost,
+              updatedAt: ts,
+            })
+            .where(eq(productVariants.id, line.variantId))
+            .run();
+
+          db.insert(stockMovements)
+            .values({
+              id: randomUUID(),
+              variantId: line.variantId,
+              movementType: "in",
+              quantity: line.quantity,
+              referenceType: "purchase",
+              referenceId: id,
+              notes: `Edit purchase ${existing.invoiceNo}`,
+              createdBy: session?.id ?? null,
+            })
+            .run();
+        });
+
+        writeAuditLog(db, {
+          userId: session?.id ?? null,
+          action: "update",
+          module: "purchases",
+          entityId: id,
+          details: `Updated purchase ${existing.invoiceNo} total ${grandTotal}`,
+        });
+
+        return ok(enrichPurchase(id, true)!);
+      })
   );
 
   ipcMain.handle(IPC.PURCHASES_DELETE, async (_e, id: string): Promise<ActionResult> =>

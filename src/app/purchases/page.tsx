@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Eye, Plus, Trash2, X } from "lucide-react";
+import { Eye, Pencil, Plus, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { ExportMenu } from "@/components/ExportMenu";
 import { PrintMenu } from "@/components/PrintMenu";
@@ -44,6 +44,7 @@ export default function PurchasesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [composer, setComposer] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [invoiceDate, setInvoiceDate] = useState(today());
   const [vendorId, setVendorId] = useState("");
@@ -118,7 +119,7 @@ export default function PurchasesPage() {
     [subtotal, discountAmount, additionAmount, taxAmount]
   );
 
-  const openComposer = () => {
+  const resetComposer = () => {
     setInvoiceDate(today());
     setVendorId(vendors[0]?.id ?? "");
     setPaymentMode("credit");
@@ -131,6 +132,41 @@ export default function PurchasesPage() {
     setPickVariantId("");
     setError("");
     if (accounts[0]) setAccountId(accounts[0].id);
+  };
+
+  const openComposer = () => {
+    resetComposer();
+    setEditingId(null);
+    setComposer(true);
+  };
+
+  const openEdit = async (row: Purchase) => {
+    const res = await getApi().getPurchase(row.id);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    const purchase = res.data;
+    setEditingId(purchase.id);
+    setInvoiceDate(purchase.invoiceDate);
+    setVendorId(purchase.vendorId ?? "");
+    setPaymentMode(purchase.paymentMode);
+    setDiscountAmount(String(purchase.discountAmount));
+    setAdditionAmount(String(purchase.additionAmount));
+    setTaxAmount(String(purchase.taxAmount));
+    setPaidAmount(String(purchase.paidAmount));
+    setNotes(purchase.notes || "");
+    setPickVariantId("");
+    setError("");
+    setLines(
+      (purchase.items ?? []).map((it) => ({
+        key: `${it.variantId}-${it.id}`,
+        variantId: it.variantId,
+        label: `${it.productName} (${it.size}/${it.color})`,
+        quantity: String(it.quantity),
+        unitCost: String(it.unitCost),
+      }))
+    );
     setComposer(true);
   };
 
@@ -158,7 +194,7 @@ export default function PurchasesPage() {
   const onSave = async () => {
     setSaving(true);
     setError("");
-    const res = await getApi().createPurchase({
+    const payload = {
       invoiceDate,
       vendorId,
       paymentMode,
@@ -174,13 +210,17 @@ export default function PurchasesPage() {
         quantity: Number(l.quantity),
         unitCost: Number(l.unitCost),
       })),
-    });
+    };
+    const res = editingId
+      ? await getApi().updatePurchase(editingId, payload)
+      : await getApi().createPurchase(payload);
     setSaving(false);
     if (!res.ok) {
       setError(res.error);
       return;
     }
     setComposer(false);
+    setEditingId(null);
     await load();
   };
 
@@ -274,9 +314,14 @@ export default function PurchasesPage() {
               <td className="px-4 py-3 capitalize">{row.status}</td>
               <td className="px-4 py-3">
                 <div className="flex gap-1">
-                  <Button variant="ghost" size="sm" onClick={() => void openView(row)}>
+                  <Button variant="ghost" size="sm" onClick={() => void openView(row)} title="View">
                     <Eye size={14} />
                   </Button>
+                  {canCreate && row.status !== "returned" ? (
+                    <Button variant="ghost" size="sm" onClick={() => void openEdit(row)} title="Edit">
+                      <Pencil size={14} />
+                    </Button>
+                  ) : null}
                   <PrintMenu defaultSize="a4" onPrint={(size) => printPurchase(row, size)} />
                   {canCreate ? (
                     <Button variant="ghost" size="sm" onClick={() => void onDelete(row)}>
@@ -292,16 +337,25 @@ export default function PurchasesPage() {
 
       <Modal
         open={composer}
-        title="New purchase"
-        onClose={() => setComposer(false)}
+        title={editingId ? "Edit purchase" : "New purchase"}
+        onClose={() => {
+          setComposer(false);
+          setEditingId(null);
+        }}
         wide
         footer={
           <>
-            <Button variant="secondary" onClick={() => setComposer(false)}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setComposer(false);
+                setEditingId(null);
+              }}
+            >
               Cancel
             </Button>
             <Button onClick={() => void onSave()} disabled={saving || lines.length === 0 || !vendorId}>
-              {saving ? "Saving..." : "Save purchase"}
+              {saving ? "Saving..." : editingId ? "Update purchase" : "Save purchase"}
             </Button>
           </>
         }
@@ -414,6 +468,17 @@ export default function PurchasesPage() {
             <Button variant="secondary" onClick={() => setViewOpen(false)}>
               Close
             </Button>
+            {viewing && canCreate && viewing.status !== "returned" ? (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setViewOpen(false);
+                  void openEdit(viewing);
+                }}
+              >
+                Edit
+              </Button>
+            ) : null}
             {viewing ? (
               <PrintMenu
                 variant="primary"

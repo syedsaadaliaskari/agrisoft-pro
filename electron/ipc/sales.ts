@@ -471,6 +471,262 @@ export function registerSalesHandlers(): void {
     })
   );
 
+  ipcMain.handle(
+    IPC.SALES_UPDATE,
+    async (_e, id: string, input: CreateSaleInput): Promise<ActionResult<Sale>> =>
+      guarded(() => requirePermission("sales.create"), async () => {
+        if (!input.items?.length) return fail("Add at least one line item");
+        if (!input.invoiceDate?.trim()) return fail("Invoice date is required");
+
+        const mode = (input.paymentMode || "cash") as PaymentMode;
+        if (!["cash", "credit", "bank"].includes(mode)) return fail("Invalid payment mode");
+        if (mode === "credit" && !input.customerId) {
+          return fail("Customer is required for credit sales");
+        }
+
+        const db = getDb();
+        const session = getCurrentSession();
+        const existing = db.select().from(sales).where(eq(sales.id, id)).get();
+        if (!existing || existing.status === "deleted") return fail("Sale not found");
+        if (existing.status === "returned") return fail("Cannot edit a returned sale");
+
+        if (input.customerId) {
+          const customer = db.select().from(customers).where(eq(customers.id, input.customerId)).get();
+          if (!customer || !customer.isActive) return fail("Customer not found or inactive");
+        }
+
+        const oldItems = db.select().from(saleItems).where(eq(saleItems.saleId, id)).all();
+        const oldQtyByVariant = new Map<string, number>();
+        for (const item of oldItems) {
+          oldQtyByVariant.set(item.variantId, money((oldQtyByVariant.get(item.variantId) ?? 0) + item.quantity));
+        }
+        const ts = nowIso();
+
+        type BuiltLine = {
+          variantId: string;
+          productName: string;
+          size: string | null;
+          color: string | null;
+          quantity: number;
+          unitPrice: number;
+          costPrice: number;
+          discountAmount: number;
+          taxAmount: number;
+          lineTotal: number;
+        };
+        const built: BuiltLine[] = [];
+        let computedSubtotal = 0;
+        let lineTaxSum = 0;
+        const neededByVariant = new Map<string, number>();
+
+        for (let i = 0; i < input.items.length; i++) {
+          const line = input.items[i];
+          const qty = Number(line.quantity);
+          const unitPrice = Number(line.unitPrice);
+          if (!line.variantId) return fail(`Line ${i + 1}: variant is required`);
+          if (Number.isNaN(qty) || qty <= 0) return fail(`Line ${i + 1}: quantity must be positive`);
+          if (Number.isNaN(unitPrice) || unitPrice < 0) return fail(`Line ${i + 1}: invalid unit price`);
+
+          const variant = db
+            .select()
+            .from(productVariants)
+            .where(eq(productVariants.id, line.variantId))
+            .get();
+          if (!variant || !variant.isActive) return fail(`Line ${i + 1}: pack not found or inactive`);
+
+          const available = money(variant.stockQty + (oldQtyByVariant.get(variant.id) ?? 0));
+          const alreadyNeeded = neededByVariant.get(variant.id) ?? 0;
+          if (available < alreadyNeeded + qty) {
+            return fail(
+              `Insufficient stock for ${variant.sku}: available ${available - alreadyNeeded}, needed ${qty}`
+            );
+          }
+          neededByVariant.set(variant.id, money(alreadyNeeded + qty));
+
+          const product = db.select().from(products).where(eq(products.id, variant.productId)).get();
+          if (!product || !product.isActive) return fail(`Line ${i + 1}: product not found or inactive`);
+
+          const discountAmount = money(Number(line.discountAmount ?? 0));
+          const taxAmount = money(Number(line.taxAmount ?? 0));
+          const lineTotal = money(qty * unitPrice - discountAmount + taxAmount);
+          if (lineTotal < 0) return fail(`Line ${i + 1}: line total cannot be negative`);
+
+          built.push({
+            variantId: variant.id,
+            productName: product.name,
+            size: variant.size,
+            color: variant.color,
+            quantity: qty,
+            unitPrice: money(unitPrice),
+            costPrice: money(Number(variant.costPrice ?? product.costPrice ?? 0)),
+            discountAmount,
+            taxAmount,
+            lineTotal,
+          });
+          computedSubtotal = money(computedSubtotal + qty * unitPrice);
+          lineTaxSum = money(lineTaxSum + taxAmount);
+        }
+
+        const discountAmount = money(Number(input.discountAmount ?? 0));
+        const additionAmount = money(Number(input.additionAmount ?? 0));
+        const taxAmount = money(Number(input.taxAmount ?? lineTaxSum));
+        const grandTotal = money(computedSubtotal - discountAmount + additionAmount + taxAmount);
+        if (grandTotal < 0) return fail("Grand total cannot be negative");
+
+        let paidAmount = money(Number(input.paidAmount ?? 0));
+        if (mode === "cash" || mode === "bank") {
+          if (paidAmount <= 0) paidAmount = grandTotal;
+        }
+        if (paidAmount < 0) return fail("Paid amount cannot be negative");
+        if (paidAmount > grandTotal) return fail("Paid amount cannot exceed grand total");
+
+        const due = money(grandTotal - paidAmount);
+        if (due > 0 && !input.customerId) {
+          return fail("Customer is required when there is an unpaid balance");
+        }
+
+        let payAccountId: string | null = input.accountId ?? null;
+        if (paidAmount > 0) {
+          if (!payAccountId) {
+            const fallback = requireAccountByCode(db, mode === "bank" ? "1200" : "1100", "Cash/Bank");
+            payAccountId = fallback.id;
+          } else {
+            const acct = db.select().from(accounts).where(eq(accounts.id, payAccountId)).get();
+            if (!acct || !acct.isActive) return fail("Payment account not found");
+          }
+        }
+
+        const salesAcct = requireAccountByCode(db, "4100", "Sales Revenue");
+        const arAcct = requireAccountByCode(db, "1300", "Accounts Receivable");
+        const invAcct = requireAccountByCode(db, "1400", "Inventory Asset");
+        const cogsAcct = requireAccountByCode(db, "5100", "Cost of Goods Sold");
+        const cogsTotal = money(built.reduce((s, l) => s + l.costPrice * l.quantity, 0));
+        const voucherId = existing.voucherId;
+
+        // Mutate only after validation passed
+        for (const item of oldItems) {
+          const variant = db
+            .select()
+            .from(productVariants)
+            .where(eq(productVariants.id, item.variantId))
+            .get();
+          if (variant) {
+            db.update(productVariants)
+              .set({ stockQty: money(variant.stockQty + item.quantity), updatedAt: ts })
+              .where(eq(productVariants.id, variant.id))
+              .run();
+          }
+        }
+
+        db.delete(saleItems).where(eq(saleItems.saleId, id)).run();
+        db.delete(voucherEntries).where(eq(voucherEntries.voucherId, voucherId)).run();
+
+        db.update(vouchers)
+          .set({
+            voucherDate: input.invoiceDate,
+            partyType: input.customerId ? "customer" : null,
+            partyId: input.customerId ?? null,
+            accountId: payAccountId,
+            referenceNo: input.referenceNo?.trim() || null,
+            notes: input.notes?.trim() || null,
+            subtotal: computedSubtotal,
+            discountAmount,
+            additionAmount,
+            taxAmount,
+            grandTotal,
+            paidAmount,
+            status: "posted",
+            updatedAt: ts,
+          })
+          .where(eq(vouchers.id, voucherId))
+          .run();
+
+        let order = 0;
+        if (paidAmount > 0 && payAccountId) {
+          insertEntry(voucherId, payAccountId, paidAmount, 0, `Sale ${existing.invoiceNo} receipt`, order++);
+        }
+        if (due > 0) {
+          insertEntry(voucherId, arAcct.id, due, 0, `Sale ${existing.invoiceNo} credit`, order++);
+        }
+        insertEntry(voucherId, salesAcct.id, 0, grandTotal, `Sale ${existing.invoiceNo} revenue`, order++);
+        if (cogsTotal > 0) {
+          insertEntry(voucherId, cogsAcct.id, cogsTotal, 0, `Sale ${existing.invoiceNo} COGS`, order++);
+          insertEntry(voucherId, invAcct.id, 0, cogsTotal, `Sale ${existing.invoiceNo} stock out`, order++);
+        }
+
+        db.update(sales)
+          .set({
+            invoiceDate: input.invoiceDate,
+            customerId: input.customerId ?? null,
+            paymentMode: mode,
+            subtotal: computedSubtotal,
+            discountAmount,
+            additionAmount,
+            taxAmount,
+            grandTotal,
+            paidAmount,
+            notes: input.notes?.trim() || null,
+            status: "completed",
+            updatedAt: ts,
+          })
+          .where(eq(sales.id, id))
+          .run();
+
+        built.forEach((line, idx) => {
+          db.insert(saleItems)
+            .values({
+              id: randomUUID(),
+              saleId: id,
+              variantId: line.variantId,
+              productName: line.productName,
+              size: line.size,
+              color: line.color,
+              quantity: line.quantity,
+              unitPrice: line.unitPrice,
+              costPrice: line.costPrice,
+              discountAmount: line.discountAmount,
+              taxAmount: line.taxAmount,
+              lineTotal: line.lineTotal,
+              lineOrder: idx,
+            })
+            .run();
+
+          const variant = db
+            .select()
+            .from(productVariants)
+            .where(eq(productVariants.id, line.variantId))
+            .get()!;
+          db.update(productVariants)
+            .set({ stockQty: money(variant.stockQty - line.quantity), updatedAt: ts })
+            .where(eq(productVariants.id, line.variantId))
+            .run();
+
+          db.insert(stockMovements)
+            .values({
+              id: randomUUID(),
+              variantId: line.variantId,
+              movementType: "out",
+              quantity: line.quantity,
+              referenceType: "sale",
+              referenceId: id,
+              notes: `Edit sale ${existing.invoiceNo}`,
+              createdBy: session?.id ?? null,
+            })
+            .run();
+        });
+
+        writeAuditLog(db, {
+          userId: session?.id ?? null,
+          action: "update",
+          module: "sales",
+          entityId: id,
+          details: `Updated sale ${existing.invoiceNo} total ${grandTotal}`,
+        });
+
+        return ok(enrichSale(id, true)!);
+      })
+  );
+
   ipcMain.handle(IPC.SALES_DELETE, async (_e, id: string): Promise<ActionResult> =>
     guarded(() => requirePermission("sales.create"), async () => {
       const db = getDb();

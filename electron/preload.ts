@@ -64,13 +64,16 @@ const api: ElectronAPI = {
   getAccount: (id) => ipcRenderer.invoke(IPC.ACCOUNTS_GET, id),
   postVoucher: (input) => ipcRenderer.invoke(IPC.VOUCHERS_POST, input),
   getVoucher: (id) => ipcRenderer.invoke(IPC.VOUCHERS_GET, id),
+  listVouchers: (filter) => ipcRenderer.invoke(IPC.VOUCHERS_LIST, filter),
   cancelVoucher: (id) => ipcRenderer.invoke(IPC.VOUCHERS_CANCEL, id),
   getAccountLedger: (accountId, query) => ipcRenderer.invoke(IPC.LEDGER_ACCOUNT, accountId, query),
   getPartyLedger: (partyType, partyId, query) =>
     ipcRenderer.invoke(IPC.LEDGER_PARTY, partyType, partyId, query),
 
   receivePayment: (input) => ipcRenderer.invoke(IPC.TX_RECEIVE, input),
+  updateReceivePayment: (id, input) => ipcRenderer.invoke(IPC.TX_RECEIVE_UPDATE, id, input),
   makePayment: (input) => ipcRenderer.invoke(IPC.TX_PAY, input),
+  updateMakePayment: (id, input) => ipcRenderer.invoke(IPC.TX_PAY_UPDATE, id, input),
   postExpense: (input) => ipcRenderer.invoke(IPC.TX_EXPENSE, input),
   postIncome: (input) => ipcRenderer.invoke(IPC.TX_INCOME, input),
 
@@ -78,6 +81,7 @@ const api: ElectronAPI = {
   getPurchase: (id) => ipcRenderer.invoke(IPC.PURCHASES_GET, id),
   listPurchasesByVendor: (vendorId) => ipcRenderer.invoke(IPC.PURCHASES_LIST_BY_VENDOR, vendorId),
   createPurchase: (input) => ipcRenderer.invoke(IPC.PURCHASES_CREATE, input),
+  updatePurchase: (id, input) => ipcRenderer.invoke(IPC.PURCHASES_UPDATE, id, input),
   deletePurchase: (id) => ipcRenderer.invoke(IPC.PURCHASES_DELETE, id),
   listPurchaseReturns: () => ipcRenderer.invoke(IPC.PURCHASE_RETURNS_LIST),
   getPurchaseReturn: (id) => ipcRenderer.invoke(IPC.PURCHASE_RETURNS_GET, id),
@@ -87,6 +91,7 @@ const api: ElectronAPI = {
   getSale: (id) => ipcRenderer.invoke(IPC.SALES_GET, id),
   listSalesByCustomer: (customerId) => ipcRenderer.invoke(IPC.SALES_LIST_BY_CUSTOMER, customerId),
   createSale: (input) => ipcRenderer.invoke(IPC.SALES_CREATE, input),
+  updateSale: (id, input) => ipcRenderer.invoke(IPC.SALES_UPDATE, id, input),
   deleteSale: (id) => ipcRenderer.invoke(IPC.SALES_DELETE, id),
   listSaleReturns: () => ipcRenderer.invoke(IPC.SALE_RETURNS_LIST),
   getSaleReturn: (id) => ipcRenderer.invoke(IPC.SALE_RETURNS_GET, id),

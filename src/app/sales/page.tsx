@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Eye, Plus, Trash2, X } from "lucide-react";
+import { Eye, Pencil, Plus, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { ExportMenu } from "@/components/ExportMenu";
 import { PrintMenu } from "@/components/PrintMenu";
@@ -53,6 +53,7 @@ export default function SalesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [composer, setComposer] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const [invoiceDate, setInvoiceDate] = useState(today());
@@ -152,6 +153,41 @@ export default function SalesPage() {
 
   const openComposer = () => {
     resetComposer();
+    setEditingId(null);
+    setComposer(true);
+  };
+
+  const openEdit = async (row: Sale) => {
+    const res = await getApi().getSale(row.id);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    const sale = res.data;
+    setEditingId(sale.id);
+    setInvoiceDate(sale.invoiceDate);
+    setCustomerId(sale.customerId || "");
+    setPaymentMode(sale.paymentMode);
+    setDiscountAmount(String(sale.discountAmount));
+    setAdditionAmount(String(sale.additionAmount));
+    setTaxAmount(String(sale.taxAmount));
+    setPaidAmount(String(sale.paidAmount));
+    setNotes(sale.notes || "");
+    setPickVariantId("");
+    setError("");
+    setLines(
+      (sale.items ?? []).map((it) => {
+        const inv = inventory.find((r) => r.variantId === it.variantId);
+        return {
+          key: `${it.variantId}-${it.id}`,
+          variantId: it.variantId,
+          label: `${it.productName} (${it.size}/${it.color})`,
+          stockQty: (inv?.stockQty ?? 0) + it.quantity,
+          quantity: String(it.quantity),
+          unitPrice: String(it.unitPrice),
+        };
+      })
+    );
     setComposer(true);
   };
 
@@ -219,13 +255,16 @@ export default function SalesPage() {
         unitPrice: Number(l.unitPrice),
       })),
     };
-    const res = await getApi().createSale(payload);
+    const res = editingId
+      ? await getApi().updateSale(editingId, payload)
+      : await getApi().createSale(payload);
     setSaving(false);
     if (!res.ok) {
       setError(res.error);
       return;
     }
     setComposer(false);
+    setEditingId(null);
     await load();
     if (andPrint) await printSale(res.data);
   };
@@ -310,6 +349,11 @@ export default function SalesPage() {
                   <Button variant="ghost" size="sm" onClick={() => void openView(row)} title="View">
                     <Eye size={14} />
                   </Button>
+                  {canCreate && row.status !== "returned" ? (
+                    <Button variant="ghost" size="sm" onClick={() => void openEdit(row)} title="Edit">
+                      <Pencil size={14} />
+                    </Button>
+                  ) : null}
                   <PrintMenu onPrint={(size) => printSale(row, size)} />
                   {canCreate ? (
                     <Button variant="ghost" size="sm" onClick={() => void onDelete(row)} title="Delete">
@@ -325,19 +369,30 @@ export default function SalesPage() {
 
       <Modal
         open={composer}
-        title="New sale"
-        onClose={() => setComposer(false)}
+        title={editingId ? "Edit sale" : "New sale"}
+        onClose={() => {
+          setComposer(false);
+          setEditingId(null);
+        }}
         wide
         footer={
           <>
-            <Button variant="secondary" onClick={() => setComposer(false)}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setComposer(false);
+                setEditingId(null);
+              }}
+            >
               Cancel
             </Button>
-            <Button variant="secondary" onClick={() => void onSave(true)} disabled={saving || lines.length === 0}>
-              {saving ? "Saving..." : "Save & print"}
-            </Button>
+            {!editingId ? (
+              <Button variant="secondary" onClick={() => void onSave(true)} disabled={saving || lines.length === 0}>
+                {saving ? "Saving..." : "Save & print"}
+              </Button>
+            ) : null}
             <Button onClick={() => void onSave(false)} disabled={saving || lines.length === 0}>
-              {saving ? "Saving..." : "Save sale"}
+              {saving ? "Saving..." : editingId ? "Update sale" : "Save sale"}
             </Button>
           </>
         }
@@ -498,6 +553,17 @@ export default function SalesPage() {
             <Button variant="secondary" onClick={() => setViewOpen(false)}>
               Close
             </Button>
+            {viewing && canCreate && viewing.status !== "returned" ? (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setViewOpen(false);
+                  void openEdit(viewing);
+                }}
+              >
+                Edit
+              </Button>
+            ) : null}
             {viewing ? (
               <PrintMenu
                 variant="primary"
