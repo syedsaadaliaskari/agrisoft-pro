@@ -1,10 +1,64 @@
 import { ipcMain } from "electron";
-import { count } from "drizzle-orm";
-import { IPC, type AppInfo, type DbStats, type LoginResult, type SessionUser } from "../../shared/ipc";
+import bcrypt from "bcryptjs";
+import { eq, count } from "drizzle-orm";
+import { IPC, type SessionUser, type LoginResult, type DbStats, type AppInfo } from "../../shared/ipc";
 import { getDb, getDbPath } from "../db";
-import { products, customers, vendors, sales, purchases, users } from "../db/schema";
+import {
+  users,
+  roles,
+  permissions,
+  rolePermissions,
+  products,
+  customers,
+  vendors,
+  sales,
+  purchases,
+} from "../db/schema";
+import { registerMasterHandlers } from "./masters";
+import { registerProductHandlers } from "./products";
+import { registerPartyHandlers } from "./parties";
+import { registerAccountHandlers } from "./accounts";
+import { registerSalesHandlers } from "./sales";
+import { registerSettingsHandlers } from "./settings";
+import { registerUserHandlers } from "./users";
+import { getCurrentSession, setCurrentSession } from "./session";
+import { writeAuditLog } from "../db/audit";
 
-const notReady = <T = never>(): { ok: false; error: string } => ({
+function loadUserSession(userId: string): SessionUser | null {
+  const db = getDb();
+  const row = db
+    .select({
+      id: users.id,
+      username: users.username,
+      fullName: users.fullName,
+      roleId: users.roleId,
+      roleName: roles.name,
+    })
+    .from(users)
+    .innerJoin(roles, eq(users.roleId, roles.id))
+    .where(eq(users.id, userId))
+    .get();
+
+  if (!row) return null;
+
+  const perms = db
+    .select({ code: permissions.code })
+    .from(rolePermissions)
+    .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
+    .where(eq(rolePermissions.roleId, row.roleId))
+    .all();
+
+  return {
+    id: row.id,
+    username: row.username,
+    fullName: row.fullName,
+    roleId: row.roleId,
+    roleName: row.roleName,
+    permissions: perms.map((p) => p.code),
+  };
+}
+
+const notReady = (): { ok: false; error: string } => ({
   ok: false,
   error: "Not implemented yet — coming in a later build step",
 });
@@ -19,14 +73,55 @@ export function registerIpcHandlers(appVersion: string, isDev: boolean): void {
     isDev,
   }));
 
-  ipcMain.handle(IPC.AUTH_LOGIN, async (): Promise<LoginResult> => ({
-    ok: false,
-    error: "Auth arrives in Step 4",
-  }));
+  ipcMain.handle(IPC.AUTH_LOGIN, async (_e, username: string, password: string): Promise<LoginResult> => {
+    const db = getDb();
+    const user = db.select().from(users).where(eq(users.username, username)).get();
 
-  ipcMain.handle(IPC.AUTH_LOGOUT, async () => undefined);
+    if (!user || !user.isActive) {
+      return { ok: false, error: "Invalid username or password" };
+    }
 
-  ipcMain.handle(IPC.AUTH_CURRENT_USER, async (): Promise<SessionUser | null> => null);
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) {
+      return { ok: false, error: "Invalid username or password" };
+    }
+
+    db.update(users)
+      .set({ lastLoginAt: new Date().toISOString() })
+      .where(eq(users.id, user.id))
+      .run();
+
+    const session = loadUserSession(user.id);
+    if (!session) {
+      return { ok: false, error: "Failed to load user session" };
+    }
+
+    setCurrentSession(session);
+    writeAuditLog(db, {
+      userId: session.id,
+      action: "login",
+      module: "auth",
+      entityId: session.id,
+      details: `User ${session.username} signed in`,
+    });
+    return { ok: true, user: session };
+  });
+
+  ipcMain.handle(IPC.AUTH_LOGOUT, async () => {
+    const session = getCurrentSession();
+    if (session) {
+      writeAuditLog(getDb(), {
+        userId: session.id,
+        action: "logout",
+        module: "auth",
+        entityId: session.id,
+        details: `User ${session.username} signed out`,
+      });
+    }
+    setCurrentSession(null);
+  });
+
+  ipcMain.handle(IPC.AUTH_CURRENT_USER, async (): Promise<SessionUser | null> => getCurrentSession());
 
   ipcMain.handle(IPC.DB_STATS, async (): Promise<DbStats> => {
     const db = getDb();
@@ -50,49 +145,15 @@ export function registerIpcHandlers(appVersion: string, isDev: boolean): void {
     };
   });
 
+  registerMasterHandlers();
+  registerProductHandlers();
+  registerPartyHandlers();
+  registerAccountHandlers();
+  registerSalesHandlers();
+  registerSettingsHandlers();
+  registerUserHandlers();
+
   const stubChannels = [
-    IPC.DOCS_NEXT_NUMBER,
-    IPC.UNITS_LIST,
-    IPC.UNITS_CREATE,
-    IPC.UNITS_UPDATE,
-    IPC.UNITS_DELETE,
-    IPC.CATEGORIES_LIST,
-    IPC.CATEGORIES_CREATE,
-    IPC.CATEGORIES_UPDATE,
-    IPC.CATEGORIES_DELETE,
-    IPC.TAXES_LIST,
-    IPC.TAXES_CREATE,
-    IPC.TAXES_UPDATE,
-    IPC.TAXES_DELETE,
-    IPC.DISCOUNTS_LIST,
-    IPC.DISCOUNTS_CREATE,
-    IPC.DISCOUNTS_UPDATE,
-    IPC.DISCOUNTS_DELETE,
-    IPC.ADDITIONS_LIST,
-    IPC.ADDITIONS_CREATE,
-    IPC.ADDITIONS_UPDATE,
-    IPC.ADDITIONS_DELETE,
-    IPC.PRODUCTS_LIST,
-    IPC.PRODUCTS_GET,
-    IPC.PRODUCTS_CREATE,
-    IPC.PRODUCTS_UPDATE,
-    IPC.PRODUCTS_DELETE,
-    IPC.VARIANTS_LIST,
-    IPC.VARIANTS_CREATE,
-    IPC.VARIANTS_UPDATE,
-    IPC.VARIANTS_DELETE,
-    IPC.INVENTORY_LIST,
-    IPC.INVENTORY_ADJUST,
-    IPC.CUSTOMERS_LIST,
-    IPC.CUSTOMERS_CREATE,
-    IPC.CUSTOMERS_UPDATE,
-    IPC.CUSTOMERS_DELETE,
-    IPC.VENDORS_LIST,
-    IPC.VENDORS_CREATE,
-    IPC.VENDORS_UPDATE,
-    IPC.VENDORS_DELETE,
-    IPC.ACCOUNTS_LIST,
-    IPC.ACCOUNTS_GET,
     IPC.VOUCHERS_POST,
     IPC.VOUCHERS_GET,
     IPC.VOUCHERS_CANCEL,
@@ -109,13 +170,6 @@ export function registerIpcHandlers(appVersion: string, isDev: boolean): void {
     IPC.PURCHASES_DELETE,
     IPC.PURCHASE_RETURNS_LIST,
     IPC.PURCHASE_RETURNS_CREATE,
-    IPC.SALES_LIST,
-    IPC.SALES_GET,
-    IPC.SALES_LIST_BY_CUSTOMER,
-    IPC.SALES_CREATE,
-    IPC.SALES_DELETE,
-    IPC.SALE_RETURNS_LIST,
-    IPC.SALE_RETURNS_CREATE,
     IPC.DASHBOARD_SUMMARY,
     IPC.REPORTS_SALES,
     IPC.REPORTS_PURCHASES,
@@ -123,16 +177,6 @@ export function registerIpcHandlers(appVersion: string, isDev: boolean): void {
     IPC.REPORTS_STOCK,
     IPC.REPORTS_TAX,
     IPC.REPORTS_DELETED,
-    IPC.SETTINGS_GET_ALL,
-    IPC.SETTINGS_UPDATE,
-    IPC.USERS_LIST,
-    IPC.USERS_CREATE,
-    IPC.USERS_UPDATE,
-    IPC.USERS_SET_PASSWORD,
-    IPC.ROLES_LIST,
-    IPC.PERMISSIONS_LIST,
-    IPC.ROLES_SET_PERMISSIONS,
-    IPC.AUDIT_LIST,
   ] as const;
 
   for (const channel of stubChannels) {

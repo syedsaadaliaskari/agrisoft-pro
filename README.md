@@ -8,11 +8,14 @@ Local desktop agri ERP built with **Electron + Next.js (static export) + SQLite*
 Renderer (Next.js) --IPC--> Preload --IPC--> Main (Electron) --> SQLite
 ```
 
-## Step 1–3 (current)
+## Step 1–6 (current)
 
 - Desktop foundation: Electron + Next static export + IPC
 - Theme + AppShell (graphite / soft cyan)
 - Full SQLite schema + seed (`admin` / `admin123`), agri demo products/parties
+- Auth + RBAC + Settings / Users / Taxes / Discounts / Additions
+- Masters CRUD: Units, Categories, Products (+ packs), Inventory adjust, Customers, Vendors
+- Sales: POS entry, stock out, ledger posting (cash/bank/AR + COGS), sale returns, print receipt
 
 Dev DB: `./data/agri-soft-pro.dev.db` (created on first Electron launch)
 
@@ -34,4 +37,4 @@ npm run dev
 | `npm start` | Run packaged static build via Electron |
 | `npm run dist` | Windows NSIS installer |
 
-Default login (after Step 4): `admin` / `admin123`
+Default login: `admin` / `admin123` (also `cashier` / `cashier123` after demo seed)

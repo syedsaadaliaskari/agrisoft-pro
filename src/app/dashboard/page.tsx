@@ -72,7 +72,7 @@ export default function DashboardPage() {
   return (
     <AppShell title="Dashboard" subtitle="Overview of your agri business" permission="dashboard.view">
       <Alert tone="info">
-        Step 3 schema is seeded. Open via Electron (`npm run dev`) to see live SQLite counts. Auth comes in Step 4.
+        Signed in with real SQLite auth. Sales are live — purchases arrive in Step 7.
       </Alert>
 
       <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

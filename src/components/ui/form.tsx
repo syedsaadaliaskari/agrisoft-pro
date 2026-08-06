@@ -147,18 +147,25 @@ export function Modal({
   onClose,
   children,
   footer,
+  wide,
 }: {
   open: boolean;
   title: string;
   onClose: () => void;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  wide?: boolean;
 }) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button type="button" className="absolute inset-0 bg-black/60" onClick={onClose} aria-label="Close" />
-      <div className="relative z-10 w-full max-w-lg rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] shadow-2xl">
+      <div
+        className={cn(
+          "relative z-10 w-full rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] shadow-2xl",
+          wide ? "max-w-2xl" : "max-w-lg"
+        )}
+      >
         <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
           <h3 className="text-base font-semibold">{title}</h3>
           <button

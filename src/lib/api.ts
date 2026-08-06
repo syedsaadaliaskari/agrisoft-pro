@@ -25,7 +25,10 @@ function createBrowserMock(): ElectronAPI {
       dbPath: "(browser — no SQLite)",
       isDev: true,
     }),
-    login: async (): Promise<LoginResult> => ({ ok: false, error: "Auth arrives in Step 4" }),
+    login: async (): Promise<LoginResult> => ({
+      ok: false,
+      error: "Open via Electron (`npm run dev`) to sign in",
+    }),
     logout: async () => undefined,
     getCurrentUser: async (): Promise<SessionUser | null> => null,
     getDbStats: async (): Promise<DbStats> => ({

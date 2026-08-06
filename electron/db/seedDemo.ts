@@ -7,6 +7,7 @@ import {
   categories,
   customers,
   discounts,
+  documentCounters,
   products,
   productVariants,
   roles,
@@ -305,4 +306,17 @@ export async function seedDemoData(db: Db): Promise<void> {
   }
 
   upsertSetting(db, "demo_seeded", new Date().toISOString(), "system");
+
+  // Advance party counters past demo codes (CUS-00001..3, VEN-00001..2)
+  const bump = (docType: string, next: number) => {
+    const row = db.select().from(documentCounters).where(eq(documentCounters.docType, docType)).get();
+    if (row && row.nextNumber < next) {
+      db.update(documentCounters)
+        .set({ nextNumber: next, updatedAt: new Date().toISOString() })
+        .where(eq(documentCounters.id, row.id))
+        .run();
+    }
+  };
+  bump("customer", 4);
+  bump("vendor", 3);
 }

@@ -5,13 +5,13 @@ import { useRouter } from "next/navigation";
 import { Moon, Sun, Sprout } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 import { useTheme } from "@/lib/theme";
-import { Button } from "@/components/ui/form";
+import { isElectron } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { user, hydrated, hydrate, login, enterPreview, loading } = useAuthStore();
+  const { user, hydrated, hydrate, login, loading } = useAuthStore();
   const { theme, toggleTheme } = useTheme();
-  const [username, setUsername] = useState("");
+  const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
@@ -28,17 +28,16 @@ export default function LoginPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    if (!isElectron()) {
+      setError("Open the desktop app with npm run dev — login needs Electron + SQLite.");
+      return;
+    }
     const result = await login(username.trim(), password);
     if (result.ok) {
       router.replace("/dashboard");
     } else {
       setError(result.error ?? "Login failed");
     }
-  };
-
-  const onPreview = () => {
-    enterPreview();
-    router.replace("/dashboard");
   };
 
   return (
@@ -68,7 +67,7 @@ export default function LoginPage() {
             <Sprout size={28} strokeWidth={1.75} />
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">Agri Soft Pro</h1>
-          <p className="mt-1 text-sm text-[var(--text-muted)]">Local desktop agri ERP</p>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">Sign in to continue</p>
         </div>
 
         <form onSubmit={onSubmit} className="space-y-4">
@@ -107,14 +106,10 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div className="mt-5 border-t border-[var(--border)] pt-5">
-          <p className="mb-3 text-center text-xs text-[var(--text-muted)]">
-            Auth is wired in Step 4. Explore the shell now:
-          </p>
-          <Button type="button" variant="secondary" className="w-full" onClick={onPreview}>
-            Continue as preview
-          </Button>
-        </div>
+        <p className="mt-5 text-center text-xs text-[var(--text-muted)]">
+          Default: <span className="font-mono text-[var(--text)]">admin</span> /{" "}
+          <span className="font-mono text-[var(--text)]">admin123</span>
+        </p>
       </div>
     </div>
   );
