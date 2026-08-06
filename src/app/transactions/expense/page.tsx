@@ -1,8 +1,16 @@
 ﻿"use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Ban, Pencil } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Ban, Pencil, Receipt, Wallet } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
+import {
+  DocStatusBadge,
+  OpsEmptyState,
+  OpsListSkeleton,
+  OpsStatStrip,
+  VoucherWorkspace,
+  money,
+} from "@/components/ops/DocumentWorkspace";
 import { Alert, Button, DataTable, Input, Select, Textarea } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
 import { hasPermission } from "@/lib/permissions";
@@ -54,6 +62,18 @@ export default function ExpensePage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const stats = useMemo(() => {
+    const active = rows.filter((r) => r.status !== "cancelled");
+    const t = today();
+    const todayRows = active.filter((r) => r.voucherDate === t);
+    return {
+      count: active.length,
+      todayTotal: todayRows.reduce((s, r) => s + r.grandTotal, 0),
+      todayCount: todayRows.length,
+      total: active.reduce((s, r) => s + r.grandTotal, 0),
+    };
+  }, [rows]);
 
   const resetForm = () => {
     setVoucherDate(today());
@@ -115,7 +135,7 @@ export default function ExpensePage() {
   };
 
   return (
-    <AppShell title="Expense" subtitle="Post operating expense voucher" permission="transactions.create">
+    <AppShell title="Expense" subtitle="Operating expenses from cash or bank" permission="transactions.create">
       {error ? (
         <div className="mb-4">
           <Alert>{error}</Alert>
@@ -126,79 +146,125 @@ export default function ExpensePage() {
           <Alert tone="info">{okMsg}</Alert>
         </div>
       ) : null}
-      <div className="max-w-xl space-y-4 rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5">
-        <h2 className="text-sm font-semibold">{editingId ? "Edit expense" : "New expense"}</h2>
-        <Input label="Date" type="date" value={voucherDate} onChange={(e) => setVoucherDate(e.target.value)} />
-        <Select
-          label="Expense account"
-          value={expenseAccountId}
-          onChange={(e) => setExpenseAccountId(e.target.value)}
-          options={expenseAccounts.map((a) => ({ value: a.id, label: `${a.code} ${a.name}` }))}
-        />
-        <Select
-          label="Paid from"
-          value={accountId}
-          onChange={(e) => setAccountId(e.target.value)}
-          options={cashAccounts.map((a) => ({ value: a.id, label: `${a.code} ${a.name}` }))}
-        />
-        <Input
-          label="Amount"
-          type="number"
-          min={0.01}
-          step="0.01"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-        />
-        <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-        <div className="flex flex-wrap gap-2">
-          {editingId ? (
-            <Button variant="secondary" onClick={resetForm}>
-              Cancel edit
-            </Button>
-          ) : null}
-          <Button onClick={() => void onSave()} disabled={saving || !amount || !expenseAccountId || !accountId}>
-            {saving ? "Saving..." : editingId ? "Update expense" : "Post expense"}
-          </Button>
-        </div>
-      </div>
 
-      <div className="mt-8">
-        <h2 className="mb-3 text-sm font-semibold">Recent expenses</h2>
-        {loading ? (
-          <p className="text-sm text-[var(--text-muted)]">Loading...</p>
-        ) : (
-          <DataTable
-            headers={["Voucher", "Date", "Expense acct", "Paid from", "Amount", "Status", "Actions"]}
-            empty={rows.length === 0}
-          >
-            {rows.map((row) => {
-              const expLine = row.entries?.find((e) => e.debit > 0);
-              return (
-                <tr key={row.id} className="border-b border-[var(--border)] last:border-0">
-                  <td className="px-4 py-3 font-mono text-xs font-medium">{row.voucherNo}</td>
-                  <td className="px-4 py-3">{row.voucherDate}</td>
-                  <td className="px-4 py-3 text-[var(--text-muted)]">{expLine?.accountName || "—"}</td>
-                  <td className="px-4 py-3 text-[var(--text-muted)]">{row.accountName || "—"}</td>
-                  <td className="px-4 py-3">{row.grandTotal.toLocaleString()}</td>
-                  <td className="px-4 py-3 capitalize">{row.status}</td>
-                  <td className="px-4 py-3">
-                    {canCreate && row.status !== "cancelled" ? (
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => openEdit(row)} title="Edit">
-                          <Pencil size={14} />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => void onCancel(row)} title="Cancel voucher">
-                          <Ban size={14} />
-                        </Button>
-                      </div>
-                    ) : null}
-                  </td>
-                </tr>
-              );
-            })}
-          </DataTable>
-        )}
-      </div>
+      <VoucherWorkspace
+        formTitle={editingId ? "Edit expense" : "New expense"}
+        formHint="Debit expense head and credit cash/bank"
+        stats={
+          <OpsStatStrip
+            items={[
+              {
+                label: "Today's expenses",
+                value: money(stats.todayTotal),
+                hint: `${stats.todayCount} voucher${stats.todayCount === 1 ? "" : "s"}`,
+                tone: "accent",
+                icon: Wallet,
+              },
+              {
+                label: "Active expenses",
+                value: String(stats.count),
+                hint: money(stats.total) + " posted",
+                icon: Receipt,
+              },
+            ]}
+          />
+        }
+        form={
+          <>
+            <Input
+              label="Date"
+              type="date"
+              value={voucherDate}
+              onChange={(e) => setVoucherDate(e.target.value)}
+            />
+            <Select
+              label="Expense account"
+              value={expenseAccountId}
+              onChange={(e) => setExpenseAccountId(e.target.value)}
+              options={expenseAccounts.map((a) => ({ value: a.id, label: `${a.code} ${a.name}` }))}
+            />
+            <Select
+              label="Paid from"
+              value={accountId}
+              onChange={(e) => setAccountId(e.target.value)}
+              options={cashAccounts.map((a) => ({ value: a.id, label: `${a.code} ${a.name}` }))}
+            />
+            <Input
+              label="Amount"
+              type="number"
+              min={0.01}
+              step="0.01"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+            <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+            <div className="flex flex-wrap gap-2 pt-1">
+              {editingId ? (
+                <Button variant="secondary" onClick={resetForm}>
+                  Cancel edit
+                </Button>
+              ) : null}
+              <Button
+                onClick={() => void onSave()}
+                disabled={saving || !amount || !expenseAccountId || !accountId || !canCreate}
+              >
+                {saving ? "Saving..." : editingId ? "Update expense" : "Post expense"}
+              </Button>
+            </div>
+          </>
+        }
+        listTitle="Expense register"
+        list={
+          loading ? (
+            <OpsListSkeleton rows={5} />
+          ) : rows.length === 0 ? (
+            <OpsEmptyState title="No expenses yet" hint="Post rent, utilities, wages, and other operating costs." />
+          ) : (
+            <DataTable
+              headers={["Voucher", "Expense acct", "Paid from", "Amount", "Status", ""]}
+              empty={false}
+            >
+              {rows.map((row) => {
+                const expLine = row.entries?.find((e) => e.debit > 0);
+                return (
+                  <tr
+                    key={row.id}
+                    className="group border-b border-[var(--border)] last:border-0 transition hover:bg-[var(--bg-soft)]/60"
+                  >
+                    <td className="px-4 py-3.5">
+                      <div className="font-mono text-xs font-semibold">{row.voucherNo}</div>
+                      <div className="text-[11px] text-[var(--text-muted)]">{row.voucherDate}</div>
+                    </td>
+                    <td className="px-4 py-3.5 text-sm">{expLine?.accountName || "—"}</td>
+                    <td className="px-4 py-3.5 text-[var(--text-muted)]">{row.accountName || "—"}</td>
+                    <td className="px-4 py-3.5 font-semibold tabular-nums">{money(row.grandTotal)}</td>
+                    <td className="px-4 py-3.5">
+                      <DocStatusBadge status={row.status} />
+                    </td>
+                    <td className="px-4 py-3.5">
+                      {canCreate && row.status !== "cancelled" ? (
+                        <div className="flex justify-end gap-0.5">
+                          <Button variant="ghost" size="sm" onClick={() => openEdit(row)} title="Edit">
+                            <Pencil size={14} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => void onCancel(row)}
+                            title="Cancel voucher"
+                          >
+                            <Ban size={14} />
+                          </Button>
+                        </div>
+                      ) : null}
+                    </td>
+                  </tr>
+                );
+              })}
+            </DataTable>
+          )
+        }
+      />
     </AppShell>
   );
 }

@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
+import { AppShellSkeleton } from "@/components/ui/Skeleton";
 import { useAuthStore } from "@/store/auth";
 import { hasPermission } from "@/lib/permissions";
 
@@ -16,6 +17,7 @@ type Props = {
 
 export function AppShell({ title, subtitle, children, permission }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, hydrated, hydrate } = useAuthStore();
 
   useEffect(() => {
@@ -28,21 +30,32 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
     }
   }, [hydrated, user, router]);
 
-  // Only block first paint — keep shell visible while session soft-refreshes
+  // Prefetch common routes so sidebar clicks feel instant
+  useEffect(() => {
+    const routes = [
+      "/dashboard",
+      "/sales",
+      "/purchases",
+      "/inventory",
+      "/products",
+      "/customers",
+      "/reports/sales",
+    ];
+    for (const href of routes) {
+      try {
+        router.prefetch(href);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [router, user?.id]);
+
   if (!hydrated && !user) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-[var(--text-muted)]">
-        Loading…
-      </div>
-    );
+    return <AppShellSkeleton />;
   }
 
   if (hydrated && !user) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-[var(--text-muted)]">
-        Redirecting…
-      </div>
-    );
+    return <AppShellSkeleton />;
   }
 
   if (!user) return null;
@@ -67,11 +80,11 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen" key={pathname}>
       <Sidebar />
       <div style={{ marginLeft: "var(--sidebar-width)" }} className="min-h-screen">
         <Topbar title={title} subtitle={subtitle} />
-        <main className="p-6">{children}</main>
+        <main className="animate-[fadeIn_180ms_ease-out] p-6">{children}</main>
       </div>
     </div>
   );

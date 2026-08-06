@@ -1,10 +1,21 @@
 ﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { Plus, RotateCcw, Undo2, X } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { ExportMenu } from "@/components/ExportMenu";
 import { PrintMenu } from "@/components/PrintMenu";
+import {
+  ComposerSection,
+  FilterChips,
+  LineItemsTable,
+  OpsEmptyState,
+  OpsListSkeleton,
+  OpsStatStrip,
+  PaymentModePicker,
+  TotalsPanel,
+  money,
+} from "@/components/ops/DocumentWorkspace";
 import {
   Alert,
   Button,
@@ -46,6 +57,7 @@ export default function SaleReturnsPage() {
   const [inventory, setInventory] = useState<InventoryRow[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<"all" | "today" | "linked">("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
@@ -88,22 +100,39 @@ export default function SaleReturnsPage() {
     void load();
   }, [load]);
 
+  const stats = useMemo(() => {
+    const t = today();
+    const todayRows = rows.filter((r) => r.returnDate === t);
+    return {
+      count: rows.length,
+      todayCount: todayRows.length,
+      todayTotal: todayRows.reduce((s, r) => s + r.grandTotal, 0),
+      total: rows.reduce((s, r) => s + r.grandTotal, 0),
+      linked: rows.filter((r) => r.saleId).length,
+    };
+  }, [rows]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter(
-      (r) =>
+    const t = today();
+    return rows.filter((r) => {
+      if (filter === "today" && r.returnDate !== t) return false;
+      if (filter === "linked" && !r.saleId) return false;
+      if (!q) return true;
+      return (
         r.returnNo.toLowerCase().includes(q) ||
-        (r.customerName ?? "").toLowerCase().includes(q)
-    );
-  }, [rows, search]);
+        (r.customerName ?? "").toLowerCase().includes(q) ||
+        (r.notes ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [rows, search, filter]);
 
   const productOptions = useMemo(
     () => [
       { value: "", label: "— Select pack —" },
       ...inventory.map((r) => ({
         value: r.variantId,
-        label: `${r.productName} · ${r.size}/${r.color}`,
+        label: `${r.productName} · ${r.size}/${r.color} · ${money(r.salePrice)}`,
       })),
     ],
     [inventory]
@@ -218,7 +247,7 @@ export default function SaleReturnsPage() {
   return (
     <AppShell
       title="Sale Return"
-      subtitle="Return goods, restore stock, reverse ledger"
+      subtitle="Returns desk — restore stock and reverse settlement"
       permission="sales.return"
     >
       {error && !open ? (
@@ -226,6 +255,34 @@ export default function SaleReturnsPage() {
           <Alert>{error}</Alert>
         </div>
       ) : null}
+
+      <OpsStatStrip
+        items={[
+          {
+            label: "Today's returns",
+            value: money(stats.todayTotal),
+            hint: `${stats.todayCount} document${stats.todayCount === 1 ? "" : "s"}`,
+            tone: "accent",
+            icon: Undo2,
+          },
+          {
+            label: "All returns",
+            value: String(stats.count),
+            hint: money(stats.total) + " lifetime",
+            icon: RotateCcw,
+          },
+          {
+            label: "Linked to sale",
+            value: String(stats.linked),
+            hint: "Pulled from original invoice",
+          },
+          {
+            label: "Avg return",
+            value: money(stats.count ? stats.total / stats.count : 0),
+            hint: "Mean credit note",
+          },
+        ]}
+      />
 
       <PageToolbar
         search={search}
@@ -254,22 +311,57 @@ export default function SaleReturnsPage() {
         }
       />
 
+      <div className="mb-4">
+        <FilterChips
+          value={filter}
+          onChange={(v) => setFilter(v as typeof filter)}
+          options={[
+            { value: "all", label: "All", count: rows.length },
+            { value: "today", label: "Today", count: stats.todayCount },
+            { value: "linked", label: "Linked", count: stats.linked },
+          ]}
+        />
+      </div>
+
       {loading ? (
-        <p className="text-sm text-[var(--text-muted)]">Loading...</p>
+        <OpsListSkeleton />
+      ) : filtered.length === 0 ? (
+        <OpsEmptyState
+          title={search || filter !== "all" ? "No matching returns" : "No sale returns yet"}
+          hint="Create a credit note from an original sale or by picking packs manually."
+          action={
+            !search && filter === "all" ? (
+              <Button onClick={openCreate}>
+                <Plus size={14} /> New return
+              </Button>
+            ) : undefined
+          }
+        />
       ) : (
-        <DataTable
-          headers={["Return #", "Date", "Customer", "Total", "Notes", "Actions"]}
-          empty={filtered.length === 0}
-        >
+        <DataTable headers={["Return #", "Customer", "Total", "Notes", ""]} empty={false}>
           {filtered.map((row) => (
-            <tr key={row.id} className="border-b border-[var(--border)] last:border-0">
-              <td className="px-4 py-3 font-mono text-xs font-medium">{row.returnNo}</td>
-              <td className="px-4 py-3">{row.returnDate}</td>
-              <td className="px-4 py-3">{row.customerName || "—"}</td>
-              <td className="px-4 py-3">{row.grandTotal.toLocaleString()}</td>
-              <td className="px-4 py-3 text-[var(--text-muted)]">{row.notes || "—"}</td>
-              <td className="px-4 py-3">
-                <PrintMenu onPrint={(size) => printReturn(row, size)} />
+            <tr
+              key={row.id}
+              className="group border-b border-[var(--border)] last:border-0 transition hover:bg-[var(--bg-soft)]/60"
+            >
+              <td className="px-4 py-3.5">
+                <div className="font-mono text-xs font-semibold">{row.returnNo}</div>
+                <div className="mt-0.5 text-[11px] text-[var(--text-muted)]">{row.returnDate}</div>
+              </td>
+              <td className="px-4 py-3.5">
+                <div className="font-medium">{row.customerName || "—"}</div>
+                <div className="text-[11px] text-[var(--text-muted)]">
+                  {row.saleId ? "Linked to sale" : "Standalone return"}
+                </div>
+              </td>
+              <td className="px-4 py-3.5 font-semibold tabular-nums">{money(row.grandTotal)}</td>
+              <td className="px-4 py-3.5 max-w-[220px] truncate text-[var(--text-muted)]">
+                {row.notes || "—"}
+              </td>
+              <td className="px-4 py-3.5">
+                <div className="flex justify-end">
+                  <PrintMenu onPrint={(size) => printReturn(row, size)} />
+                </div>
               </td>
             </tr>
           ))}
@@ -278,145 +370,191 @@ export default function SaleReturnsPage() {
 
       <Modal
         open={open}
+        size="full"
         title="New sale return"
+        subtitle="Restore stock and issue refund / credit"
         onClose={() => setOpen(false)}
-        wide
         footer={
           <>
+            <div className="mr-auto hidden text-xs text-[var(--text-muted)] sm:block">
+              {lines.length} line{lines.length === 1 ? "" : "s"} · {money(grand)}
+            </div>
             <Button variant="secondary" onClick={() => setOpen(false)}>
               Cancel
             </Button>
             <Button onClick={() => void onSave()} disabled={saving || lines.length === 0}>
-              {saving ? "Saving..." : "Save return"}
+              {saving ? "Saving..." : "Post return"}
             </Button>
           </>
         }
       >
         {error ? <Alert>{error}</Alert> : null}
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Input
-            label="Return date"
-            type="date"
-            value={returnDate}
-            onChange={(e) => setReturnDate(e.target.value)}
-          />
-          <Select
-            label="Link original sale (optional)"
-            value={saleId}
-            onChange={(e) => void onSaleLink(e.target.value)}
-            options={[
-              { value: "", label: "— None —" },
-              ...sales.map((s) => ({
-                value: s.id,
-                label: `${s.invoiceNo} · ${s.customerName || "Walk-in"} · ${s.grandTotal}`,
-              })),
-            ]}
-          />
-          <Select
-            label="Customer"
-            value={customerId}
-            onChange={(e) => setCustomerId(e.target.value)}
-            options={[
-              { value: "", label: "— None —" },
-              ...customers.map((c) => ({ value: c.id, label: `${c.code} — ${c.name}` })),
-            ]}
-          />
-          <Select
-            label="Refund mode"
-            value={refundMode}
-            onChange={(e) => setRefundMode(e.target.value as PaymentMode)}
-            options={[
-              { value: "cash", label: "Cash" },
-              { value: "bank", label: "Bank" },
-              { value: "credit", label: "Credit (AR)" },
-            ]}
-          />
-          {refundMode !== "credit" ? (
-            <Select
-              label="Refund account"
-              value={accountId}
-              onChange={(e) => setAccountId(e.target.value)}
-              options={accounts.map((a) => ({ value: a.id, label: `${a.code} ${a.name}` }))}
-            />
-          ) : null}
-          <Input
-            label="Tax"
-            type="number"
-            min={0}
-            step="0.01"
-            value={taxAmount}
-            onChange={(e) => setTaxAmount(e.target.value)}
-          />
-        </div>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="space-y-4">
+            <ComposerSection title="Return header" hint="Optionally pull lines from an original sale">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Input
+                  label="Return date"
+                  type="date"
+                  value={returnDate}
+                  onChange={(e) => setReturnDate(e.target.value)}
+                />
+                <Select
+                  label="Link original sale"
+                  value={saleId}
+                  onChange={(e) => void onSaleLink(e.target.value)}
+                  options={[
+                    { value: "", label: "— None (manual) —" },
+                    ...sales.map((s) => ({
+                      value: s.id,
+                      label: `${s.invoiceNo} · ${s.customerName || "Walk-in"} · ${money(s.grandTotal)}`,
+                    })),
+                  ]}
+                />
+                <Select
+                  label="Customer"
+                  value={customerId}
+                  onChange={(e) => setCustomerId(e.target.value)}
+                  options={[
+                    { value: "", label: "— None —" },
+                    ...customers.map((c) => ({ value: c.id, label: `${c.code} — ${c.name}` })),
+                  ]}
+                />
+                <Input
+                  label="Tax"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={taxAmount}
+                  onChange={(e) => setTaxAmount(e.target.value)}
+                />
+              </div>
+            </ComposerSection>
 
-        <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-soft)] p-3">
-          <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-end">
-            <div className="flex-1">
-              <Select
-                label="Add pack"
-                value={pickVariantId}
-                onChange={(e) => setPickVariantId(e.target.value)}
-                options={productOptions}
+            <ComposerSection title="Refund settlement" hint="Where the money goes back">
+              <PaymentModePicker
+                value={refundMode}
+                onChange={setRefundMode}
+                options={[
+                  { value: "cash", label: "Cash", hint: "Till refund" },
+                  { value: "bank", label: "Bank", hint: "Transfer" },
+                  { value: "credit", label: "Credit", hint: "AR credit" },
+                ]}
               />
-            </div>
-            <Button size="sm" onClick={addLine} disabled={!pickVariantId}>
-              <Plus size={14} /> Add line
-            </Button>
-          </div>
-          {lines.length === 0 ? (
-            <p className="text-sm text-[var(--text-muted)]">No lines yet</p>
-          ) : (
-            <div className="space-y-2">
-              {lines.map((line) => (
-                <div
-                  key={line.key}
-                  className="grid grid-cols-[1fr_90px_110px_36px] items-end gap-2 rounded-md border border-[var(--border)] bg-[var(--bg)] p-2"
-                >
-                  <div className="text-sm font-medium">{line.label}</div>
-                  <Input
-                    label="Qty"
-                    type="number"
-                    min={0.01}
-                    step="0.01"
-                    value={line.quantity}
-                    onChange={(e) =>
-                      setLines((prev) =>
-                        prev.map((l) => (l.key === line.key ? { ...l, quantity: e.target.value } : l))
-                      )
-                    }
+              {refundMode !== "credit" ? (
+                <div className="mt-3">
+                  <Select
+                    label="Refund account"
+                    value={accountId}
+                    onChange={(e) => setAccountId(e.target.value)}
+                    options={accounts.map((a) => ({ value: a.id, label: `${a.code} ${a.name}` }))}
                   />
-                  <Input
-                    label="Price"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={line.unitPrice}
-                    onChange={(e) =>
-                      setLines((prev) =>
-                        prev.map((l) =>
-                          l.key === line.key ? { ...l, unitPrice: e.target.value } : l
-                        )
-                      )
-                    }
-                  />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setLines((prev) => prev.filter((l) => l.key !== line.key))}
-                  >
-                    <X size={14} />
-                  </Button>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+              ) : (
+                <p className="mt-3 rounded-xl border border-dashed border-[var(--border)] bg-[var(--bg-soft)]/50 px-3 py-2 text-xs text-[var(--text-muted)]">
+                  Credit refund reduces customer receivable without moving cash.
+                </p>
+              )}
+            </ComposerSection>
 
-        <div className="flex justify-between rounded-lg border border-[var(--border)] bg-[var(--bg-soft)] px-4 py-3 text-sm">
-          <span className="text-[var(--text-muted)]">Subtotal {subtotal.toFixed(2)}</span>
-          <span className="font-semibold">Grand total {grand.toFixed(2)}</span>
+            <ComposerSection title="Returned packs" hint="Stock will increase for each line">
+              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+                <div className="flex-1">
+                  <Select
+                    label="Add pack"
+                    value={pickVariantId}
+                    onChange={(e) => setPickVariantId(e.target.value)}
+                    options={productOptions}
+                  />
+                </div>
+                <Button size="sm" onClick={addLine} disabled={!pickVariantId}>
+                  <Plus size={14} /> Add line
+                </Button>
+              </div>
+              <LineItemsTable
+                headers={["Product", "Qty", "Price", "Line total", ""]}
+                empty={lines.length === 0}
+                emptyHint="Link a sale above to auto-fill, or add packs manually."
+              >
+                {lines.map((line) => {
+                  const lineTotal = Number(line.quantity || 0) * Number(line.unitPrice || 0);
+                  return (
+                    <tr key={line.key}>
+                      <td className="px-3 py-2.5 font-medium">{line.label}</td>
+                      <td className="px-3 py-2.5 w-[100px]">
+                        <input
+                          type="number"
+                          min={0.01}
+                          step="0.01"
+                          value={line.quantity}
+                          onChange={(e) =>
+                            setLines((prev) =>
+                              prev.map((l) =>
+                                l.key === line.key ? { ...l, quantity: e.target.value } : l
+                              )
+                            )
+                          }
+                          className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1.5 text-sm outline-none ring-[var(--accent)] focus:ring-1"
+                        />
+                      </td>
+                      <td className="px-3 py-2.5 w-[120px]">
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={line.unitPrice}
+                          onChange={(e) =>
+                            setLines((prev) =>
+                              prev.map((l) =>
+                                l.key === line.key ? { ...l, unitPrice: e.target.value } : l
+                              )
+                            )
+                          }
+                          className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1.5 text-sm outline-none ring-[var(--accent)] focus:ring-1"
+                        />
+                      </td>
+                      <td className="px-3 py-2.5 font-medium tabular-nums">{money(lineTotal)}</td>
+                      <td className="px-3 py-2.5">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setLines((prev) => prev.filter((l) => l.key !== line.key))}
+                        >
+                          <X size={14} />
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </LineItemsTable>
+            </ComposerSection>
+
+            <ComposerSection title="Notes">
+              <Textarea
+                label="Return reason / notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Damaged goods, wrong item, customer request…"
+              />
+            </ComposerSection>
+          </div>
+
+          <div className="space-y-4 lg:sticky lg:top-0 lg:self-start">
+            <TotalsPanel
+              accent
+              rows={[
+                { label: "Subtotal", value: money(subtotal), muted: true },
+                { label: "Tax", value: money(Number(taxAmount || 0)), muted: true },
+              ]}
+              grand={money(grand)}
+              grandLabel="Credit note total"
+            />
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)]/50 p-4 text-xs leading-relaxed text-[var(--text-muted)]">
+              Stock is restored for every pack. Cash/bank refunds leave the till; credit mode reduces the
+              customer balance.
+            </div>
+          </div>
         </div>
-        <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
       </Modal>
     </AppShell>
   );

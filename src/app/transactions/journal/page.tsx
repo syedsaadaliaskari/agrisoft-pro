@@ -1,8 +1,17 @@
 ﻿"use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Ban, Pencil, Plus, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Ban, BookOpen, Pencil, Plus, Scale, X } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
+import {
+  ComposerSection,
+  DocStatusBadge,
+  OpsEmptyState,
+  OpsListSkeleton,
+  OpsStatStrip,
+  TotalsPanel,
+  money,
+} from "@/components/ops/DocumentWorkspace";
 import { Alert, Button, DataTable, Input, Select, Textarea } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
 import { hasPermission } from "@/lib/permissions";
@@ -52,6 +61,27 @@ export default function JournalPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const debitTotal = useMemo(
+    () => lines.reduce((s, l) => s + Number(l.debit || 0), 0),
+    [lines]
+  );
+  const creditTotal = useMemo(
+    () => lines.reduce((s, l) => s + Number(l.credit || 0), 0),
+    [lines]
+  );
+  const balanced = Math.abs(debitTotal - creditTotal) < 0.005 && debitTotal > 0;
+
+  const stats = useMemo(() => {
+    const active = rows.filter((r) => r.status !== "cancelled");
+    const t = today();
+    const todayRows = active.filter((r) => r.voucherDate === t);
+    return {
+      count: active.length,
+      todayCount: todayRows.length,
+      total: active.reduce((s, r) => s + r.grandTotal, 0),
+    };
+  }, [rows]);
 
   const resetForm = () => {
     setVoucherDate(today());
@@ -123,7 +153,7 @@ export default function JournalPage() {
   };
 
   return (
-    <AppShell title="Journal" subtitle="Manual double-entry voucher" permission="transactions.create">
+    <AppShell title="Journal" subtitle="Manual double-entry voucher desk" permission="transactions.create">
       {error ? (
         <div className="mb-4">
           <Alert>{error}</Alert>
@@ -134,113 +164,215 @@ export default function JournalPage() {
           <Alert tone="info">{okMsg}</Alert>
         </div>
       ) : null}
-      <div className="space-y-4 rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5">
-        <h2 className="text-sm font-semibold">{editingId ? "Edit journal" : "New journal"}</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Input label="Date" type="date" value={voucherDate} onChange={(e) => setVoucherDate(e.target.value)} />
-          <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-        </div>
-        {lines.map((line) => (
-          <div
-            key={line.key}
-            className="grid gap-2 rounded-lg border border-[var(--border)] p-3 sm:grid-cols-[1.4fr_90px_90px_1fr_36px]"
-          >
-            <Select
-              label="Account"
-              value={line.accountId}
-              onChange={(e) =>
-                setLines((prev) =>
-                  prev.map((l) => (l.key === line.key ? { ...l, accountId: e.target.value } : l))
-                )
-              }
-              options={[
-                { value: "", label: "— Select —" },
-                ...accounts.map((a) => ({ value: a.id, label: `${a.code} ${a.name}` })),
-              ]}
-            />
-            <Input
-              label="Debit"
-              type="number"
-              value={line.debit}
-              onChange={(e) =>
-                setLines((prev) =>
-                  prev.map((l) => (l.key === line.key ? { ...l, debit: e.target.value, credit: "" } : l))
-                )
-              }
-            />
-            <Input
-              label="Credit"
-              type="number"
-              value={line.credit}
-              onChange={(e) =>
-                setLines((prev) =>
-                  prev.map((l) => (l.key === line.key ? { ...l, credit: e.target.value, debit: "" } : l))
-                )
-              }
-            />
-            <Input
-              label="Narration"
-              value={line.narration}
-              onChange={(e) =>
-                setLines((prev) =>
-                  prev.map((l) => (l.key === line.key ? { ...l, narration: e.target.value } : l))
-                )
-              }
-            />
-            <Button
-              variant="ghost"
-              size="sm"
-              className="self-end"
-              onClick={() => setLines((prev) => prev.filter((l) => l.key !== line.key))}
+
+      <OpsStatStrip
+        items={[
+          {
+            label: "Today's journals",
+            value: String(stats.todayCount),
+            hint: "Posted today",
+            tone: "accent",
+            icon: BookOpen,
+          },
+          {
+            label: "Active journals",
+            value: String(stats.count),
+            hint: money(stats.total) + " volume",
+            icon: Scale,
+          },
+          {
+            label: "Draft debit",
+            value: money(debitTotal),
+            hint: balanced ? "Balanced" : "Must equal credit",
+            tone: balanced ? "success" : "warn",
+          },
+          {
+            label: "Draft credit",
+            value: money(creditTotal),
+            hint: balanced ? "Ready to post" : "Out of balance",
+            tone: balanced ? "success" : "warn",
+          },
+        ]}
+      />
+
+      <div className="mb-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_280px]">
+        <ComposerSection
+          title={editingId ? "Edit journal voucher" : "New journal voucher"}
+          hint="Debits must equal credits before posting"
+          action={
+            <span
+              className={`rounded-lg px-2 py-1 text-[11px] font-semibold ${
+                balanced
+                  ? "bg-[var(--success)]/15 text-[var(--success)]"
+                  : "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+              }`}
             >
-              <X size={14} />
+              {balanced ? "In balance" : "Out of balance"}
+            </span>
+          }
+        >
+          <div className="mb-4 grid gap-3 sm:grid-cols-2">
+            <Input
+              label="Date"
+              type="date"
+              value={voucherDate}
+              onChange={(e) => setVoucherDate(e.target.value)}
+            />
+            <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </div>
+
+          <div className="space-y-2">
+            {lines.map((line, idx) => (
+              <div
+                key={line.key}
+                className="grid gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg)]/50 p-3 sm:grid-cols-[1.5fr_100px_100px_1fr_36px]"
+              >
+                <Select
+                  label={idx === 0 ? "Account" : undefined}
+                  value={line.accountId}
+                  onChange={(e) =>
+                    setLines((prev) =>
+                      prev.map((l) => (l.key === line.key ? { ...l, accountId: e.target.value } : l))
+                    )
+                  }
+                  options={[
+                    { value: "", label: "— Select —" },
+                    ...accounts.map((a) => ({ value: a.id, label: `${a.code} ${a.name}` })),
+                  ]}
+                />
+                <Input
+                  label={idx === 0 ? "Debit" : undefined}
+                  type="number"
+                  value={line.debit}
+                  onChange={(e) =>
+                    setLines((prev) =>
+                      prev.map((l) =>
+                        l.key === line.key ? { ...l, debit: e.target.value, credit: "" } : l
+                      )
+                    )
+                  }
+                />
+                <Input
+                  label={idx === 0 ? "Credit" : undefined}
+                  type="number"
+                  value={line.credit}
+                  onChange={(e) =>
+                    setLines((prev) =>
+                      prev.map((l) =>
+                        l.key === line.key ? { ...l, credit: e.target.value, debit: "" } : l
+                      )
+                    )
+                  }
+                />
+                <Input
+                  label={idx === 0 ? "Narration" : undefined}
+                  value={line.narration}
+                  onChange={(e) =>
+                    setLines((prev) =>
+                      prev.map((l) =>
+                        l.key === line.key ? { ...l, narration: e.target.value } : l
+                      )
+                    )
+                  }
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={idx === 0 ? "self-end" : "self-center"}
+                  onClick={() => setLines((prev) => prev.filter((l) => l.key !== line.key))}
+                >
+                  <X size={14} />
+                </Button>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() =>
+                setLines((prev) => [
+                  ...prev,
+                  { key: String(Date.now()), accountId: "", debit: "", credit: "", narration: "" },
+                ])
+              }
+            >
+              <Plus size={14} /> Add line
+            </Button>
+            {editingId ? (
+              <Button variant="secondary" onClick={resetForm}>
+                Cancel edit
+              </Button>
+            ) : null}
+            <Button onClick={() => void onSave()} disabled={saving || !canCreate || !balanced}>
+              {saving ? "Saving..." : editingId ? "Update journal" : "Post journal"}
             </Button>
           </div>
-        ))}
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() =>
-              setLines((prev) => [
-                ...prev,
-                { key: String(Date.now()), accountId: "", debit: "", credit: "", narration: "" },
-              ])
-            }
-          >
-            <Plus size={14} /> Add line
-          </Button>
-          {editingId ? (
-            <Button variant="secondary" onClick={resetForm}>
-              Cancel edit
-            </Button>
-          ) : null}
-          <Button onClick={() => void onSave()} disabled={saving}>
-            {saving ? "Saving..." : editingId ? "Update journal" : "Post journal"}
-          </Button>
+        </ComposerSection>
+
+        <div className="space-y-4 xl:sticky xl:top-4 xl:self-start">
+          <TotalsPanel
+            accent
+            rows={[
+              { label: "Total debit", value: money(debitTotal), muted: true },
+              { label: "Total credit", value: money(creditTotal), muted: true },
+              {
+                label: "Difference",
+                value: money(Math.abs(debitTotal - creditTotal)),
+                muted: true,
+                negative: !balanced && (debitTotal > 0 || creditTotal > 0),
+              },
+            ]}
+            grand={money(Math.max(debitTotal, creditTotal))}
+            grandLabel="Voucher amount"
+          />
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] p-4 text-xs leading-relaxed text-[var(--text-muted)]">
+            Each journal must balance. Use this for adjustments, opening balances, and non-standard
+            postings that sales/purchase vouchers do not cover.
+          </div>
         </div>
       </div>
 
-      <div className="mt-8">
-        <h2 className="mb-3 text-sm font-semibold">Recent journals</h2>
+      <div className="space-y-3">
+        <div>
+          <h2 className="text-sm font-semibold">Journal register</h2>
+          <p className="text-xs text-[var(--text-muted)]">Posted manual vouchers</p>
+        </div>
         {loading ? (
-          <p className="text-sm text-[var(--text-muted)]">Loading...</p>
+          <OpsListSkeleton rows={5} />
+        ) : rows.length === 0 ? (
+          <OpsEmptyState title="No journals yet" hint="Create a balanced double-entry voucher above." />
         ) : (
-          <DataTable headers={["Voucher", "Date", "Amount", "Notes", "Status", "Actions"]} empty={rows.length === 0}>
+          <DataTable headers={["Voucher", "Amount", "Notes", "Status", ""]} empty={false}>
             {rows.map((row) => (
-              <tr key={row.id} className="border-b border-[var(--border)] last:border-0">
-                <td className="px-4 py-3 font-mono text-xs font-medium">{row.voucherNo}</td>
-                <td className="px-4 py-3">{row.voucherDate}</td>
-                <td className="px-4 py-3">{row.grandTotal.toLocaleString()}</td>
-                <td className="px-4 py-3 text-[var(--text-muted)]">{row.notes || "—"}</td>
-                <td className="px-4 py-3 capitalize">{row.status}</td>
-                <td className="px-4 py-3">
+              <tr
+                key={row.id}
+                className="group border-b border-[var(--border)] last:border-0 transition hover:bg-[var(--bg-soft)]/60"
+              >
+                <td className="px-4 py-3.5">
+                  <div className="font-mono text-xs font-semibold">{row.voucherNo}</div>
+                  <div className="text-[11px] text-[var(--text-muted)]">{row.voucherDate}</div>
+                </td>
+                <td className="px-4 py-3.5 font-semibold tabular-nums">{money(row.grandTotal)}</td>
+                <td className="px-4 py-3.5 max-w-[240px] truncate text-[var(--text-muted)]">
+                  {row.notes || "—"}
+                </td>
+                <td className="px-4 py-3.5">
+                  <DocStatusBadge status={row.status} />
+                </td>
+                <td className="px-4 py-3.5">
                   {canCreate && row.status !== "cancelled" ? (
-                    <div className="flex gap-1">
+                    <div className="flex justify-end gap-0.5">
                       <Button variant="ghost" size="sm" onClick={() => openEdit(row)} title="Edit">
                         <Pencil size={14} />
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => void onCancel(row)} title="Cancel voucher">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void onCancel(row)}
+                        title="Cancel voucher"
+                      >
                         <Ban size={14} />
                       </Button>
                     </div>

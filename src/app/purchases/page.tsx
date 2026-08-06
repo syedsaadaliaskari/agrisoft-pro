@@ -1,10 +1,35 @@
 ﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Eye, Pencil, Plus, Trash2, X } from "lucide-react";
+import {
+  Eye,
+  PackagePlus,
+  Pencil,
+  Plus,
+  Receipt,
+  Trash2,
+  TrendingDown,
+  Truck,
+  Wallet,
+  X,
+} from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { ExportMenu } from "@/components/ExportMenu";
 import { PrintMenu } from "@/components/PrintMenu";
+import {
+  ComposerSection,
+  DocMetaGrid,
+  DocStatusBadge,
+  FilterChips,
+  LineItemsTable,
+  OpsEmptyState,
+  OpsListSkeleton,
+  OpsStatStrip,
+  PaymentModeBadge,
+  PaymentModePicker,
+  TotalsPanel,
+  money,
+} from "@/components/ops/DocumentWorkspace";
 import {
   Alert,
   Button,
@@ -29,6 +54,8 @@ type DraftLine = {
   unitCost: string;
 };
 
+type ModeFilter = "all" | "cash" | "bank" | "credit" | "today";
+
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -41,6 +68,7 @@ export default function PurchasesPage() {
   const [inventory, setInventory] = useState<InventoryRow[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [search, setSearch] = useState("");
+  const [modeFilter, setModeFilter] = useState<ModeFilter>("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [composer, setComposer] = useState(false);
@@ -85,22 +113,55 @@ export default function PurchasesPage() {
     void load();
   }, [load]);
 
+  const stats = useMemo(() => {
+    const active = rows.filter((r) => r.status !== "deleted");
+    const t = today();
+    const todayRows = active.filter((r) => r.invoiceDate === t);
+    const payable = active.reduce((s, r) => s + Math.max(0, r.grandTotal - r.paidAmount), 0);
+    const avg = active.length ? active.reduce((s, r) => s + r.grandTotal, 0) / active.length : 0;
+    return {
+      count: active.length,
+      todayCount: todayRows.length,
+      todayTotal: todayRows.reduce((s, r) => s + r.grandTotal, 0),
+      payable,
+      avg,
+    };
+  }, [rows]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter(
-      (r) =>
+    const t = today();
+    return rows.filter((r) => {
+      if (modeFilter === "today" && r.invoiceDate !== t) return false;
+      if (modeFilter === "cash" || modeFilter === "bank" || modeFilter === "credit") {
+        if (r.paymentMode !== modeFilter) return false;
+      }
+      if (!q) return true;
+      return (
         r.invoiceNo.toLowerCase().includes(q) ||
-        (r.vendorName ?? "").toLowerCase().includes(q)
-    );
-  }, [rows, search]);
+        (r.vendorName ?? "").toLowerCase().includes(q) ||
+        r.paymentMode.toLowerCase().includes(q)
+      );
+    });
+  }, [rows, search, modeFilter]);
+
+  const filterCounts = useMemo(() => {
+    const t = today();
+    return {
+      all: rows.length,
+      today: rows.filter((r) => r.invoiceDate === t).length,
+      cash: rows.filter((r) => r.paymentMode === "cash").length,
+      bank: rows.filter((r) => r.paymentMode === "bank").length,
+      credit: rows.filter((r) => r.paymentMode === "credit").length,
+    };
+  }, [rows]);
 
   const productOptions = useMemo(
     () => [
-      { value: "", label: "— Select pack —" },
+      { value: "", label: "— Search & select pack —" },
       ...inventory.map((r) => ({
         value: r.variantId,
-        label: `${r.productName} · ${r.size}/${r.color}`,
+        label: `${r.productName} · ${r.size}/${r.color} · cost ${money(r.costPrice)}`,
       })),
     ],
     [inventory]
@@ -118,6 +179,9 @@ export default function PurchasesPage() {
       ) / 100,
     [subtotal, discountAmount, additionAmount, taxAmount]
   );
+  const effectivePaid =
+    paidAmount === "" ? (paymentMode === "credit" ? 0 : grand) : Number(paidAmount || 0);
+  const balanceDue = Math.max(0, Math.round((grand - effectivePaid) * 100) / 100);
 
   const resetComposer = () => {
     setInvoiceDate(today());
@@ -174,7 +238,7 @@ export default function PurchasesPage() {
     const row = inventory.find((r) => r.variantId === pickVariantId);
     if (!row) return;
     if (lines.some((l) => l.variantId === pickVariantId)) {
-      setError("Pack already added");
+      setError("Pack already added — adjust quantity on the existing line");
       return;
     }
     setLines((prev) => [
@@ -260,12 +324,44 @@ export default function PurchasesPage() {
   };
 
   return (
-    <AppShell title="Purchase" subtitle="Stock in and payables posting" permission="purchases.view">
+    <AppShell title="Purchase" subtitle="Receiving desk — stock in and payables" permission="purchases.view">
       {error && !composer ? (
         <div className="mb-4">
           <Alert>{error}</Alert>
         </div>
       ) : null}
+
+      <OpsStatStrip
+        items={[
+          {
+            label: "Today's purchases",
+            value: money(stats.todayTotal),
+            hint: `${stats.todayCount} bill${stats.todayCount === 1 ? "" : "s"} today`,
+            tone: "accent",
+            icon: PackagePlus,
+          },
+          {
+            label: "Purchase bills",
+            value: String(stats.count),
+            hint: "All posted purchases",
+            icon: Receipt,
+          },
+          {
+            label: "Payables open",
+            value: money(stats.payable),
+            hint: "Unpaid vendor balance",
+            tone: stats.payable > 0 ? "warn" : "success",
+            icon: Wallet,
+          },
+          {
+            label: "Avg bill",
+            value: money(stats.avg),
+            hint: "Mean purchase value",
+            icon: TrendingDown,
+          },
+        ]}
+      />
+
       <PageToolbar
         search={search}
         onSearch={setSearch}
@@ -296,55 +392,119 @@ export default function PurchasesPage() {
           />
         }
       />
+
+      <div className="mb-4">
+        <FilterChips
+          value={modeFilter}
+          onChange={(v) => setModeFilter(v as ModeFilter)}
+          options={[
+            { value: "all", label: "All", count: filterCounts.all },
+            { value: "today", label: "Today", count: filterCounts.today },
+            { value: "credit", label: "Credit", count: filterCounts.credit },
+            { value: "cash", label: "Cash", count: filterCounts.cash },
+            { value: "bank", label: "Bank", count: filterCounts.bank },
+          ]}
+        />
+      </div>
+
       {loading ? (
-        <p className="text-sm text-[var(--text-muted)]">Loading...</p>
+        <OpsListSkeleton />
+      ) : filtered.length === 0 ? (
+        <OpsEmptyState
+          title={search || modeFilter !== "all" ? "No matching purchases" : "No purchases yet"}
+          hint={
+            search || modeFilter !== "all"
+              ? "Clear filters or search to see the full receiving register."
+              : "Record a vendor bill — stock increases and payables post automatically."
+          }
+          action={
+            canCreate && !search && modeFilter === "all" ? (
+              <Button onClick={openComposer}>
+                <Plus size={14} /> New purchase
+              </Button>
+            ) : undefined
+          }
+        />
       ) : (
         <DataTable
-          headers={["Invoice", "Date", "Vendor", "Mode", "Total", "Paid", "Status", "Actions"]}
-          empty={filtered.length === 0}
+          headers={["Invoice", "Vendor", "Mode", "Total", "Paid / Due", "Status", ""]}
+          empty={false}
         >
-          {filtered.map((row) => (
-            <tr key={row.id} className="border-b border-[var(--border)] last:border-0">
-              <td className="px-4 py-3 font-mono text-xs font-medium">{row.invoiceNo}</td>
-              <td className="px-4 py-3">{row.invoiceDate}</td>
-              <td className="px-4 py-3">{row.vendorName || "-"}</td>
-              <td className="px-4 py-3 capitalize text-[var(--text-muted)]">{row.paymentMode}</td>
-              <td className="px-4 py-3">{row.grandTotal.toLocaleString()}</td>
-              <td className="px-4 py-3">{row.paidAmount.toLocaleString()}</td>
-              <td className="px-4 py-3 capitalize">{row.status}</td>
-              <td className="px-4 py-3">
-                <div className="flex gap-1">
-                  <Button variant="ghost" size="sm" onClick={() => void openView(row)} title="View">
-                    <Eye size={14} />
-                  </Button>
-                  {canCreate && row.status !== "returned" ? (
-                    <Button variant="ghost" size="sm" onClick={() => void openEdit(row)} title="Edit">
-                      <Pencil size={14} />
+          {filtered.map((row) => {
+            const due = Math.max(0, row.grandTotal - row.paidAmount);
+            return (
+              <tr
+                key={row.id}
+                className="group border-b border-[var(--border)] last:border-0 transition hover:bg-[var(--bg-soft)]/60"
+              >
+                <td className="px-4 py-3.5">
+                  <div className="font-mono text-xs font-semibold tracking-wide">{row.invoiceNo}</div>
+                  <div className="mt-0.5 text-[11px] text-[var(--text-muted)]">{row.invoiceDate}</div>
+                </td>
+                <td className="px-4 py-3.5">
+                  <div className="flex items-center gap-2">
+                    <span className="hidden rounded-lg border border-[var(--border)] bg-[var(--bg-soft)] p-1.5 text-[var(--text-muted)] sm:inline-flex">
+                      <Truck size={12} />
+                    </span>
+                    <div>
+                      <div className="font-medium">{row.vendorName || "—"}</div>
+                      <div className="text-[11px] text-[var(--text-muted)]">Supplier bill</div>
+                    </div>
+                  </div>
+                </td>
+                <td className="px-4 py-3.5">
+                  <PaymentModeBadge mode={row.paymentMode} />
+                </td>
+                <td className="px-4 py-3.5 font-semibold tabular-nums">{money(row.grandTotal)}</td>
+                <td className="px-4 py-3.5">
+                  <div className="tabular-nums text-sm">{money(row.paidAmount)}</div>
+                  <div
+                    className={`text-[11px] ${due > 0 ? "text-amber-600 dark:text-amber-300" : "text-[var(--success)]"}`}
+                  >
+                    {due > 0 ? `Due ${money(due)}` : "Settled"}
+                  </div>
+                </td>
+                <td className="px-4 py-3.5">
+                  <DocStatusBadge status={row.status} />
+                </td>
+                <td className="px-4 py-3.5">
+                  <div className="flex justify-end gap-0.5 opacity-80 transition group-hover:opacity-100">
+                    <Button variant="ghost" size="sm" onClick={() => void openView(row)} title="View">
+                      <Eye size={14} />
                     </Button>
-                  ) : null}
-                  <PrintMenu defaultSize="a4" onPrint={(size) => printPurchase(row, size)} />
-                  {canCreate ? (
-                    <Button variant="ghost" size="sm" onClick={() => void onDelete(row)}>
-                      <Trash2 size={14} />
-                    </Button>
-                  ) : null}
-                </div>
-              </td>
-            </tr>
-          ))}
+                    {canCreate && row.status !== "returned" ? (
+                      <Button variant="ghost" size="sm" onClick={() => void openEdit(row)} title="Edit">
+                        <Pencil size={14} />
+                      </Button>
+                    ) : null}
+                    <PrintMenu defaultSize="a4" onPrint={(size) => printPurchase(row, size)} />
+                    {canCreate ? (
+                      <Button variant="ghost" size="sm" onClick={() => void onDelete(row)}>
+                        <Trash2 size={14} />
+                      </Button>
+                    ) : null}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
         </DataTable>
       )}
 
       <Modal
         open={composer}
-        title={editingId ? "Edit purchase" : "New purchase"}
+        size="full"
+        title={editingId ? "Edit purchase bill" : "New purchase bill"}
+        subtitle="Receive stock from a vendor and post payables"
         onClose={() => {
           setComposer(false);
           setEditingId(null);
         }}
-        wide
         footer={
           <>
+            <div className="mr-auto hidden text-xs text-[var(--text-muted)] sm:block">
+              {lines.length} line{lines.length === 1 ? "" : "s"} · {money(grand)}
+            </div>
             <Button
               variant="secondary"
               onClick={() => {
@@ -354,115 +514,218 @@ export default function PurchasesPage() {
             >
               Cancel
             </Button>
-            <Button onClick={() => void onSave()} disabled={saving || lines.length === 0 || !vendorId}>
-              {saving ? "Saving..." : editingId ? "Update purchase" : "Save purchase"}
+            <Button
+              onClick={() => void onSave()}
+              disabled={saving || lines.length === 0 || !vendorId}
+            >
+              {saving ? "Saving..." : editingId ? "Update purchase" : "Post purchase"}
             </Button>
           </>
         }
       >
         {error ? <Alert>{error}</Alert> : null}
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Input label="Invoice date" type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
-          <Select
-            label="Vendor"
-            value={vendorId}
-            onChange={(e) => setVendorId(e.target.value)}
-            options={[
-              { value: "", label: "— Select —" },
-              ...vendors.map((v) => ({ value: v.id, label: `${v.code} — ${v.name}` })),
-            ]}
-          />
-          <Select
-            label="Payment mode"
-            value={paymentMode}
-            onChange={(e) => setPaymentMode(e.target.value as PaymentMode)}
-            options={[
-              { value: "credit", label: "Credit" },
-              { value: "cash", label: "Cash" },
-              { value: "bank", label: "Bank" },
-            ]}
-          />
-          <Select
-            label="Cash / Bank account"
-            value={accountId}
-            onChange={(e) => setAccountId(e.target.value)}
-            options={accounts.map((a) => ({ value: a.id, label: `${a.code} ${a.name}` }))}
-          />
-        </div>
-        <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-soft)] p-3">
-          <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-end">
-            <div className="flex-1">
-              <Select
-                label="Add product pack"
-                value={pickVariantId}
-                onChange={(e) => setPickVariantId(e.target.value)}
-                options={productOptions}
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="space-y-4">
+            <ComposerSection title="Bill header" hint="Vendor and document date">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Input
+                  label="Invoice date"
+                  type="date"
+                  value={invoiceDate}
+                  onChange={(e) => setInvoiceDate(e.target.value)}
+                />
+                <Select
+                  label="Vendor"
+                  value={vendorId}
+                  onChange={(e) => setVendorId(e.target.value)}
+                  options={[
+                    { value: "", label: "— Select vendor —" },
+                    ...vendors.map((v) => ({ value: v.id, label: `${v.code} — ${v.name}` })),
+                  ]}
+                />
+              </div>
+            </ComposerSection>
+
+            <ComposerSection title="Settlement" hint="How this bill will be paid">
+              <PaymentModePicker
+                value={paymentMode}
+                onChange={setPaymentMode}
+                options={[
+                  { value: "credit", label: "Credit", hint: "Payable" },
+                  { value: "cash", label: "Cash", hint: "Till" },
+                  { value: "bank", label: "Bank", hint: "Transfer" },
+                ]}
               />
-            </div>
-            <Button size="sm" onClick={addLine} disabled={!pickVariantId}>
-              <Plus size={14} /> Add line
-            </Button>
-          </div>
-          {lines.length === 0 ? (
-            <p className="text-sm text-[var(--text-muted)]">No lines yet</p>
-          ) : (
-            <div className="space-y-2">
-              {lines.map((line) => (
-                <div
-                  key={line.key}
-                  className="grid grid-cols-[1fr_90px_110px_36px] items-end gap-2 rounded-md border border-[var(--border)] bg-[var(--bg)] p-2"
-                >
-                  <div className="text-sm font-medium">{line.label}</div>
-                  <Input
-                    label="Qty"
-                    type="number"
-                    min={0.01}
-                    step="0.01"
-                    value={line.quantity}
-                    onChange={(e) =>
-                      setLines((prev) =>
-                        prev.map((l) => (l.key === line.key ? { ...l, quantity: e.target.value } : l))
-                      )
-                    }
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <Select
+                  label="Cash / Bank account"
+                  value={accountId}
+                  onChange={(e) => setAccountId(e.target.value)}
+                  options={accounts.map((a) => ({ value: a.id, label: `${a.code} ${a.name}` }))}
+                />
+                <Input
+                  label="Paid now"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={paidAmount}
+                  onChange={(e) => setPaidAmount(e.target.value)}
+                  placeholder={paymentMode === "credit" ? "0" : String(grand || "")}
+                />
+              </div>
+            </ComposerSection>
+
+            <ComposerSection
+              title="Line items"
+              hint="Packs entering inventory at cost"
+              action={
+                <span className="rounded-lg bg-[var(--bg-soft)] px-2 py-1 text-[11px] text-[var(--text-muted)]">
+                  {lines.length} item{lines.length === 1 ? "" : "s"}
+                </span>
+              }
+            >
+              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+                <div className="flex-1">
+                  <Select
+                    label="Add product pack"
+                    value={pickVariantId}
+                    onChange={(e) => setPickVariantId(e.target.value)}
+                    options={productOptions}
                   />
-                  <Input
-                    label="Cost"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={line.unitCost}
-                    onChange={(e) =>
-                      setLines((prev) =>
-                        prev.map((l) => (l.key === line.key ? { ...l, unitCost: e.target.value } : l))
-                      )
-                    }
-                  />
-                  <Button variant="ghost" size="sm" onClick={() => setLines((prev) => prev.filter((l) => l.key !== line.key))}>
-                    <X size={14} />
-                  </Button>
                 </div>
-              ))}
+                <Button size="sm" onClick={addLine} disabled={!pickVariantId}>
+                  <Plus size={14} /> Add line
+                </Button>
+              </div>
+              <LineItemsTable
+                headers={["Product", "Qty", "Unit cost", "Line total", ""]}
+                empty={lines.length === 0}
+                emptyHint="Select a pack to receive into stock."
+              >
+                {lines.map((line) => {
+                  const lineTotal = Number(line.quantity || 0) * Number(line.unitCost || 0);
+                  return (
+                    <tr key={line.key}>
+                      <td className="px-3 py-2.5 font-medium">{line.label}</td>
+                      <td className="px-3 py-2.5 w-[100px]">
+                        <input
+                          type="number"
+                          min={0.01}
+                          step="0.01"
+                          value={line.quantity}
+                          onChange={(e) =>
+                            setLines((prev) =>
+                              prev.map((l) =>
+                                l.key === line.key ? { ...l, quantity: e.target.value } : l
+                              )
+                            )
+                          }
+                          className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1.5 text-sm outline-none ring-[var(--accent)] focus:ring-1"
+                        />
+                      </td>
+                      <td className="px-3 py-2.5 w-[120px]">
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={line.unitCost}
+                          onChange={(e) =>
+                            setLines((prev) =>
+                              prev.map((l) =>
+                                l.key === line.key ? { ...l, unitCost: e.target.value } : l
+                              )
+                            )
+                          }
+                          className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1.5 text-sm outline-none ring-[var(--accent)] focus:ring-1"
+                        />
+                      </td>
+                      <td className="px-3 py-2.5 font-medium tabular-nums">{money(lineTotal)}</td>
+                      <td className="px-3 py-2.5">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setLines((prev) => prev.filter((l) => l.key !== line.key))}
+                        >
+                          <X size={14} />
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </LineItemsTable>
+            </ComposerSection>
+
+            <ComposerSection title="Adjustments & notes">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Input
+                  label="Discount"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={discountAmount}
+                  onChange={(e) => setDiscountAmount(e.target.value)}
+                />
+                <Input
+                  label="Additions"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={additionAmount}
+                  onChange={(e) => setAdditionAmount(e.target.value)}
+                />
+                <Input
+                  label="Tax"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={taxAmount}
+                  onChange={(e) => setTaxAmount(e.target.value)}
+                />
+              </div>
+              <div className="mt-3">
+                <Textarea
+                  label="Notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Vendor bill reference, GRN note…"
+                />
+              </div>
+            </ComposerSection>
+          </div>
+
+          <div className="space-y-4 lg:sticky lg:top-0 lg:self-start">
+            <TotalsPanel
+              accent
+              rows={[
+                { label: "Subtotal", value: money(subtotal), muted: true },
+                {
+                  label: "Discount",
+                  value: `− ${money(Number(discountAmount || 0))}`,
+                  muted: true,
+                  negative: Number(discountAmount || 0) > 0,
+                },
+                { label: "Additions", value: money(Number(additionAmount || 0)), muted: true },
+                { label: "Tax", value: money(Number(taxAmount || 0)), muted: true },
+                { label: "Paid now", value: money(effectivePaid), muted: true },
+              ]}
+              grand={money(grand)}
+              due={money(balanceDue)}
+              dueLabel="Payable balance"
+            />
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)]/50 p-4 text-xs leading-relaxed text-[var(--text-muted)]">
+              Posting increases stock at cost, creates a purchase voucher, and updates vendor payables when
+              unpaid.
             </div>
-          )}
+          </div>
         </div>
-        <div className="grid gap-4 sm:grid-cols-4">
-          <Input label="Discount" type="number" min={0} step="0.01" value={discountAmount} onChange={(e) => setDiscountAmount(e.target.value)} />
-          <Input label="Additions" type="number" min={0} step="0.01" value={additionAmount} onChange={(e) => setAdditionAmount(e.target.value)} />
-          <Input label="Tax" type="number" min={0} step="0.01" value={taxAmount} onChange={(e) => setTaxAmount(e.target.value)} />
-          <Input label="Paid amount" type="number" min={0} step="0.01" value={paidAmount} onChange={(e) => setPaidAmount(e.target.value)} placeholder={grand ? String(grand) : undefined} />
-        </div>
-        <div className="flex justify-between rounded-lg border border-[var(--border)] bg-[var(--bg-soft)] px-4 py-3 text-sm">
-          <span className="text-[var(--text-muted)]">Subtotal {subtotal.toFixed(2)}</span>
-          <span className="font-semibold">Grand total {grand.toFixed(2)}</span>
-        </div>
-        <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
       </Modal>
 
       <Modal
         open={viewOpen}
+        size="xl"
         title={viewing ? `Purchase ${viewing.invoiceNo}` : "Purchase"}
+        subtitle="Posted purchase bill"
         onClose={() => setViewOpen(false)}
-        wide
         footer={
           <>
             <Button variant="secondary" onClick={() => setViewOpen(false)}>
@@ -492,30 +755,46 @@ export default function PurchasesPage() {
         }
       >
         {viewing ? (
-          <>
-            <div className="grid gap-2 text-sm sm:grid-cols-2">
-              <div>Date: {viewing.invoiceDate}</div>
-              <div>Vendor: {viewing.vendorName || "-"}</div>
-              <div className="capitalize">Mode: {viewing.paymentMode}</div>
-              <div>Status: {viewing.status}</div>
-            </div>
-            <DataTable headers={["Product", "Pack", "Qty", "Cost", "Total"]} empty={!viewing.items?.length}>
+          <div className="space-y-4">
+            <DocMetaGrid
+              items={[
+                { label: "Date", value: viewing.invoiceDate },
+                { label: "Vendor", value: viewing.vendorName || "—" },
+                { label: "Payment", value: <PaymentModeBadge mode={viewing.paymentMode} /> },
+                { label: "Status", value: <DocStatusBadge status={viewing.status} /> },
+              ]}
+            />
+            <LineItemsTable
+              headers={["Product", "Pack", "Qty", "Cost", "Total"]}
+              empty={!viewing.items?.length}
+              emptyTitle="No items"
+              emptyHint=""
+            >
               {(viewing.items ?? []).map((it) => (
-                <tr key={it.id} className="border-b border-[var(--border)] last:border-0">
-                  <td className="px-4 py-3">{it.productName}</td>
-                  <td className="px-4 py-3 text-[var(--text-muted)]">
+                <tr key={it.id}>
+                  <td className="px-3 py-2.5 font-medium">{it.productName}</td>
+                  <td className="px-3 py-2.5 text-[var(--text-muted)]">
                     {it.size} / {it.color}
                   </td>
-                  <td className="px-4 py-3">{it.quantity}</td>
-                  <td className="px-4 py-3">{it.unitCost.toLocaleString()}</td>
-                  <td className="px-4 py-3">{it.lineTotal.toLocaleString()}</td>
+                  <td className="px-3 py-2.5 tabular-nums">{it.quantity}</td>
+                  <td className="px-3 py-2.5 tabular-nums">{money(it.unitCost)}</td>
+                  <td className="px-3 py-2.5 font-medium tabular-nums">{money(it.lineTotal)}</td>
                 </tr>
               ))}
-            </DataTable>
-            <div className="text-right text-sm font-semibold">
-              Grand total {viewing.grandTotal.toLocaleString()} · Paid {viewing.paidAmount.toLocaleString()}
-            </div>
-          </>
+            </LineItemsTable>
+            <TotalsPanel
+              rows={[
+                { label: "Subtotal", value: money(viewing.subtotal), muted: true },
+                { label: "Discount", value: money(viewing.discountAmount), muted: true },
+                { label: "Additions", value: money(viewing.additionAmount), muted: true },
+                { label: "Tax", value: money(viewing.taxAmount), muted: true },
+                { label: "Paid", value: money(viewing.paidAmount), muted: true },
+              ]}
+              grand={money(viewing.grandTotal)}
+              due={money(Math.max(0, viewing.grandTotal - viewing.paidAmount))}
+              dueLabel="Payable balance"
+            />
+          </div>
         ) : null}
       </Modal>
     </AppShell>

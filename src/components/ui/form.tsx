@@ -144,41 +144,63 @@ export function Checkbox({
 export function Modal({
   open,
   title,
+  subtitle,
   onClose,
   children,
   footer,
   wide,
+  size,
 }: {
   open: boolean;
   title: string;
+  subtitle?: string;
   onClose: () => void;
   children: React.ReactNode;
   footer?: React.ReactNode;
   wide?: boolean;
+  /** lg ≈ wide, xl = document composer, full = near-viewport sheet */
+  size?: "md" | "lg" | "xl" | "full";
 }) {
   if (!open) return null;
+  const resolved = size ?? (wide ? "lg" : "md");
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button type="button" className="absolute inset-0 bg-black/60" onClick={onClose} aria-label="Close" />
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/55 backdrop-blur-[2px] animate-[fadeIn_0.15s_ease]"
+        onClick={onClose}
+        aria-label="Close"
+      />
       <div
         className={cn(
-          "relative z-10 w-full rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] shadow-2xl",
-          wide ? "max-w-2xl" : "max-w-lg"
+          "relative z-10 flex w-full flex-col overflow-hidden border border-[var(--border)] bg-[var(--bg-elevated)] shadow-2xl animate-[fadeIn_0.18s_ease]",
+          "rounded-t-2xl sm:rounded-2xl",
+          resolved === "md" && "max-w-lg max-h-[92vh]",
+          resolved === "lg" && "max-w-2xl max-h-[92vh]",
+          resolved === "xl" && "max-w-5xl max-h-[94vh]",
+          resolved === "full" && "max-w-6xl max-h-[96vh] sm:h-[92vh]"
         )}
       >
-        <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
-          <h3 className="text-base font-semibold">{title}</h3>
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[var(--border)] bg-[var(--bg-soft)]/60 px-5 py-4">
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold tracking-tight">{title}</h3>
+            {subtitle ? (
+              <p className="mt-0.5 text-xs text-[var(--text-muted)]">{subtitle}</p>
+            ) : null}
+          </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-[var(--text-muted)] hover:text-[var(--text)]"
+            className="rounded-lg px-2 py-1 text-[var(--text-muted)] transition hover:bg-[var(--bg)] hover:text-[var(--text)]"
           >
             ✕
           </button>
         </div>
-        <div className="max-h-[70vh] space-y-4 overflow-y-auto px-5 py-4">{children}</div>
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">{children}</div>
         {footer ? (
-          <div className="flex justify-end gap-2 border-t border-[var(--border)] px-5 py-4">{footer}</div>
+          <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-[var(--border)] bg-[var(--bg-soft)]/40 px-5 py-4">
+            {footer}
+          </div>
         ) : null}
       </div>
     </div>

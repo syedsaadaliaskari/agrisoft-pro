@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useRef, useState } from "react";
 import { Printer } from "lucide-react";
 import { Button } from "@/components/ui/form";
 import type { ReceiptSize } from "@shared/ipc";
@@ -15,8 +14,7 @@ type Props = {
   defaultSize?: ReceiptSize;
 };
 
-type MenuPos = { top: number; left: number };
-
+/** Dropdown stays inside this control (no portal). */
 export function PrintMenu({
   onPrint,
   disabled,
@@ -27,46 +25,20 @@ export function PrintMenu({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [pos, setPos] = useState<MenuPos | null>(null);
-  const [mounted, setMounted] = useState(false);
-  const anchorRef = useRef<HTMLSpanElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [dropUp, setDropUp] = useState(false);
+  const rootRef = useRef<HTMLSpanElement>(null);
 
-  useEffect(() => setMounted(true), []);
-
-  useLayoutEffect(() => {
-    if (!open || !anchorRef.current) {
-      setPos(null);
-      return;
-    }
-    const place = () => {
-      const rect = anchorRef.current!.getBoundingClientRect();
-      const menuWidth = 180;
-      const left = Math.min(
-        Math.max(8, rect.right - menuWidth),
-        window.innerWidth - menuWidth - 8
-      );
-      let top = rect.bottom + 4;
-      const estimatedHeight = 120;
-      if (top + estimatedHeight > window.innerHeight - 8) {
-        top = Math.max(8, rect.top - estimatedHeight - 4);
-      }
-      setPos({ top, left });
-    };
-    place();
-    window.addEventListener("resize", place);
-    window.addEventListener("scroll", place, true);
-    return () => {
-      window.removeEventListener("resize", place);
-      window.removeEventListener("scroll", place, true);
-    };
+  useEffect(() => {
+    if (!open || !rootRef.current) return;
+    const rect = rootRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    setDropUp(spaceBelow < 140 && rect.top > 140);
   }, [open]);
 
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (anchorRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      if (rootRef.current?.contains(e.target as Node)) return;
       setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
@@ -90,42 +62,8 @@ export function PrintMenu({
     }
   };
 
-  const menu =
-    open && mounted && pos
-      ? createPortal(
-          <div
-            ref={menuRef}
-            style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 9999 }}
-            className="min-w-[170px] overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] shadow-xl"
-          >
-            <button
-              type="button"
-              className="block w-full px-3 py-2 text-left text-sm text-[var(--text)] hover:bg-[var(--bg-soft)]"
-              onClick={() => void run("thermal")}
-            >
-              Thermal (80mm)
-            </button>
-            <button
-              type="button"
-              className="block w-full px-3 py-2 text-left text-sm text-[var(--text)] hover:bg-[var(--bg-soft)]"
-              onClick={() => void run("a4")}
-            >
-              A4 page
-            </button>
-            <button
-              type="button"
-              className="block w-full border-t border-[var(--border)] px-3 py-2 text-left text-xs text-[var(--text-muted)] hover:bg-[var(--bg-soft)]"
-              onClick={() => void run(defaultSize)}
-            >
-              Quick print ({defaultSize === "a4" ? "A4" : "Thermal"})
-            </button>
-          </div>,
-          document.body
-        )
-      : null;
-
   return (
-    <span className="inline-flex" ref={anchorRef}>
+    <span className="relative z-20 inline-flex" ref={rootRef}>
       <Button
         type="button"
         variant={variant}
@@ -136,7 +74,35 @@ export function PrintMenu({
       >
         <Printer size={14} /> {label}
       </Button>
-      {menu}
+      {open ? (
+        <div
+          className={`absolute right-0 z-30 min-w-[170px] overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] shadow-xl ${
+            dropUp ? "bottom-full mb-1" : "top-full mt-1"
+          }`}
+        >
+          <button
+            type="button"
+            className="block w-full px-3 py-2 text-left text-sm text-[var(--text)] hover:bg-[var(--bg-soft)]"
+            onClick={() => void run("thermal")}
+          >
+            Thermal (80mm)
+          </button>
+          <button
+            type="button"
+            className="block w-full px-3 py-2 text-left text-sm text-[var(--text)] hover:bg-[var(--bg-soft)]"
+            onClick={() => void run("a4")}
+          >
+            A4 page
+          </button>
+          <button
+            type="button"
+            className="block w-full border-t border-[var(--border)] px-3 py-2 text-left text-xs text-[var(--text-muted)] hover:bg-[var(--bg-soft)]"
+            onClick={() => void run(defaultSize)}
+          >
+            Quick print ({defaultSize === "a4" ? "A4" : "Thermal"})
+          </button>
+        </div>
+      ) : null}
     </span>
   );
 }

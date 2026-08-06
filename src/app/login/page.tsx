@@ -2,10 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Moon, Sun, Sprout } from "lucide-react";
+import { Moon, Sprout, Sun } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 import { useTheme } from "@/lib/theme";
 import { isElectron } from "@/lib/api";
+
+const WELCOME_LINES = [
+  "Preparing your workspace…",
+  "Loading accounts & stock…",
+  "Almost there — welcome back.",
+];
 
 export default function LoginPage() {
   const router = useRouter();
@@ -15,20 +21,32 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [welcome, setWelcome] = useState(false);
+  const [welcomeLine, setWelcomeLine] = useState(0);
 
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
 
   useEffect(() => {
-    if (hydrated && user) {
-      router.replace("/dashboard");
+    if (hydrated && user && !welcome) {
+      setWelcome(true);
+      const t = setTimeout(() => router.replace("/dashboard"), 700);
+      return () => clearTimeout(t);
     }
-  }, [hydrated, user, router]);
+  }, [hydrated, user, router, welcome]);
+
+  useEffect(() => {
+    if (!welcome && !submitting && !loading) return;
+    const id = setInterval(() => {
+      setWelcomeLine((i) => (i + 1) % WELCOME_LINES.length);
+    }, 900);
+    return () => clearInterval(id);
+  }, [welcome, submitting, loading]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (submitting || loading) return;
+    if (submitting || loading || welcome) return;
     setError("");
     if (!username.trim() || !password) {
       setError("Enter username and password");
@@ -39,11 +57,14 @@ export default function LoginPage() {
       return;
     }
     setSubmitting(true);
+    setWelcome(true);
     try {
       const result = await login(username.trim(), password);
       if (result.ok) {
+        await new Promise((r) => setTimeout(r, 650));
         router.replace("/dashboard");
       } else {
+        setWelcome(false);
         setError(result.error ?? "Login failed");
       }
     } finally {
@@ -51,7 +72,7 @@ export default function LoginPage() {
     }
   };
 
-  const busy = loading || submitting;
+  const busy = loading || submitting || welcome;
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4">
@@ -82,65 +103,90 @@ export default function LoginPage() {
         {theme === "light" ? "Dark" : "Light"}
       </button>
 
-      <div className="relative w-full max-w-[400px]">
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--accent)] text-[var(--logo-ink)] shadow-lg shadow-[var(--accent)]/25">
-            <Sprout size={32} strokeWidth={1.75} />
+      {welcome ? (
+        <div className="relative z-10 w-full max-w-md text-center animate-[fadeIn_280ms_ease-out]">
+          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-[var(--accent)] text-[var(--logo-ink)] shadow-lg shadow-[var(--accent)]/30">
+            <Sprout size={36} strokeWidth={1.75} />
           </div>
-          <h1
-            className="text-3xl font-semibold tracking-tight text-[var(--text)]"
-            style={{ fontFamily: "var(--font-display)" }}
+          <h1 className="text-2xl font-semibold tracking-tight">Welcome to Agri Soft Pro</h1>
+          <p
+            className="mt-3 text-sm text-[var(--text-muted)]"
+            style={{ animation: "welcomePulse 1.6s ease-in-out infinite" }}
           >
-            Agri Soft Pro
-          </h1>
-          <p className="mt-2 text-sm text-[var(--text-muted)]">Sign in to your workspace</p>
+            {WELCOME_LINES[welcomeLine]}
+          </p>
+          <div className="mx-auto mt-8 flex max-w-xs justify-center gap-1.5">
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                className={`h-1.5 w-8 rounded-full transition ${
+                  welcomeLine === i ? "bg-[var(--accent)]" : "bg-[var(--border)]"
+                }`}
+              />
+            ))}
+          </div>
         </div>
-
-        <form
-          onSubmit={onSubmit}
-          className="space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)]/95 p-7 shadow-2xl shadow-black/15 backdrop-blur"
-          autoComplete="off"
-        >
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-[var(--text-muted)]">Username</label>
-            <input
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Enter username"
-              className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5 text-sm outline-none ring-[var(--accent)] placeholder:text-[var(--text-muted)]/50 focus:ring-1"
-              autoComplete="username"
-              autoFocus
-              disabled={busy}
-            />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-[var(--text-muted)]">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter password"
-              className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5 text-sm outline-none ring-[var(--accent)] placeholder:text-[var(--text-muted)]/50 focus:ring-1"
-              autoComplete="current-password"
-              disabled={busy}
-            />
-          </div>
-
-          {error ? (
-            <div className="rounded-lg border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-3 py-2 text-sm text-[var(--danger)]">
-              {error}
+      ) : (
+        <div className="relative w-full max-w-[400px] animate-[fadeIn_220ms_ease-out]">
+          <div className="mb-8 text-center">
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--accent)] text-[var(--logo-ink)] shadow-lg shadow-[var(--accent)]/25">
+              <Sprout size={32} strokeWidth={1.75} />
             </div>
-          ) : null}
+            <h1
+              className="text-3xl font-semibold tracking-tight text-[var(--text)]"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              Agri Soft Pro
+            </h1>
+            <p className="mt-2 text-sm text-[var(--text-muted)]">Sign in to your workspace</p>
+          </div>
 
-          <button
-            type="submit"
-            disabled={busy}
-            className="w-full rounded-lg bg-[var(--accent)] py-2.5 text-sm font-semibold text-[var(--logo-ink)] transition hover:bg-[var(--accent-hover)] disabled:opacity-60"
+          <form
+            onSubmit={onSubmit}
+            className="space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)]/95 p-7 shadow-2xl shadow-black/15 backdrop-blur"
+            autoComplete="off"
           >
-            {busy ? "Signing in…" : "Sign in"}
-          </button>
-        </form>
-      </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-[var(--text-muted)]">Username</label>
+              <input
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter username"
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5 text-sm outline-none ring-[var(--accent)] placeholder:text-[var(--text-muted)]/50 focus:ring-1"
+                autoComplete="username"
+                autoFocus
+                disabled={busy}
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-[var(--text-muted)]">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter password"
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5 text-sm outline-none ring-[var(--accent)] placeholder:text-[var(--text-muted)]/50 focus:ring-1"
+                autoComplete="current-password"
+                disabled={busy}
+              />
+            </div>
+
+            {error ? (
+              <div className="rounded-lg border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-3 py-2 text-sm text-[var(--danger)]">
+                {error}
+              </div>
+            ) : null}
+
+            <button
+              type="submit"
+              disabled={busy}
+              className="w-full rounded-lg bg-[var(--accent)] py-2.5 text-sm font-semibold text-[var(--logo-ink)] transition hover:bg-[var(--accent-hover)] disabled:opacity-60"
+            >
+              Sign in
+            </button>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

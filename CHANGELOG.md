@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.3 — 2026-08-06
+
+### Dashboard & UX
+- Super Admin client companies + demand-by-area live on the **Dashboard** (no separate Platform route).
+- Export / Print menus stay **inside** their button container (no floating portal).
+- Route boot uses **skeleton** chrome; dashboard shows skeleton while data loads.
+- Sign-in shows a **Welcome** sequence instead of a plain loading label.
+
 ## 0.1.2 — 2026-08-06
 
 ### UX fixes
