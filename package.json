@@ -1,0 +1,88 @@
+{
+  "name": "agri-soft-pro",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local desktop agri ERP — Electron + Next.js + SQLite",
+  "main": "dist-electron/electron/main.js",
+  "scripts": {
+    "dev": "concurrently -k \"npm:dev:next\" \"npm:dev:electron\"",
+    "dev:next": "next dev -p 3000",
+    "dev:electron": "wait-on http://127.0.0.1:3000 && npm run build:electron && cross-env NODE_ENV=development electron .",
+    "build:electron": "tsc -p electron/tsconfig.json",
+    "build:next": "next build",
+    "build": "npm run build:next && npm run build:electron",
+    "start": "cross-env NODE_ENV=production electron .",
+    "db:generate": "drizzle-kit generate",
+    "db:studio": "drizzle-kit studio",
+    "postinstall": "electron-builder install-app-deps",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^5.0.1",
+    "bcryptjs": "^3.0.2",
+    "better-sqlite3": "^11.9.1",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "drizzle-orm": "^0.43.1",
+    "lucide-react": "^0.503.0",
+    "next": "^15.3.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-hook-form": "^7.56.1",
+    "recharts": "^2.15.3",
+    "tailwind-merge": "^3.2.0",
+    "uuid": "^11.1.0",
+    "zod": "^3.24.3",
+    "zustand": "^5.0.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.4",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.14.1",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "@types/uuid": "^10.0.0",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "drizzle-kit": "^0.31.0",
+    "electron": "^35.2.0",
+    "electron-builder": "^26.0.12",
+    "tailwindcss": "^4.1.4",
+    "typescript": "^5.8.3",
+    "wait-on": "^8.0.4"
+  },
+  "build": {
+    "appId": "com.agrisoft.pro",
+    "productName": "Agri Soft Pro",
+    "artifactName": "Agri-Soft-Pro-Setup-${version}.${ext}",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist-electron/**/*",
+      "out/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "**/*.{node,dll}",
+      "node_modules/better-sqlite3/**/*"
+    ],
+    "extraResources": [],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Agri Soft Pro",
+      "uninstallDisplayName": "Agri Soft Pro"
+    }
+  }
+}
