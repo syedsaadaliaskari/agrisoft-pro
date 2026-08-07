@@ -38,6 +38,7 @@ export default function BackupPage() {
   const [status, setStatus] = useState<BackupStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [autoRefreshDone, setAutoRefreshDone] = useState(false);
   const [error, setError] = useState("");
   const [okMsg, setOkMsg] = useState("");
 
@@ -77,6 +78,7 @@ export default function BackupPage() {
   };
 
   const onAutoNow = async () => {
+    if (busy || autoRefreshDone) return;
     setBusy(true);
     setError("");
     setOkMsg("");
@@ -86,6 +88,7 @@ export default function BackupPage() {
       setError(res.error);
       return;
     }
+    setAutoRefreshDone(true);
     if (res.data) {
       setOkMsg(`Today's auto backup refreshed: ${res.data.fileName}`);
     }
@@ -182,8 +185,13 @@ export default function BackupPage() {
                 <Button onClick={() => void onManual()} disabled={busy}>
                   <Save size={14} /> Backup now
                 </Button>
-                <Button variant="secondary" onClick={() => void onAutoNow()} disabled={busy}>
-                  <RefreshCw size={14} /> Refresh today&apos;s auto
+                <Button
+                  variant="secondary"
+                  onClick={() => void onAutoNow()}
+                  disabled={busy || autoRefreshDone}
+                >
+                  <RefreshCw size={14} />{" "}
+                  {autoRefreshDone ? "Today's auto refreshed" : "Refresh today's auto"}
                 </Button>
                 <Button variant="secondary" onClick={() => void onOpenFolder()} disabled={busy}>
                   <FolderOpen size={14} /> Open folder
