@@ -4,6 +4,7 @@ import fs from "fs";
 import { initDatabase, closeDatabase } from "./db";
 import { runAutoBackup, shouldSkipQuitAutoBackup } from "./db/backup";
 import { registerIpcHandlers } from "./ipc/handlers";
+import { setupAutoUpdater } from "./updater";
 import { IPC, type ActionResult } from "../shared/ipc";
 
 let quitting = false;
@@ -256,6 +257,8 @@ app.whenReady().then(async () => {
   );
 
   await createWindow();
+
+  setupAutoUpdater();
 
   app.on("activate", async () => {
     if (BrowserWindow.getAllWindows().length === 0) {

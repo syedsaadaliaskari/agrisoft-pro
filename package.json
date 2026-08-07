@@ -1,9 +1,14 @@
 {
   "name": "agri-soft-pro",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Local desktop agri ERP — Electron + Next.js + SQLite",
+  "author": "Agri Soft Pro",
   "main": "dist-electron/electron/main.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/syedsaadaliaskari/agrisoft-pro.git"
+  },
   "scripts": {
     "dev": "concurrently -k \"npm:dev:next\" \"npm:dev:electron\"",
     "dev:next": "next dev -p 3000",
@@ -27,6 +32,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "drizzle-orm": "^0.43.1",
+    "electron-updater": "^6.8.9",
     "lucide-react": "^0.503.0",
     "next": "^15.3.1",
     "react": "^19.1.0",
@@ -73,6 +79,13 @@
       "node_modules/better-sqlite3/**/*"
     ],
     "extraResources": [],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "syedsaadaliaskari",
+        "repo": "agrisoft-pro"
+      }
+    ],
     "win": {
       "target": [
         "nsis"
