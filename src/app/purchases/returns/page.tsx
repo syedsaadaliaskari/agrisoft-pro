@@ -526,7 +526,6 @@ export default function PurchaseReturnsPage() {
                 label="Return reason / notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Wrong shipment, quality issue, excess stock…"
               />
             </ComposerSection>
           </div>

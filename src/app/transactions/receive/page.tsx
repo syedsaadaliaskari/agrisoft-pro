@@ -209,7 +209,6 @@ export default function ReceivePaymentPage() {
               label="Reference"
               value={referenceNo}
               onChange={(e) => setReferenceNo(e.target.value)}
-              placeholder="Cheque / transfer ref"
             />
             <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
             <div className="flex flex-wrap gap-2 pt-1">

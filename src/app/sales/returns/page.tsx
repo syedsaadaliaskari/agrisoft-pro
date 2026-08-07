@@ -534,7 +534,6 @@ export default function SaleReturnsPage() {
                 label="Return reason / notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Damaged goods, wrong item, customer request…"
               />
             </ComposerSection>
           </div>

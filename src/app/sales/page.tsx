@@ -596,7 +596,6 @@ export default function SalesPage() {
                   step="0.01"
                   value={paidAmount}
                   onChange={(e) => setPaidAmount(e.target.value)}
-                  placeholder={paymentMode === "credit" ? "0" : String(grand || "")}
                 />
               </div>
             </ComposerSection>
@@ -719,7 +718,6 @@ export default function SalesPage() {
                   label="Notes"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Optional invoice note for print & audit"
                 />
               </div>
             </ComposerSection>

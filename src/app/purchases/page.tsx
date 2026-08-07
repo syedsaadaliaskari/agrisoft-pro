@@ -570,7 +570,6 @@ export default function PurchasesPage() {
                   step="0.01"
                   value={paidAmount}
                   onChange={(e) => setPaidAmount(e.target.value)}
-                  placeholder={paymentMode === "credit" ? "0" : String(grand || "")}
                 />
               </div>
             </ComposerSection>
@@ -687,7 +686,6 @@ export default function PurchasesPage() {
                   label="Notes"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Vendor bill reference, GRN note…"
                 />
               </div>
             </ComposerSection>

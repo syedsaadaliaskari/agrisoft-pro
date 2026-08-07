@@ -189,18 +189,6 @@ export default function BackupPage() {
                   <FolderOpen size={14} /> Open folder
                 </Button>
               </div>
-              {status ? (
-                <div className="mt-4 space-y-1 rounded-xl border border-[var(--border)] bg-[var(--bg-soft)]/60 px-3 py-2 text-[11px] text-[var(--text-muted)]">
-                  <div>
-                    <span className="font-medium text-[var(--text)]">Live data: </span>
-                    {status.liveDbPath}
-                  </div>
-                  <div>
-                    <span className="font-medium text-[var(--text)]">Backups: </span>
-                    {status.backupRoot}
-                  </div>
-                </div>
-              ) : null}
             </section>
 
             <section className="rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5">
@@ -247,9 +235,6 @@ export default function BackupPage() {
                 >
                   <td className="px-4 py-3.5">
                     <div className="font-mono text-xs font-semibold">{row.fileName}</div>
-                    <div className="mt-0.5 max-w-md truncate text-[11px] text-[var(--text-muted)]">
-                      {row.path}
-                    </div>
                   </td>
                   <td className="px-4 py-3.5 text-sm">{formatWhen(row.modifiedAt)}</td>
                   <td className="px-4 py-3.5 tabular-nums text-sm">{formatBytes(row.sizeBytes)}</td>

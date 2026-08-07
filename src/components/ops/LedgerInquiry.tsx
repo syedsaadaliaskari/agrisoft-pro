@@ -138,7 +138,6 @@ export function LedgerInquiry({
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder={`Search ${pickerLabel.toLowerCase()}…`}
                 className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] py-2 pl-9 pr-3 text-sm outline-none ring-[var(--accent)] focus:ring-1"
               />
             </div>

@@ -240,7 +240,6 @@ export function PageToolbar({
       <input
         value={search}
         onChange={(e) => onSearch(e.target.value)}
-        placeholder="Search…"
         className="w-full max-w-sm rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-sm outline-none ring-[var(--accent)] focus:ring-1"
       />
       <div className="flex flex-wrap items-center gap-2">

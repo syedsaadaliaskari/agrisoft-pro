@@ -1,7 +1,6 @@
-import { app, BrowserWindow, shell, ipcMain, protocol, net, dialog } from "electron";
+import { app, BrowserWindow, shell, ipcMain, protocol, dialog } from "electron";
 import path from "path";
 import fs from "fs";
-import { pathToFileURL } from "url";
 import { initDatabase, closeDatabase } from "./db";
 import { runAutoBackup, shouldSkipQuitAutoBackup } from "./db/backup";
 import { registerIpcHandlers } from "./ipc/handlers";
@@ -26,29 +25,72 @@ protocol.registerSchemesAsPrivileged([
 
 let mainWindow: BrowserWindow | null = null;
 
+function mimeFor(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase();
+  switch (ext) {
+    case ".html":
+      return "text/html; charset=utf-8";
+    case ".js":
+      return "text/javascript; charset=utf-8";
+    case ".css":
+      return "text/css; charset=utf-8";
+    case ".json":
+      return "application/json; charset=utf-8";
+    case ".svg":
+      return "image/svg+xml";
+    case ".png":
+      return "image/png";
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    case ".webp":
+      return "image/webp";
+    case ".woff":
+      return "font/woff";
+    case ".woff2":
+      return "font/woff2";
+    case ".txt":
+      return "text/plain; charset=utf-8";
+    default:
+      return "application/octet-stream";
+  }
+}
+
 function registerStaticAppProtocol() {
   const outDir = path.resolve(app.getAppPath(), "out");
 
   protocol.handle("app", (request) => {
     try {
       const url = new URL(request.url);
-      let pathname = decodeURIComponent(url.pathname);
+      // Strip leading slashes so path.join never treats the segment as absolute on Windows
+      let rel = decodeURIComponent(url.pathname || "").replace(/^\/+/, "");
 
-      if (!pathname || pathname === "/") {
-        pathname = "/index.html";
-      } else if (pathname.endsWith("/")) {
-        pathname = `${pathname}index.html`;
-      } else if (!path.extname(pathname)) {
-        pathname = `${pathname}/index.html`;
+      if (!rel || rel.endsWith("/")) {
+        rel = `${rel}index.html`;
+      } else if (!path.extname(rel)) {
+        rel = `${rel}/index.html`;
       }
 
-      const filePath = path.resolve(path.join(outDir, pathname));
+      let filePath = path.resolve(outDir, ...rel.split("/").filter(Boolean));
       const outPrefix = outDir.endsWith(path.sep) ? outDir : outDir + path.sep;
       if (filePath !== outDir && !filePath.startsWith(outPrefix)) {
         return new Response("Not found", { status: 404 });
       }
 
-      return net.fetch(pathToFileURL(filePath).href);
+      // Next export uses trailingSlash folders — never feed a directory to the fetcher
+      if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
+        filePath = path.join(filePath, "index.html");
+      }
+
+      if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+        return new Response("Not found", { status: 404 });
+      }
+
+      const data = fs.readFileSync(filePath);
+      return new Response(data, {
+        status: 200,
+        headers: { "Content-Type": mimeFor(filePath) },
+      });
     } catch (err) {
       console.error("app:// protocol error:", err);
       return new Response("Not found", { status: 404 });
