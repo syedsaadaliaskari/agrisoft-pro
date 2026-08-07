@@ -3,8 +3,11 @@ import path from "path";
 import fs from "fs";
 import { pathToFileURL } from "url";
 import { initDatabase, closeDatabase } from "./db";
+import { runAutoBackup, shouldSkipQuitAutoBackup } from "./db/backup";
 import { registerIpcHandlers } from "./ipc/handlers";
 import { IPC, type ActionResult } from "../shared/ipc";
+
+let quitting = false;
 
 const isDev = !app.isPackaged;
 
@@ -161,6 +164,13 @@ app.whenReady().then(async () => {
   await initDatabase();
   registerIpcHandlers(app.getVersion(), isDev);
 
+  // Auto daily backup on start if today's file is missing
+  try {
+    await runAutoBackup(false);
+  } catch (err) {
+    console.warn("Auto backup on start failed:", err);
+  }
+
   ipcMain.handle(IPC.APP_PRINT_HTML, async (_event, html: string): Promise<ActionResult> => {
     if (!html || typeof html !== "string") {
       return { ok: false, error: "Nothing to print" };
@@ -214,11 +224,27 @@ app.whenReady().then(async () => {
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
-    closeDatabase();
     app.quit();
   }
 });
 
-app.on("before-quit", () => {
-  closeDatabase();
+app.on("before-quit", (event) => {
+  if (quitting) return;
+  if (shouldSkipQuitAutoBackup()) {
+    closeDatabase();
+    return;
+  }
+  event.preventDefault();
+  quitting = true;
+  void (async () => {
+    try {
+      // Refresh today's auto backup with end-of-day data
+      await runAutoBackup(true);
+    } catch (err) {
+      console.warn("Auto backup on quit failed:", err);
+    } finally {
+      closeDatabase();
+      app.exit(0);
+    }
+  })();
 });

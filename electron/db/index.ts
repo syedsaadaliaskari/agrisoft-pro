@@ -484,8 +484,30 @@ export function getDb(): Db {
 
 export function closeDatabase(): void {
   if (sqlite) {
+    try {
+      sqlite.pragma("wal_checkpoint(TRUNCATE)");
+    } catch {
+      // ignore checkpoint errors on shutdown
+    }
     sqlite.close();
     sqlite = null;
     db = null;
   }
+}
+
+/** Online backup of the open DB (safe with WAL). */
+export async function createDbBackupFile(destPath: string): Promise<void> {
+  if (!sqlite) {
+    throw new Error("Database not initialized");
+  }
+  ensureDir(path.dirname(destPath));
+  if (fs.existsSync(destPath)) {
+    fs.unlinkSync(destPath);
+  }
+  await sqlite.backup(destPath);
+}
+
+/** Live DB path plus WAL/SHM sidecars. */
+export function getDbRelatedPaths(livePath = getDbPath()): string[] {
+  return [livePath, `${livePath}-wal`, `${livePath}-shm`];
 }

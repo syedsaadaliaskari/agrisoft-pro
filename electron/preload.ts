@@ -127,6 +127,13 @@ const api: ElectronAPI = {
   listAuditLogs: (query) => ipcRenderer.invoke(IPC.AUDIT_LIST, query),
   printHtml: (html) => ipcRenderer.invoke(IPC.APP_PRINT_HTML, html),
   saveFile: (input) => ipcRenderer.invoke(IPC.APP_SAVE_FILE, input),
+
+  getBackupStatus: () => ipcRenderer.invoke(IPC.BACKUP_STATUS),
+  runManualBackup: () => ipcRenderer.invoke(IPC.BACKUP_RUN_MANUAL),
+  runAutoBackupNow: () => ipcRenderer.invoke(IPC.BACKUP_RUN_AUTO),
+  restoreBackup: (sourcePath) => ipcRenderer.invoke(IPC.BACKUP_RESTORE, sourcePath),
+  pickBackupFile: () => ipcRenderer.invoke(IPC.BACKUP_PICK_FILE),
+  openBackupFolder: () => ipcRenderer.invoke(IPC.BACKUP_OPEN_FOLDER),
 };
 
 contextBridge.exposeInMainWorld("api", api);

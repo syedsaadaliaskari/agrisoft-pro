@@ -24,6 +24,7 @@ import {
   PlusCircle,
   Receipt,
   Trash2,
+  HardDrive,
   type LucideIcon,
 } from "lucide-react";
 
@@ -144,6 +145,7 @@ export const navigation: NavGroup[] = [
       { label: "Discounts", href: "/setup/discounts", icon: Percent, permission: "settings.manage" },
       { label: "Additions", href: "/setup/additions", icon: PlusCircle, permission: "settings.manage" },
       { label: "Users & RBAC", href: "/settings/users", icon: Shield, permission: "users.manage" },
+      { label: "Backup & Restore", href: "/settings/backup", icon: HardDrive, permission: "settings.manage" },
       { label: "Settings", href: "/settings", icon: Settings, permission: "settings.manage" },
     ],
   },

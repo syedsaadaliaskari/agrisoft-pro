@@ -141,6 +141,14 @@ export const IPC = {
   // App utilities
   APP_PRINT_HTML: "app:printHtml",
   APP_SAVE_FILE: "app:saveFile",
+
+  // Backup / restore
+  BACKUP_STATUS: "backup:status",
+  BACKUP_RUN_MANUAL: "backup:runManual",
+  BACKUP_RUN_AUTO: "backup:runAuto",
+  BACKUP_RESTORE: "backup:restore",
+  BACKUP_PICK_FILE: "backup:pickFile",
+  BACKUP_OPEN_FOLDER: "backup:openFolder",
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
@@ -1159,6 +1167,24 @@ export type AuditListQuery = {
   limit?: number;
 };
 
+export type BackupFileInfo = {
+  path: string;
+  fileName: string;
+  sizeBytes: number;
+  modifiedAt: string;
+  kind: "auto" | "manual";
+};
+
+export type BackupStatus = {
+  liveDbPath: string;
+  backupRoot: string;
+  autoDir: string;
+  keepDays: number;
+  lastAutoBackupAt: string | null;
+  lastAutoBackupPath: string | null;
+  autoBackups: BackupFileInfo[];
+};
+
 export type ElectronAPI = {
   ping: () => Promise<string>;
   getAppInfo: () => Promise<AppInfo>;
@@ -1295,6 +1321,13 @@ export type ElectronAPI = {
     dataBase64: string;
     filters?: { name: string; extensions: string[] }[];
   }) => Promise<ActionResult<{ path: string } | null>>;
+
+  getBackupStatus: () => Promise<ActionResult<BackupStatus>>;
+  runManualBackup: () => Promise<ActionResult<BackupFileInfo | null>>;
+  runAutoBackupNow: () => Promise<ActionResult<BackupFileInfo | null>>;
+  restoreBackup: (sourcePath: string) => Promise<ActionResult<{ relaunching: true }>>;
+  pickBackupFile: () => Promise<ActionResult<string | null>>;
+  openBackupFolder: () => Promise<ActionResult>;
 };
 
 declare global {

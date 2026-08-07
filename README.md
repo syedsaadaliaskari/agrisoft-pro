@@ -76,4 +76,11 @@ npm run db:reseed
 
 ## Out of scope (not built)
 
-Cloud sync, multi-branch (multi-store), barcode hardware, advanced tax engine, full audit UI, backups UI, auto-updater.
+Cloud sync, multi-branch (multi-store), barcode hardware, advanced tax engine, full audit UI, auto-updater.
+
+## Backup & restore
+
+- **Auto:** on app start (if today’s file missing) and on app close (refresh today’s file)
+- **Folder:** `Documents\Agri Soft Pro Backups\` (auto files under `auto\`)
+- **Manual / restore:** Setup → **Backup & Restore**
+- Format is the SQLite `.db` file (not PDF). Keep last 14 auto days.
