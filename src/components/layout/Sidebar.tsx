@@ -6,14 +6,16 @@ import { navigation } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { hasPermission } from "@/lib/permissions";
+import { useI18n } from "@/lib/i18n";
 
 export function Sidebar() {
   const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
+  const { t } = useI18n();
 
   return (
     <aside
-      className="fixed inset-y-0 left-0 z-30 flex w-[var(--sidebar-width)] flex-col border-r border-[var(--border)] bg-[var(--bg-elevated)]"
+      className="fixed inset-y-0 start-0 z-30 flex w-[var(--sidebar-width)] flex-col border-e border-[var(--border)] bg-[var(--bg-elevated)]"
       style={{ width: "var(--sidebar-width)" }}
     >
       <div className="flex h-16 items-center gap-3 border-b border-[var(--border)] px-5">
@@ -21,8 +23,8 @@ export function Sidebar() {
           AS
         </div>
         <div>
-          <div className="text-sm font-semibold tracking-wide text-[var(--text)]">Agri Soft</div>
-          <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--accent)]">Pro</div>
+          <div className="text-sm font-semibold tracking-wide text-[var(--text)]">{t("brand.name")}</div>
+          <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--accent)]">{t("brand.pro")}</div>
         </div>
       </div>
 
@@ -33,9 +35,9 @@ export function Sidebar() {
           );
           if (!items.length) return null;
           return (
-            <div key={group.title} className="mb-5">
+            <div key={group.titleKey} className="mb-5">
               <div className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                {group.title}
+                {t(group.titleKey)}
               </div>
               <ul className="space-y-0.5">
                 {items.map((item) => {
@@ -57,7 +59,7 @@ export function Sidebar() {
                         )}
                       >
                         <Icon size={16} strokeWidth={1.75} />
-                        <span className="flex-1 truncate">{item.label}</span>
+                        <span className="flex-1 truncate">{t(item.labelKey)}</span>
                       </Link>
                     </li>
                   );

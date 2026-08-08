@@ -17,6 +17,7 @@ import {
 } from "@/components/ops/DocumentWorkspace";
 import { Alert, Button, DataTable } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 import type { BackupStatus } from "@shared/ipc";
 
 function formatBytes(n: number) {
@@ -35,6 +36,7 @@ function formatWhen(iso: string | null) {
 }
 
 export default function BackupPage() {
+  const { t } = useI18n();
   const [status, setStatus] = useState<BackupStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -152,20 +154,20 @@ export default function BackupPage() {
           <OpsStatStrip
             items={[
               {
-                label: "Last auto backup",
+                label: t("backup.lastAuto"),
                 value: status?.lastAutoBackupAt
                   ? formatWhen(status.lastAutoBackupAt)
-                  : "None yet",
+                  : t("backup.noneYet"),
                 hint: status?.lastAutoBackupPath
                   ? status.lastAutoBackupPath.split(/[/\\]/).pop()
-                  : "Created on app start / close",
+                  : t("backup.createdOn"),
                 tone: "accent",
                 icon: HardDrive,
               },
               {
-                label: "Auto copies kept",
+                label: t("backup.autoKept"),
                 value: String(status?.autoBackups.length ?? 0),
-                hint: `Keeps last ${status?.keepDays ?? 14} days`,
+                hint: t("backup.keepsDays", { n: status?.keepDays ?? 14 }),
                 icon: ShieldCheck,
               },
             ]}
@@ -174,16 +176,13 @@ export default function BackupPage() {
           <div className="mb-5 grid gap-4 lg:grid-cols-2">
             <section className="rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5">
               <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--accent)]">
-                Backup
+                {t("backup.backup")}
               </div>
-              <h2 className="mt-1 text-lg font-semibold tracking-tight">Save a restore point</h2>
-              <p className="mt-1 text-xs text-[var(--text-muted)]">
-                Manual backup asks where to save (Documents or USB). Auto backups land in the app backup
-                folder without asking.
-              </p>
+              <h2 className="mt-1 text-lg font-semibold tracking-tight">{t("backup.savePoint")}</h2>
+              <p className="mt-1 text-xs text-[var(--text-muted)]">{t("backup.backupHint")}</p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button onClick={() => void onManual()} disabled={busy}>
-                  <Save size={14} /> Backup now
+                  <Save size={14} /> {t("backup.backupNow")}
                 </Button>
                 <Button
                   variant="secondary"
@@ -191,27 +190,23 @@ export default function BackupPage() {
                   disabled={busy || autoRefreshDone}
                 >
                   <RefreshCw size={14} />{" "}
-                  {autoRefreshDone ? "Today's auto refreshed" : "Refresh today's auto"}
+                  {autoRefreshDone ? t("backup.refreshDone") : t("backup.refreshAuto")}
                 </Button>
                 <Button variant="secondary" onClick={() => void onOpenFolder()} disabled={busy}>
-                  <FolderOpen size={14} /> Open folder
+                  <FolderOpen size={14} /> {t("backup.openFolder")}
                 </Button>
               </div>
             </section>
 
             <section className="rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5">
               <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--danger)]">
-                Restore
+                {t("backup.restore")}
               </div>
-              <h2 className="mt-1 text-lg font-semibold tracking-tight">Replace live data</h2>
-              <p className="mt-1 text-xs text-[var(--text-muted)]">
-                Pick any <code className="text-[var(--text)]">.db</code> backup. Current data is replaced
-                and the app restarts. A <code className="text-[var(--text)]">.before-restore.db</code>{" "}
-                safety copy is kept when possible.
-              </p>
+              <h2 className="mt-1 text-lg font-semibold tracking-tight">{t("backup.replaceData")}</h2>
+              <p className="mt-1 text-xs text-[var(--text-muted)]">{t("backup.restoreHint")}</p>
               <div className="mt-4">
                 <Button variant="danger" onClick={() => void onRestore()} disabled={busy}>
-                  <RotateCcw size={14} /> Restore from file…
+                  <RotateCcw size={14} /> {t("backup.restoreFromFile")}
                 </Button>
               </div>
             </section>
@@ -219,23 +214,21 @@ export default function BackupPage() {
 
           <div className="mb-3 flex items-end justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold">Auto backup history</h2>
-              <p className="text-xs text-[var(--text-muted)]">
-                One file per day — overwritten on app close with the latest data
-              </p>
+              <h2 className="text-sm font-semibold">{t("backup.history")}</h2>
+              <p className="text-xs text-[var(--text-muted)]">{t("backup.historyHint")}</p>
             </div>
             <Button variant="ghost" size="sm" onClick={() => void load()} disabled={busy || loading}>
-              <RefreshCw size={14} /> Refresh
+              <RefreshCw size={14} /> {t("common.refresh")}
             </Button>
           </div>
 
           {!status?.autoBackups.length ? (
-            <OpsEmptyState
-              title="No auto backups yet"
-              hint="Open or close the app once on a work day and today's auto backup will appear here."
-            />
+            <OpsEmptyState title={t("backup.noAuto")} hint={t("backup.noAutoHint")} />
           ) : (
-            <DataTable headers={["File", "Saved", "Size", ""]} empty={false}>
+            <DataTable
+              headers={[t("backup.file"), t("backup.saved"), t("backup.size"), ""]}
+              empty={false}
+            >
               {status.autoBackups.map((row) => (
                 <tr
                   key={row.path}
@@ -253,9 +246,9 @@ export default function BackupPage() {
                         size="sm"
                         disabled={busy}
                         onClick={() => void onRestore(row.path)}
-                        title="Restore this backup"
+                        title={t("backup.restoreRow")}
                       >
-                        <RotateCcw size={14} /> Restore
+                        <RotateCcw size={14} /> {t("backup.restoreRow")}
                       </Button>
                     </div>
                   </td>

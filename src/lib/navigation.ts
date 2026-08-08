@@ -29,37 +29,37 @@ import {
 } from "lucide-react";
 
 export type NavItem = {
-  label: string;
+  labelKey: string;
   href: string;
   icon: LucideIcon;
   permission?: string;
 };
 
 export type NavGroup = {
-  title: string;
+  titleKey: string;
   items: NavItem[];
 };
 
 export const navigation: NavGroup[] = [
   {
-    title: "Overview",
+    titleKey: "nav.overview",
     items: [
-      { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, permission: "dashboard.view" },
+      { labelKey: "nav.dashboard", href: "/dashboard", icon: LayoutDashboard, permission: "dashboard.view" },
     ],
   },
   {
-    title: "Sales",
+    titleKey: "nav.sales",
     items: [
-      { label: "Sale", href: "/sales", icon: ShoppingCart, permission: "sales.view" },
-      { label: "Sale Return", href: "/sales/returns", icon: Undo2, permission: "sales.return" },
+      { labelKey: "nav.sale", href: "/sales", icon: ShoppingCart, permission: "sales.view" },
+      { labelKey: "nav.saleReturn", href: "/sales/returns", icon: Undo2, permission: "sales.return" },
     ],
   },
   {
-    title: "Purchases",
+    titleKey: "nav.purchases",
     items: [
-      { label: "Purchase", href: "/purchases", icon: PackagePlus, permission: "purchases.view" },
+      { labelKey: "nav.purchase", href: "/purchases", icon: PackagePlus, permission: "purchases.view" },
       {
-        label: "Purchase Return",
+        labelKey: "nav.purchaseReturn",
         href: "/purchases/returns",
         icon: PackageMinus,
         permission: "purchases.return",
@@ -67,86 +67,86 @@ export const navigation: NavGroup[] = [
     ],
   },
   {
-    title: "Catalog",
+    titleKey: "nav.catalog",
     items: [
-      { label: "Units", href: "/units", icon: Ruler, permission: "products.view" },
-      { label: "Categories", href: "/categories", icon: Tags, permission: "products.view" },
-      { label: "Products", href: "/products", icon: Package, permission: "products.view" },
-      { label: "Inventory", href: "/inventory", icon: Warehouse, permission: "inventory.view" },
+      { labelKey: "nav.units", href: "/units", icon: Ruler, permission: "products.view" },
+      { labelKey: "nav.categories", href: "/categories", icon: Tags, permission: "products.view" },
+      { labelKey: "nav.products", href: "/products", icon: Package, permission: "products.view" },
+      { labelKey: "nav.inventory", href: "/inventory", icon: Warehouse, permission: "inventory.view" },
     ],
   },
   {
-    title: "Parties",
+    titleKey: "nav.parties",
     items: [
-      { label: "Customers", href: "/customers", icon: Users, permission: "customers.view" },
-      { label: "Vendors", href: "/vendors", icon: Truck, permission: "vendors.view" },
+      { labelKey: "nav.customers", href: "/customers", icon: Users, permission: "customers.view" },
+      { labelKey: "nav.vendors", href: "/vendors", icon: Truck, permission: "vendors.view" },
     ],
   },
   {
-    title: "Transactions",
+    titleKey: "nav.transactions",
     items: [
-      { label: "Journal", href: "/transactions/journal", icon: BookOpen, permission: "transactions.view" },
+      { labelKey: "nav.journal", href: "/transactions/journal", icon: BookOpen, permission: "transactions.view" },
       {
-        label: "Receive Payment",
+        labelKey: "nav.receivePayment",
         href: "/transactions/receive",
         icon: ArrowDownLeft,
         permission: "transactions.view",
       },
       {
-        label: "Make Payment",
+        labelKey: "nav.makePayment",
         href: "/transactions/pay",
         icon: ArrowUpRight,
         permission: "transactions.view",
       },
-      { label: "Expense", href: "/transactions/expense", icon: Wallet, permission: "transactions.view" },
-      { label: "Income", href: "/transactions/income", icon: TrendingUp, permission: "transactions.view" },
+      { labelKey: "nav.expense", href: "/transactions/expense", icon: Wallet, permission: "transactions.view" },
+      { labelKey: "nav.income", href: "/transactions/income", icon: TrendingUp, permission: "transactions.view" },
     ],
   },
   {
-    title: "Ledgers",
+    titleKey: "nav.ledgers",
     items: [
-      { label: "Accounts Ledger", href: "/ledgers/accounts", icon: BookOpen, permission: "ledgers.view" },
+      { labelKey: "nav.accountsLedger", href: "/ledgers/accounts", icon: BookOpen, permission: "ledgers.view" },
       {
-        label: "Customer Ledger",
+        labelKey: "nav.customerLedger",
         href: "/ledgers/customers",
         icon: UserRound,
         permission: "ledgers.view",
       },
       {
-        label: "Vendor Ledger",
+        labelKey: "nav.vendorLedger",
         href: "/ledgers/vendors",
         icon: Building2,
         permission: "ledgers.view",
       },
-      { label: "Expense Ledger", href: "/ledgers/expenses", icon: Wallet, permission: "ledgers.view" },
-      { label: "Income Ledger", href: "/ledgers/income", icon: TrendingUp, permission: "ledgers.view" },
+      { labelKey: "nav.expenseLedger", href: "/ledgers/expenses", icon: Wallet, permission: "ledgers.view" },
+      { labelKey: "nav.incomeLedger", href: "/ledgers/income", icon: TrendingUp, permission: "ledgers.view" },
     ],
   },
   {
-    title: "Reports",
+    titleKey: "nav.reports",
     items: [
-      { label: "Sales Report", href: "/reports/sales", icon: BarChart3, permission: "reports.view" },
+      { labelKey: "nav.salesReport", href: "/reports/sales", icon: BarChart3, permission: "reports.view" },
       {
-        label: "Purchase Report",
+        labelKey: "nav.purchaseReport",
         href: "/reports/purchases",
         icon: BarChart3,
         permission: "reports.view",
       },
-      { label: "Profit & Loss", href: "/reports/profit", icon: TrendingUp, permission: "reports.view" },
-      { label: "Stock Report", href: "/reports/stock", icon: Warehouse, permission: "reports.view" },
-      { label: "Tax Report", href: "/reports/tax", icon: Receipt, permission: "reports.view" },
-      { label: "Deleted Data", href: "/reports/deleted", icon: Trash2, permission: "reports.view" },
+      { labelKey: "nav.profitLoss", href: "/reports/profit", icon: TrendingUp, permission: "reports.view" },
+      { labelKey: "nav.stockReport", href: "/reports/stock", icon: Warehouse, permission: "reports.view" },
+      { labelKey: "nav.taxReport", href: "/reports/tax", icon: Receipt, permission: "reports.view" },
+      { labelKey: "nav.deletedData", href: "/reports/deleted", icon: Trash2, permission: "reports.view" },
     ],
   },
   {
-    title: "Setup",
+    titleKey: "nav.setup",
     items: [
-      { label: "Taxes", href: "/setup/taxes", icon: Percent, permission: "settings.manage" },
-      { label: "Discounts", href: "/setup/discounts", icon: Percent, permission: "settings.manage" },
-      { label: "Additions", href: "/setup/additions", icon: PlusCircle, permission: "settings.manage" },
-      { label: "Users & RBAC", href: "/settings/users", icon: Shield, permission: "users.manage" },
-      { label: "Backup & Restore", href: "/settings/backup", icon: HardDrive, permission: "settings.manage" },
-      { label: "Settings", href: "/settings", icon: Settings, permission: "settings.manage" },
+      { labelKey: "nav.taxes", href: "/setup/taxes", icon: Percent, permission: "settings.manage" },
+      { labelKey: "nav.discounts", href: "/setup/discounts", icon: Percent, permission: "settings.manage" },
+      { labelKey: "nav.additions", href: "/setup/additions", icon: PlusCircle, permission: "settings.manage" },
+      { labelKey: "nav.users", href: "/settings/users", icon: Shield, permission: "users.manage" },
+      { labelKey: "nav.backup", href: "/settings/backup", icon: HardDrive, permission: "settings.manage" },
+      { labelKey: "nav.settings", href: "/settings", icon: Settings, permission: "settings.manage" },
     ],
   },
 ];

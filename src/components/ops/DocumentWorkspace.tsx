@@ -4,6 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import { Package } from "lucide-react";
 import { cn, formatMoney } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { useI18n } from "@/lib/i18n";
 import type { PaymentMode } from "@shared/ipc";
 
 export function money(n: number) {
@@ -132,6 +133,7 @@ export function DocStatusBadge({ status }: { status: string }) {
 }
 
 export function PaymentModeBadge({ mode }: { mode: string }) {
+  const { t } = useI18n();
   const m = (mode || "").toLowerCase();
   const tone =
     m === "cash"
@@ -139,9 +141,11 @@ export function PaymentModeBadge({ mode }: { mode: string }) {
       : m === "bank"
         ? "bg-[var(--info)]/12 text-[var(--info)]"
         : "bg-amber-500/12 text-amber-700 dark:text-amber-300";
+  const label =
+    m === "cash" ? t("payment.cash") : m === "bank" ? t("payment.bank") : m === "credit" ? t("payment.credit") : mode;
   return (
-    <span className={cn("inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold capitalize", tone)}>
-      {mode}
+    <span className={cn("inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold", tone)}>
+      {label}
     </span>
   );
 }
@@ -149,21 +153,25 @@ export function PaymentModeBadge({ mode }: { mode: string }) {
 export function PaymentModePicker({
   value,
   onChange,
-  options = [
-    { value: "cash", label: "Cash", hint: "Till" },
-    { value: "bank", label: "Bank", hint: "Transfer" },
-    { value: "credit", label: "Credit", hint: "On account" },
-  ],
+  options,
 }: {
   value: PaymentMode;
   onChange: (v: PaymentMode) => void;
   options?: { value: PaymentMode; label: string; hint: string }[];
 }) {
+  const { t } = useI18n();
+  const resolved =
+    options ??
+    ([
+      { value: "cash", label: t("payment.cash"), hint: "" },
+      { value: "bank", label: t("payment.bank"), hint: "" },
+      { value: "credit", label: t("payment.credit"), hint: "" },
+    ] as const);
   return (
     <div className="space-y-1.5">
-      <div className="text-xs font-medium text-[var(--text-muted)]">Payment mode</div>
+      <div className="text-xs font-medium text-[var(--text-muted)]">{t("payment.mode")}</div>
       <div className="grid grid-cols-3 gap-2">
-        {options.map((o) => {
+        {resolved.map((o) => {
           const active = value === o.value;
           return (
             <button
@@ -171,7 +179,7 @@ export function PaymentModePicker({
               type="button"
               onClick={() => onChange(o.value)}
               className={cn(
-                "rounded-xl border px-3 py-2.5 text-left transition",
+                "rounded-xl border px-3 py-2.5 text-start transition",
                 active
                   ? "border-[var(--accent)] bg-[var(--accent-soft)] shadow-[0_0_0_1px_var(--accent)]"
                   : "border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)]"

@@ -18,7 +18,7 @@ export function AppShellSkeleton() {
   return (
     <div className="flex min-h-screen">
       <aside
-        className="fixed inset-y-0 left-0 border-r border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-4"
+        className="fixed inset-y-0 start-0 border-e border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-4"
         style={{ width: "var(--sidebar-width)" }}
       >
         <div className="mb-6 flex items-center gap-3 px-2">
@@ -35,7 +35,7 @@ export function AppShellSkeleton() {
           </div>
         ))}
       </aside>
-      <div style={{ marginLeft: "var(--sidebar-width)" }} className="min-h-screen flex-1 p-6">
+      <div style={{ marginInlineStart: "var(--sidebar-width)" }} className="min-h-screen flex-1 p-6">
         <div className="mb-6 space-y-2">
           <Skeleton className="h-6 w-40" />
           <Skeleton className="h-3 w-64" />

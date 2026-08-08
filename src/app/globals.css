@@ -23,6 +23,11 @@
   --atmosphere-2: rgba(91, 143, 212, 0.07);
 }
 
+[data-locale="ur"] {
+  --font-display: "Nirmala UI", "Segoe UI", "Noto Nastaliq Urdu", Tahoma, sans-serif;
+  --font-body: "Nirmala UI", "Segoe UI", "Noto Nastaliq Urdu", Tahoma, sans-serif;
+}
+
 [data-theme="light"] {
   --bg: #f3f5f8;
   --bg-elevated: #ffffff;

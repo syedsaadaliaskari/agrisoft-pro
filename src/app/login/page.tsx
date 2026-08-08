@@ -1,28 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Moon, Sprout, Sun } from "lucide-react";
+import { Languages, Moon, Sprout, Sun } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 import { useTheme } from "@/lib/theme";
 import { isElectron } from "@/lib/api";
-
-const WELCOME_LINES = [
-  "Preparing your workspace…",
-  "Loading accounts & stock…",
-  "Almost there — welcome back.",
-];
+import { useI18n } from "@/lib/i18n";
+import type { Locale } from "@/lib/i18n/types";
 
 export default function LoginPage() {
   const router = useRouter();
   const { user, hydrated, hydrate, login, loading } = useAuthStore();
   const { theme, toggleTheme } = useTheme();
+  const { t, locale, setLocale } = useI18n();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [welcome, setWelcome] = useState(false);
   const [welcomeLine, setWelcomeLine] = useState(0);
+
+  const welcomeLines = useMemo(
+    () => [t("login.welcome1"), t("login.welcome2"), t("login.welcome3")],
+    [t]
+  );
 
   useEffect(() => {
     void hydrate();
@@ -31,29 +33,29 @@ export default function LoginPage() {
   useEffect(() => {
     if (hydrated && user && !welcome) {
       setWelcome(true);
-      const t = setTimeout(() => router.replace("/dashboard"), 700);
-      return () => clearTimeout(t);
+      const timer = setTimeout(() => router.replace("/dashboard"), 700);
+      return () => clearTimeout(timer);
     }
   }, [hydrated, user, router, welcome]);
 
   useEffect(() => {
     if (!welcome && !submitting && !loading) return;
     const id = setInterval(() => {
-      setWelcomeLine((i) => (i + 1) % WELCOME_LINES.length);
+      setWelcomeLine((i) => (i + 1) % welcomeLines.length);
     }, 900);
     return () => clearInterval(id);
-  }, [welcome, submitting, loading]);
+  }, [welcome, submitting, loading, welcomeLines.length]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submitting || loading || welcome) return;
     setError("");
     if (!username.trim() || !password) {
-      setError("Enter username and password");
+      setError(t("login.enterBoth"));
       return;
     }
     if (!isElectron()) {
-      setError("Open the desktop app with npm run dev — login needs Electron + SQLite.");
+      setError(t("login.needElectron"));
       return;
     }
     setSubmitting(true);
@@ -65,7 +67,7 @@ export default function LoginPage() {
         router.replace("/dashboard");
       } else {
         setWelcome(false);
-        setError(result.error ?? "Login failed");
+        setError(result.error ?? t("login.failed"));
       }
     } finally {
       setSubmitting(false);
@@ -93,27 +95,38 @@ export default function LoginPage() {
         }}
       />
 
-      <button
-        type="button"
-        onClick={toggleTheme}
-        className="absolute right-4 top-4 z-10 inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--bg-elevated)]/90 px-3 py-1.5 text-xs text-[var(--text-muted)] backdrop-blur transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-        title={theme === "light" ? "Switch to dark theme" : "Switch to light theme"}
-      >
-        {theme === "light" ? <Moon size={14} /> : <Sun size={14} />}
-        {theme === "light" ? "Dark" : "Light"}
-      </button>
+      <div className="absolute end-4 top-4 z-10 flex gap-2">
+        <button
+          type="button"
+          onClick={() => setLocale((locale === "ur" ? "en" : "ur") as Locale)}
+          className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--bg-elevated)]/90 px-3 py-1.5 text-xs text-[var(--text-muted)] backdrop-blur transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+          title={t("lang.switch")}
+        >
+          <Languages size={14} />
+          {locale === "ur" ? t("lang.english") : t("lang.urdu")}
+        </button>
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--bg-elevated)]/90 px-3 py-1.5 text-xs text-[var(--text-muted)] backdrop-blur transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+          title={theme === "light" ? t("topbar.dark") : t("topbar.light")}
+        >
+          {theme === "light" ? <Moon size={14} /> : <Sun size={14} />}
+          {theme === "light" ? t("topbar.dark") : t("topbar.light")}
+        </button>
+      </div>
 
       {welcome ? (
         <div className="relative z-10 w-full max-w-md text-center animate-[fadeIn_280ms_ease-out]">
           <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-[var(--accent)] text-[var(--logo-ink)] shadow-lg shadow-[var(--accent)]/30">
             <Sprout size={36} strokeWidth={1.75} />
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Welcome to Agri Soft Pro</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("login.welcome")}</h1>
           <p
             className="mt-3 text-sm text-[var(--text-muted)]"
             style={{ animation: "welcomePulse 1.6s ease-in-out infinite" }}
           >
-            {WELCOME_LINES[welcomeLine]}
+            {welcomeLines[welcomeLine]}
           </p>
           <div className="mx-auto mt-8 flex max-w-xs justify-center gap-1.5">
             {[0, 1, 2].map((i) => (
@@ -136,9 +149,9 @@ export default function LoginPage() {
               className="text-3xl font-semibold tracking-tight text-[var(--text)]"
               style={{ fontFamily: "var(--font-display)" }}
             >
-              Agri Soft Pro
+              {t("brand.name")} {t("brand.pro")}
             </h1>
-            <p className="mt-2 text-sm text-[var(--text-muted)]">Sign in to your workspace</p>
+            <p className="mt-2 text-sm text-[var(--text-muted)]">{t("login.subtitle")}</p>
           </div>
 
           <form
@@ -147,7 +160,9 @@ export default function LoginPage() {
             autoComplete="off"
           >
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-[var(--text-muted)]">Username</label>
+              <label className="mb-1.5 block text-xs font-medium text-[var(--text-muted)]">
+                {t("login.username")}
+              </label>
               <input
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -158,7 +173,9 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-[var(--text-muted)]">Password</label>
+              <label className="mb-1.5 block text-xs font-medium text-[var(--text-muted)]">
+                {t("login.password")}
+              </label>
               <input
                 type="password"
                 value={password}
@@ -180,7 +197,7 @@ export default function LoginPage() {
               disabled={busy}
               className="w-full rounded-lg bg-[var(--accent)] py-2.5 text-sm font-semibold text-[var(--logo-ink)] transition hover:bg-[var(--accent-hover)] disabled:opacity-60"
             >
-              Sign in
+              {t("login.signIn")}
             </button>
           </form>
         </div>

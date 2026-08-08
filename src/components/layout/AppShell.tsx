@@ -7,6 +7,7 @@ import { Topbar } from "./Topbar";
 import { AppShellSkeleton } from "@/components/ui/Skeleton";
 import { useAuthStore } from "@/store/auth";
 import { hasPermission } from "@/lib/permissions";
+import { normalizePath, PAGE_META, useI18n } from "@/lib/i18n";
 
 type Props = {
   title: string;
@@ -19,6 +20,12 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, hydrated, hydrate } = useAuthStore();
+  const { t } = useI18n();
+
+  const path = normalizePath(pathname);
+  const meta = PAGE_META[path];
+  const displayTitle = meta ? t(meta.title) : title;
+  const displaySubtitle = meta?.subtitle ? t(meta.subtitle) : subtitle;
 
   useEffect(() => {
     void hydrate();
@@ -30,7 +37,6 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
     }
   }, [hydrated, user, router]);
 
-  // Prefetch common routes so sidebar clicks feel instant
   useEffect(() => {
     const routes = [
       "/dashboard",
@@ -64,13 +70,14 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
     return (
       <div className="min-h-screen">
         <Sidebar />
-        <div style={{ marginLeft: "var(--sidebar-width)" }} className="min-h-screen">
-          <Topbar title={title} subtitle={subtitle} />
+        <div style={{ marginInlineStart: "var(--sidebar-width)" }} className="min-h-screen">
+          <Topbar title={displayTitle} subtitle={displaySubtitle} />
           <main className="p-6">
             <div className="rounded-xl border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-5 py-8 text-center">
-              <div className="text-sm font-semibold text-[var(--danger)]">Access denied</div>
+              <div className="text-sm font-semibold text-[var(--danger)]">{t("common.accessDenied")}</div>
               <p className="mt-2 text-sm text-[var(--text-muted)]">
-                You do not have permission <span className="font-mono text-[var(--text)]">{permission}</span>.
+                {t("common.accessDeniedHint")}{" "}
+                <span className="font-mono text-[var(--text)]">{permission}</span>.
               </p>
             </div>
           </main>
@@ -82,8 +89,8 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
   return (
     <div className="min-h-screen" key={pathname}>
       <Sidebar />
-      <div style={{ marginLeft: "var(--sidebar-width)" }} className="min-h-screen">
-        <Topbar title={title} subtitle={subtitle} />
+      <div style={{ marginInlineStart: "var(--sidebar-width)" }} className="min-h-screen">
+        <Topbar title={displayTitle} subtitle={displaySubtitle} />
         <main className="animate-[fadeIn_180ms_ease-out] p-6">{children}</main>
       </div>
     </div>
