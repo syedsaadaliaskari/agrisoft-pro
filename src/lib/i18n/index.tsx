@@ -12,6 +12,8 @@ const dictionaries = { en, ur } as const;
 /** Map route pathname → i18n page keys */
 export const PAGE_META: Record<string, { title: string; subtitle?: string }> = {
   "/dashboard": { title: "pages.dashboard.title", subtitle: "pages.dashboard.subtitle" },
+  "/platform/licenses": { title: "pages.licenses.title", subtitle: "pages.licenses.subtitle" },
+  "/settings/license": { title: "pages.licenseInfo.title", subtitle: "pages.licenseInfo.subtitle" },
   "/sales": { title: "pages.sales.title", subtitle: "pages.sales.subtitle" },
   "/sales/returns": { title: "pages.salesReturns.title", subtitle: "pages.salesReturns.subtitle" },
   "/purchases": { title: "pages.purchases.title", subtitle: "pages.purchases.subtitle" },

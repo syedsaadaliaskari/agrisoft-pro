@@ -149,6 +149,12 @@ export const IPC = {
   BACKUP_RESTORE: "backup:restore",
   BACKUP_PICK_FILE: "backup:pickFile",
   BACKUP_OPEN_FOLDER: "backup:openFolder",
+
+  LICENSE_STATUS: "license:status",
+  LICENSE_LIST: "license:list",
+  LICENSE_CREATE: "license:create",
+  LICENSE_DELETE: "license:delete",
+  LICENSE_EXPIRE_TRIAL: "license:expireTrial",
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
@@ -1185,6 +1191,39 @@ export type BackupStatus = {
   autoBackups: BackupFileInfo[];
 };
 
+export type LicensePlan = "monthly" | "yearly" | "forever";
+
+export type LicenseStatus = {
+  installId: string;
+  installedAt: string;
+  trialEndsAt: string;
+  trialDaysLeft: number;
+  mode: "trial" | "pro" | "locked";
+  allowed: boolean;
+  plan: LicensePlan | null;
+  expiresAt: string | null;
+  licenseName: string | null;
+  isDevBypass: boolean;
+};
+
+export type LicenseRow = {
+  id: string;
+  name: string;
+  installId: string;
+  plan: LicensePlan;
+  activatedAt: string;
+  expiresAt: string | null;
+  notes: string | null;
+  createdAt: string;
+};
+
+export type LicenseCreateInput = {
+  name: string;
+  installId: string;
+  plan: LicensePlan;
+  notes?: string | null;
+};
+
 export type ElectronAPI = {
   ping: () => Promise<string>;
   getAppInfo: () => Promise<AppInfo>;
@@ -1328,6 +1367,12 @@ export type ElectronAPI = {
   restoreBackup: (sourcePath: string) => Promise<ActionResult<{ relaunching: true }>>;
   pickBackupFile: () => Promise<ActionResult<string | null>>;
   openBackupFolder: () => Promise<ActionResult>;
+
+  getLicenseStatus: () => Promise<ActionResult<LicenseStatus>>;
+  listLicenses: () => Promise<ActionResult<LicenseRow[]>>;
+  createLicense: (input: LicenseCreateInput) => Promise<ActionResult<LicenseRow>>;
+  deleteLicense: (id: string) => Promise<ActionResult>;
+  expireTrialForTesting: () => Promise<ActionResult<LicenseStatus>>;
 };
 
 declare global {

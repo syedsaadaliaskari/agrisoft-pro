@@ -134,6 +134,12 @@ const api: ElectronAPI = {
   restoreBackup: (sourcePath) => ipcRenderer.invoke(IPC.BACKUP_RESTORE, sourcePath),
   pickBackupFile: () => ipcRenderer.invoke(IPC.BACKUP_PICK_FILE),
   openBackupFolder: () => ipcRenderer.invoke(IPC.BACKUP_OPEN_FOLDER),
+
+  getLicenseStatus: () => ipcRenderer.invoke(IPC.LICENSE_STATUS),
+  listLicenses: () => ipcRenderer.invoke(IPC.LICENSE_LIST),
+  createLicense: (input) => ipcRenderer.invoke(IPC.LICENSE_CREATE, input),
+  deleteLicense: (id) => ipcRenderer.invoke(IPC.LICENSE_DELETE, id),
+  expireTrialForTesting: () => ipcRenderer.invoke(IPC.LICENSE_EXPIRE_TRIAL),
 };
 
 contextBridge.exposeInMainWorld("api", api);

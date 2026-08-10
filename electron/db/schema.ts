@@ -485,3 +485,19 @@ export const clientCompanies = sqliteTable(
   },
   (t) => [index("client_companies_area_idx").on(t.area), index("client_companies_joined_idx").on(t.joinedAt)]
 );
+
+/** Pro licenses activated by Super Admin (Install ID + plan). */
+export const licenses = sqliteTable(
+  "licenses",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    installId: text("install_id").notNull(),
+    plan: text("plan").notNull(), // monthly | yearly | forever
+    activatedAt: text("activated_at").notNull(),
+    expiresAt: text("expires_at"), // null = forever
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => [index("licenses_install_idx").on(t.installId)]
+);

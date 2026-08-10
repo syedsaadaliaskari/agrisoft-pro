@@ -26,6 +26,7 @@ import { registerSettingsHandlers } from "./settings";
 import { registerUserHandlers } from "./users";
 import { registerCompanyHandlers } from "./companies";
 import { registerBackupHandlers } from "./backup";
+import { registerLicenseHandlers } from "./license";
 import { getCurrentSession, setCurrentSession } from "./session";
 import { writeAuditLog } from "../db/audit";
 
@@ -157,4 +158,5 @@ export function registerIpcHandlers(appVersion: string, isDev: boolean): void {
   registerUserHandlers();
   registerCompanyHandlers();
   registerBackupHandlers();
+  registerLicenseHandlers(isDev);
 }

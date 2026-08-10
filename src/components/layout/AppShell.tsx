@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
@@ -8,6 +8,7 @@ import { AppShellSkeleton } from "@/components/ui/Skeleton";
 import { useAuthStore } from "@/store/auth";
 import { hasPermission } from "@/lib/permissions";
 import { normalizePath, PAGE_META, useI18n } from "@/lib/i18n";
+import { getApi } from "@/lib/api";
 
 type Props = {
   title: string;
@@ -16,11 +17,14 @@ type Props = {
   permission?: string;
 };
 
+const LOCK_ALLOWED_PATHS = new Set(["/activate", "/settings/license", "/platform/licenses"]);
+
 export function AppShell({ title, subtitle, children, permission }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, hydrated, hydrate } = useAuthStore();
   const { t } = useI18n();
+  const [licenseReady, setLicenseReady] = useState(false);
 
   const path = normalizePath(pathname);
   const meta = PAGE_META[path];
@@ -36,6 +40,30 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
       router.replace("/login");
     }
   }, [hydrated, user, router]);
+
+  useEffect(() => {
+    if (!user) {
+      setLicenseReady(false);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const res = await getApi().getLicenseStatus();
+      if (cancelled) return;
+      if (res.ok && !res.data.allowed) {
+        const canManageLicense =
+          hasPermission(user, "platform.view") && LOCK_ALLOWED_PATHS.has(path);
+        if (!canManageLicense && path !== "/activate") {
+          router.replace("/activate");
+          return;
+        }
+      }
+      setLicenseReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, path, router]);
 
   useEffect(() => {
     const routes = [
@@ -65,6 +93,10 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
   }
 
   if (!user) return null;
+
+  if (!licenseReady && path !== "/activate") {
+    return <AppShellSkeleton />;
+  }
 
   if (permission && !hasPermission(user, permission)) {
     return (

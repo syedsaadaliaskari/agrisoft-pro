@@ -52,6 +52,7 @@ export const ur: Dict = {
   "nav.setup": "سیٹ اپ",
 
   "nav.dashboard": "ڈیش بورڈ",
+  "nav.licenses": "فعال فہرست",
   "nav.sale": "سیل",
   "nav.saleReturn": "سیل واپسی",
   "nav.purchase": "پرچیز",
@@ -82,6 +83,7 @@ export const ur: Dict = {
   "nav.discounts": "ڈسکاؤنٹس",
   "nav.additions": "اضافات",
   "nav.users": "صارفین و اجازتیں",
+  "nav.licenseInfo": "لائسنس",
   "nav.backup": "بیک اپ و بحالی",
   "nav.settings": "ترتیبات",
 
@@ -147,6 +149,10 @@ export const ur: Dict = {
   "pages.additions.subtitle": "اضافی چارجز (ڈیلیوری، پیکنگ وغیرہ)",
   "pages.users.title": "صارفین و اجازتیں",
   "pages.users.subtitle": "صارفین اور رول رسائی کا انتظام",
+  "pages.licenses.title": "فعال فہرست",
+  "pages.licenses.subtitle": "پرو کے لیے فعال کردہ کمپنیاں",
+  "pages.licenseInfo.title": "لائسنس",
+  "pages.licenseInfo.subtitle": "آپ کی انسٹال آئی ڈی اور کمپنی ایکٹیویشن",
   "pages.backup.title": "بیک اپ و بحالی",
   "pages.backup.subtitle": "مقامی ڈیٹا بیس کے سنیپ شاٹس — صرف اس کمپیوٹر پر",
   "pages.settings.title": "ترتیبات",

@@ -25,6 +25,7 @@ import {
   Receipt,
   Trash2,
   HardDrive,
+  KeyRound,
   type LucideIcon,
 } from "lucide-react";
 
@@ -45,6 +46,12 @@ export const navigation: NavGroup[] = [
     titleKey: "nav.overview",
     items: [
       { labelKey: "nav.dashboard", href: "/dashboard", icon: LayoutDashboard, permission: "dashboard.view" },
+      {
+        labelKey: "nav.licenses",
+        href: "/platform/licenses",
+        icon: KeyRound,
+        permission: "platform.view",
+      },
     ],
   },
   {
@@ -145,6 +152,7 @@ export const navigation: NavGroup[] = [
       { labelKey: "nav.discounts", href: "/setup/discounts", icon: Percent, permission: "settings.manage" },
       { labelKey: "nav.additions", href: "/setup/additions", icon: PlusCircle, permission: "settings.manage" },
       { labelKey: "nav.users", href: "/settings/users", icon: Shield, permission: "users.manage" },
+      { labelKey: "nav.licenseInfo", href: "/settings/license", icon: KeyRound, permission: "platform.view" },
       { labelKey: "nav.backup", href: "/settings/backup", icon: HardDrive, permission: "settings.manage" },
       { labelKey: "nav.settings", href: "/settings", icon: Settings, permission: "settings.manage" },
     ],

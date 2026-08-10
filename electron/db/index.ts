@@ -9,6 +9,7 @@ import { ensurePermissions, seedDatabase } from "./seed";
 import { seedDemoData } from "./seedDemo";
 import { seedDemoTransactions } from "./seedDemoTx";
 import { ensureDemoClientCompanies } from "./seedCompanies";
+import { ensureInstallIdentity } from "./license";
 
 export type Db = ReturnType<typeof drizzle<typeof schema>>;
 
@@ -429,6 +430,19 @@ CREATE TABLE IF NOT EXISTS client_companies (
 );
 CREATE INDEX IF NOT EXISTS client_companies_area_idx ON client_companies(area);
 CREATE INDEX IF NOT EXISTS client_companies_joined_idx ON client_companies(joined_at);
+
+CREATE TABLE IF NOT EXISTS licenses (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  install_id TEXT NOT NULL,
+  plan TEXT NOT NULL,
+  activated_at TEXT NOT NULL,
+  expires_at TEXT,
+  notes TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS licenses_install_idx ON licenses(install_id);
 `;
 }
 
@@ -472,6 +486,7 @@ export async function initDatabase(): Promise<Db> {
   await seedDemoData(db);
   await seedDemoTransactions(db);
   ensureDemoClientCompanies(db);
+  ensureInstallIdentity(db);
   return db;
 }
 

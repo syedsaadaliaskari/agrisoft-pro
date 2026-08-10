@@ -52,6 +52,7 @@ export const en: Dict = {
   "nav.setup": "Setup",
 
   "nav.dashboard": "Dashboard",
+  "nav.licenses": "Activated list",
   "nav.sale": "Sale",
   "nav.saleReturn": "Sale Return",
   "nav.purchase": "Purchase",
@@ -82,6 +83,7 @@ export const en: Dict = {
   "nav.discounts": "Discounts",
   "nav.additions": "Additions",
   "nav.users": "Users & RBAC",
+  "nav.licenseInfo": "License",
   "nav.backup": "Backup & Restore",
   "nav.settings": "Settings",
 
@@ -147,6 +149,10 @@ export const en: Dict = {
   "pages.additions.subtitle": "Extra charges (delivery, packing, etc.)",
   "pages.users.title": "Users & RBAC",
   "pages.users.subtitle": "Manage users and role access",
+  "pages.licenses.title": "Activated list",
+  "pages.licenses.subtitle": "Companies activated for Pro",
+  "pages.licenseInfo.title": "License",
+  "pages.licenseInfo.subtitle": "Your Install ID and activate companies",
   "pages.backup.title": "Backup & Restore",
   "pages.backup.subtitle": "Local database snapshots — free, on this PC only",
   "pages.settings.title": "Settings",
