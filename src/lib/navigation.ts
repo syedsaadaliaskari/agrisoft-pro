@@ -26,6 +26,7 @@ import {
   Trash2,
   HardDrive,
   KeyRound,
+  Lock,
   type LucideIcon,
 } from "lucide-react";
 
@@ -33,7 +34,10 @@ export type NavItem = {
   labelKey: string;
   href: string;
   icon: LucideIcon;
+  /** Single required permission (ignored if anyOfPermissions is set) */
   permission?: string;
+  /** Show if user has any of these permissions */
+  anyOfPermissions?: string[];
 };
 
 export type NavGroup = {
@@ -50,7 +54,7 @@ export const navigation: NavGroup[] = [
         labelKey: "nav.licenses",
         href: "/platform/licenses",
         icon: KeyRound,
-        permission: "platform.view",
+        anyOfPermissions: ["license.view", "platform.view", "license.manage"],
       },
     ],
   },
@@ -152,7 +156,8 @@ export const navigation: NavGroup[] = [
       { labelKey: "nav.discounts", href: "/setup/discounts", icon: Percent, permission: "settings.manage" },
       { labelKey: "nav.additions", href: "/setup/additions", icon: PlusCircle, permission: "settings.manage" },
       { labelKey: "nav.users", href: "/settings/users", icon: Shield, permission: "users.manage" },
-      { labelKey: "nav.licenseInfo", href: "/settings/license", icon: KeyRound, permission: "platform.view" },
+      { labelKey: "nav.changePassword", href: "/settings/password", icon: Lock },
+      { labelKey: "nav.licenseInfo", href: "/settings/license", icon: KeyRound, anyOfPermissions: ["license.manage", "platform.view"] },
       { labelKey: "nav.backup", href: "/settings/backup", icon: HardDrive, permission: "settings.manage" },
       { labelKey: "nav.settings", href: "/settings", icon: Settings, permission: "settings.manage" },
     ],

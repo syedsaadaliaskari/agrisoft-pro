@@ -14,8 +14,9 @@ import {
 import { Alert, Button } from "@/components/ui/form";
 import { InstallIdQr } from "@/components/license/InstallIdQr";
 import { getApi } from "@/lib/api";
-import { hasPermission } from "@/lib/permissions";
+import { hasAnyPermission, hasPermission } from "@/lib/permissions";
 import { useAuthStore } from "@/store/auth";
+import { VENDOR_SUPPORT, whatsappActivationUrl } from "@shared/support";
 import type { LicenseStatus } from "@shared/ipc";
 
 export default function ActivatePage() {
@@ -27,7 +28,12 @@ export default function ActivatePage() {
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const isPlatform = hasPermission(user, "platform.view");
+  const canActivateLicense = hasAnyPermission(user, ["license.manage", "platform.view"]);
+  const canViewActivated = hasAnyPermission(user, [
+    "license.view",
+    "license.manage",
+    "platform.view",
+  ]);
   const installId = status?.installId ?? "";
 
   const load = useCallback(async () => {
@@ -181,15 +187,25 @@ export default function ActivatePage() {
               <Button variant="secondary" onClick={() => void onCopy()} disabled={!installId}>
                 <Copy size={14} /> {copied ? "Copied" : "Copy ID"}
               </Button>
+              <Button
+                variant="secondary"
+                disabled={!installId}
+                onClick={() => {
+                  if (!installId) return;
+                  window.open(whatsappActivationUrl(installId), "_blank", "noopener,noreferrer");
+                }}
+              >
+                <MessageCircle size={14} /> {VENDOR_SUPPORT.label}
+              </Button>
               <Button onClick={() => void onCheck()} disabled={busy}>
                 <RefreshCw size={14} className={busy ? "animate-spin" : undefined} /> Check
                 activation
               </Button>
             </div>
-            <p className="mt-3 flex items-start gap-1.5 text-[11px] leading-relaxed text-[var(--text-muted)]">
-              <MessageCircle size={12} className="mt-0.5 shrink-0 text-[var(--accent)]" />
-              After payment, send the Install ID to your vendor. They activate it from Super Admin
-              → Setup → License — you do not type a product key.
+            <p className="mt-3 text-[11px] leading-relaxed text-[var(--text-muted)]">
+              After payment, send this Install ID on WhatsApp ({VENDOR_SUPPORT.whatsappDisplay}). Your
+              vendor activates Monthly / Yearly / Forever from Super Admin → Setup → License — you do
+              not type a product key.
             </p>
           </div>
 
@@ -201,15 +217,15 @@ export default function ActivatePage() {
           ) : null}
 
           <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-[var(--border)] pt-5">
-            {isPlatform ? (
-              <>
-                <Button variant="secondary" size="sm" onClick={() => router.push("/settings/license")}>
-                  Setup → License
-                </Button>
-                <Button size="sm" onClick={() => router.push("/platform/licenses")}>
-                  <ShieldCheck size={14} /> Activated list
-                </Button>
-              </>
+            {canActivateLicense ? (
+              <Button variant="secondary" size="sm" onClick={() => router.push("/settings/license")}>
+                Setup → License
+              </Button>
+            ) : null}
+            {canViewActivated ? (
+              <Button size="sm" onClick={() => router.push("/platform/licenses")}>
+                <ShieldCheck size={14} /> Activated list
+              </Button>
             ) : null}
             <Button variant="ghost" size="sm" className="ms-auto" onClick={() => void onLogout()}>
               <LogOut size={14} /> Logout

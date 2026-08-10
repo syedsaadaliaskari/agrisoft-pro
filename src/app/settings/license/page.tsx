@@ -90,7 +90,7 @@ export default function LicenseInfoPage() {
     <AppShell
       title="License"
       subtitle="Your Install ID and activate companies"
-      permission="platform.view"
+      permission="license.manage"
     >
       {error ? (
         <div className="mb-4">

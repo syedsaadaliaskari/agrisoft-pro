@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { navigation } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
-import { hasPermission } from "@/lib/permissions";
+import { hasAnyPermission, hasPermission } from "@/lib/permissions";
 import { useI18n } from "@/lib/i18n";
 
 export function Sidebar() {
@@ -30,9 +30,12 @@ export function Sidebar() {
 
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         {navigation.map((group) => {
-          const items = group.items.filter(
-            (item) => !item.permission || hasPermission(user, item.permission)
-          );
+          const items = group.items.filter((item) => {
+            if (item.anyOfPermissions?.length) {
+              return hasAnyPermission(user, item.anyOfPermissions);
+            }
+            return !item.permission || hasPermission(user, item.permission);
+          });
           if (!items.length) return null;
           return (
             <div key={group.titleKey} className="mb-5">

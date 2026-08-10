@@ -96,6 +96,14 @@ export function setRolePermissions(
     codes.push("users.manage");
   }
 
+  // Super Admin always keeps full catalog (License + Activated + everything)
+  if (role.name === "Super Admin") {
+    const allCodes = db.select({ code: permissions.code }).from(permissions).all().map((p) => p.code);
+    for (const code of allCodes) {
+      if (!codes.includes(code)) codes.push(code);
+    }
+  }
+
   if (codes.length === 0) {
     throw new UsersError("Select at least one permission");
   }
@@ -282,5 +290,40 @@ export async function setUserPassword(
     module: "users",
     entityId: id,
     details: `Password reset for ${user.username}`,
+  });
+}
+
+/** Logged-in user changes their own password (must prove current password). */
+export async function changeOwnPassword(
+  db: Db,
+  userId: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<void> {
+  if (!newPassword || newPassword.length < 4) {
+    throw new UsersError("New password must be at least 4 characters");
+  }
+  if (currentPassword === newPassword) {
+    throw new UsersError("New password must be different from current password");
+  }
+
+  const user = db.select().from(users).where(eq(users.id, userId)).get();
+  if (!user || !user.isActive) throw new UsersError("User not found");
+
+  const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!valid) throw new UsersError("Current password is incorrect");
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  db.update(users)
+    .set({ passwordHash, updatedAt: new Date().toISOString() })
+    .where(eq(users.id, userId))
+    .run();
+
+  writeAuditLog(db, {
+    userId,
+    action: "change_password",
+    module: "users",
+    entityId: userId,
+    details: `Password changed by ${user.username}`,
   });
 }

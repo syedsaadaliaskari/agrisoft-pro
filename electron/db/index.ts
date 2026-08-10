@@ -481,11 +481,14 @@ export async function initDatabase(): Promise<Db> {
     }
   }
 
-  await seedDatabase(db);
+  await seedDatabase(db, { production: !isDev });
   ensurePermissions(db);
-  await seedDemoData(db);
-  await seedDemoTransactions(db);
-  ensureDemoClientCompanies(db);
+  // Heavy demo (products, cashier, sample sales) — development only
+  if (isDev) {
+    await seedDemoData(db);
+    await seedDemoTransactions(db);
+    ensureDemoClientCompanies(db);
+  }
   ensureInstallIdentity(db);
   return db;
 }

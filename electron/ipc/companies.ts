@@ -10,7 +10,7 @@ import {
 } from "../../shared/ipc";
 import { getDb } from "../db";
 import { clientCompanies } from "../db/schema";
-import { requirePermission, PermissionError } from "./session";
+import { requirePermission, requireAnyPermission, PermissionError } from "./session";
 
 function ok<T>(data: T): ActionResult<T> {
   return { ok: true, data };
@@ -51,7 +51,7 @@ function mapCompany(row: typeof clientCompanies.$inferSelect): ClientCompany {
 
 export function registerCompanyHandlers(): void {
   ipcMain.handle(IPC.COMPANIES_LIST, async (): Promise<ActionResult<ClientCompany[]>> =>
-    guarded(() => requirePermission("platform.view"), async () => {
+    guarded(() => requireAnyPermission("license.manage", "platform.view"), async () => {
       const rows = getDb()
         .select()
         .from(clientCompanies)
@@ -64,7 +64,7 @@ export function registerCompanyHandlers(): void {
   ipcMain.handle(
     IPC.COMPANIES_CREATE,
     async (_e, input: ClientCompanyInput): Promise<ActionResult<ClientCompany>> =>
-      guarded(() => requirePermission("platform.view"), async () => {
+      guarded(() => requireAnyPermission("license.manage", "platform.view"), async () => {
         const companyName = input.companyName?.trim();
         const area = input.area?.trim();
         const joinedAt = input.joinedAt?.trim();
@@ -94,7 +94,7 @@ export function registerCompanyHandlers(): void {
   ipcMain.handle(
     IPC.COMPANIES_UPDATE,
     async (_e, id: string, input: ClientCompanyInput): Promise<ActionResult<ClientCompany>> =>
-      guarded(() => requirePermission("platform.view"), async () => {
+      guarded(() => requireAnyPermission("license.manage", "platform.view"), async () => {
         const companyName = input.companyName?.trim();
         const area = input.area?.trim();
         const joinedAt = input.joinedAt?.trim();
@@ -123,7 +123,7 @@ export function registerCompanyHandlers(): void {
   );
 
   ipcMain.handle(IPC.COMPANIES_DELETE, async (_e, id: string): Promise<ActionResult> =>
-    guarded(() => requirePermission("platform.view"), async () => {
+    guarded(() => requireAnyPermission("license.manage", "platform.view"), async () => {
       const db = getDb();
       const current = db.select().from(clientCompanies).where(eq(clientCompanies.id, id)).get();
       if (!current) return fail("Company not found");
@@ -133,7 +133,7 @@ export function registerCompanyHandlers(): void {
   );
 
   ipcMain.handle(IPC.COMPANIES_DEMAND, async (): Promise<ActionResult<CompaniesDemandSummary>> =>
-    guarded(() => requirePermission("platform.view"), async () => {
+    guarded(() => requireAnyPermission("license.manage", "platform.view"), async () => {
       const db = getDb();
       const all = db.select().from(clientCompanies).all();
       const byArea = new Map<string, number>();

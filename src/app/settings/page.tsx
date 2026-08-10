@@ -1,9 +1,13 @@
 ﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { KeyRound, Shield } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Alert, Button, DataTable, Input, Select } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
+import { hasPermission } from "@/lib/permissions";
+import { useAuthStore } from "@/store/auth";
 import type { AuditLogRow, SettingsMap } from "@shared/ipc";
 
 function monthStartIsoDate() {
@@ -17,6 +21,8 @@ function todayIsoDate() {
 }
 
 export default function SettingsPage() {
+  const user = useAuthStore((s) => s.user);
+  const canManageUsers = hasPermission(user, "users.manage");
   const [form, setForm] = useState({
     shop_name: "",
     shop_phone: "",
@@ -85,15 +91,54 @@ export default function SettingsPage() {
   };
 
   return (
-    <AppShell title="Settings" subtitle="Shop profile, receipt, and audit log" permission="settings.manage">
+    <AppShell title="Settings" subtitle="Shop profile, security, and audit log" permission="settings.manage">
       <div className="space-y-6">
         {error ? <Alert>{error}</Alert> : null}
         {success ? <Alert tone="info">{success}</Alert> : null}
+
+        <section className="grid max-w-3xl gap-3 sm:grid-cols-2">
+          <Link
+            href="/settings/password"
+            className="group flex items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-4 transition hover:border-[var(--accent)]/50 hover:bg-[var(--accent-soft)]/30"
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent)]">
+              <KeyRound size={18} />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-[var(--text)] group-hover:text-[var(--accent)]">
+                Change password
+              </div>
+              <p className="mt-0.5 text-xs leading-relaxed text-[var(--text-muted)]">
+                Update the password for your signed-in account.
+              </p>
+            </div>
+          </Link>
+          {canManageUsers ? (
+            <Link
+              href="/settings/users"
+              className="group flex items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-4 transition hover:border-[var(--accent)]/50 hover:bg-[var(--accent-soft)]/30"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent)]">
+                <Shield size={18} />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-[var(--text)] group-hover:text-[var(--accent)]">
+                  Users & RBAC
+                </div>
+                <p className="mt-0.5 text-xs leading-relaxed text-[var(--text-muted)]">
+                  Add users and tick which menus each role can see — including License & Activated
+                  list.
+                </p>
+              </div>
+            </Link>
+          ) : null}
+        </section>
 
         <form
           onSubmit={onSave}
           className="grid max-w-3xl gap-4 rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5 sm:grid-cols-2"
         >
+          <div className="sm:col-span-2 text-sm font-semibold">Company / shop details</div>
           <Input
             label="Shop name"
             value={form.shop_name}
@@ -146,7 +191,7 @@ export default function SettingsPage() {
 
         <section className="space-y-3">
           <div className="flex flex-wrap items-end justify-between gap-3">
-            <h2 className="text-sm font-semibold">Audit log</h2>
+            <h2 className="text-sm font-semibold">Recent activity</h2>
             <div className="flex flex-wrap items-end gap-2">
               <Input label="From" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
               <Input label="To" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />

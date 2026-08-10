@@ -7,6 +7,8 @@ const api: ElectronAPI = {
   login: (username, password) => ipcRenderer.invoke(IPC.AUTH_LOGIN, username, password),
   logout: () => ipcRenderer.invoke(IPC.AUTH_LOGOUT),
   getCurrentUser: () => ipcRenderer.invoke(IPC.AUTH_CURRENT_USER),
+  changePassword: (currentPassword, newPassword) =>
+    ipcRenderer.invoke(IPC.AUTH_CHANGE_PASSWORD, currentPassword, newPassword),
   getDbStats: () => ipcRenderer.invoke(IPC.DB_STATS),
 
   nextDocumentNumber: (docType) => ipcRenderer.invoke(IPC.DOCS_NEXT_NUMBER, docType),

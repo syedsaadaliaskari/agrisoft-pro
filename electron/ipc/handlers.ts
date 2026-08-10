@@ -1,7 +1,7 @@
 import { ipcMain } from "electron";
 import bcrypt from "bcryptjs";
 import { eq, count } from "drizzle-orm";
-import { IPC, type SessionUser, type LoginResult, type DbStats, type AppInfo } from "../../shared/ipc";
+import { IPC, type SessionUser, type LoginResult, type DbStats, type AppInfo, type ActionResult } from "../../shared/ipc";
 import { getDb, getDbPath } from "../db";
 import {
   users,
@@ -13,7 +13,9 @@ import {
   vendors,
   sales,
   purchases,
+  settings,
 } from "../db/schema";
+import { changeOwnPassword, UsersError } from "../db/users";
 import { registerMasterHandlers } from "./masters";
 import { registerProductHandlers } from "./products";
 import { registerPartyHandlers } from "./parties";
@@ -27,7 +29,7 @@ import { registerUserHandlers } from "./users";
 import { registerCompanyHandlers } from "./companies";
 import { registerBackupHandlers } from "./backup";
 import { registerLicenseHandlers } from "./license";
-import { getCurrentSession, setCurrentSession } from "./session";
+import { getCurrentSession, setCurrentSession, PermissionError, requireSession } from "./session";
 import { writeAuditLog } from "../db/audit";
 
 function loadUserSession(userId: string): SessionUser | null {
@@ -54,6 +56,9 @@ function loadUserSession(userId: string): SessionUser | null {
     .where(eq(rolePermissions.roleId, row.roleId))
     .all();
 
+  const mustChange =
+    db.select().from(settings).where(eq(settings.key, "must_change_password")).get()?.value === "1";
+
   return {
     id: row.id,
     username: row.username,
@@ -61,6 +66,7 @@ function loadUserSession(userId: string): SessionUser | null {
     roleId: row.roleId,
     roleName: row.roleName,
     permissions: perms.map((p) => p.code),
+    mustChangePassword: mustChange,
   };
 }
 
@@ -122,7 +128,43 @@ export function registerIpcHandlers(appVersion: string, isDev: boolean): void {
     setCurrentSession(null);
   });
 
-  ipcMain.handle(IPC.AUTH_CURRENT_USER, async (): Promise<SessionUser | null> => getCurrentSession());
+  ipcMain.handle(IPC.AUTH_CURRENT_USER, async (): Promise<SessionUser | null> => {
+    const session = getCurrentSession();
+    if (!session) return null;
+    // Refresh permissions from DB (RBAC / ensurePermissions may have changed on boot)
+    const fresh = loadUserSession(session.id);
+    if (fresh) setCurrentSession(fresh);
+    return fresh;
+  });
+
+  ipcMain.handle(
+    IPC.AUTH_CHANGE_PASSWORD,
+    async (_e, currentPassword: string, newPassword: string): Promise<ActionResult> => {
+      try {
+        const session = requireSession();
+        await changeOwnPassword(getDb(), session.id, currentPassword ?? "", newPassword ?? "");
+        const db = getDb();
+        const flag = db.select().from(settings).where(eq(settings.key, "must_change_password")).get();
+        if (flag) {
+          db.update(settings)
+            .set({ value: "0", updatedAt: new Date().toISOString() })
+            .where(eq(settings.id, flag.id))
+            .run();
+        }
+        const refreshed = loadUserSession(session.id);
+        if (refreshed) setCurrentSession(refreshed);
+        return { ok: true, data: undefined };
+      } catch (err) {
+        const message =
+          err instanceof PermissionError || err instanceof UsersError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : "Could not change password";
+        return { ok: false, error: message };
+      }
+    }
+  );
 
   ipcMain.handle(IPC.DB_STATS, async (): Promise<DbStats> => {
     const db = getDb();

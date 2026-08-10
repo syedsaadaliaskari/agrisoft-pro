@@ -5,6 +5,7 @@ export const IPC = {
   AUTH_LOGIN: "auth:login",
   AUTH_LOGOUT: "auth:logout",
   AUTH_CURRENT_USER: "auth:currentUser",
+  AUTH_CHANGE_PASSWORD: "auth:changePassword",
   DB_STATS: "db:stats",
 
   // Document numbers
@@ -166,6 +167,8 @@ export type SessionUser = {
   roleId: string;
   roleName: string;
   permissions: string[];
+  /** Packaged install: user must change default password before using the app */
+  mustChangePassword?: boolean;
 };
 
 export type AppInfo = {
@@ -1230,6 +1233,7 @@ export type ElectronAPI = {
   login: (username: string, password: string) => Promise<LoginResult>;
   logout: () => Promise<void>;
   getCurrentUser: () => Promise<SessionUser | null>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<ActionResult>;
   getDbStats: () => Promise<DbStats>;
 
   nextDocumentNumber: (docType: DocType) => Promise<ActionResult<string>>;

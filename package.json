@@ -1,6 +1,6 @@
 {
   "name": "agri-soft-pro",
-  "version": "0.1.1",
+  "version": "0.1.4",
   "private": true,
   "description": "Local desktop agri ERP — Electron + Next.js + SQLite",
   "author": "Agri Soft Pro",

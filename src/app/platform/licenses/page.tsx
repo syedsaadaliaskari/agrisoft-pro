@@ -43,7 +43,7 @@ export default function ActivatedListPage() {
     <AppShell
       title="Activated list"
       subtitle="Companies activated for Pro"
-      permission="platform.view"
+      permission="license.view"
     >
       {error ? (
         <div className="mb-4">

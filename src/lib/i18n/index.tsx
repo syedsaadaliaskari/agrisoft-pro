@@ -65,6 +65,7 @@ export const PAGE_META: Record<string, { title: string; subtitle?: string }> = {
   "/setup/discounts": { title: "pages.discounts.title", subtitle: "pages.discounts.subtitle" },
   "/setup/additions": { title: "pages.additions.title", subtitle: "pages.additions.subtitle" },
   "/settings/users": { title: "pages.users.title", subtitle: "pages.users.subtitle" },
+  "/settings/password": { title: "pages.password.title", subtitle: "pages.password.subtitle" },
   "/settings/backup": { title: "pages.backup.title", subtitle: "pages.backup.subtitle" },
   "/settings": { title: "pages.settings.title", subtitle: "pages.settings.subtitle" },
 };

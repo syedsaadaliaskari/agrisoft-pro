@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
 import type { Db } from "./index";
@@ -38,11 +38,28 @@ export const PERMISSION_CATALOG = [
   { code: "settings.manage", module: "settings", description: "Manage settings" },
   { code: "users.manage", module: "users", description: "Manage users & roles" },
   {
+    code: "license.manage",
+    module: "license",
+    description: "License — activate Monthly / Yearly / Forever (Setup → License)",
+  },
+  {
+    code: "license.view",
+    module: "license",
+    description: "Activated list — see companies activated for Pro",
+  },
+  {
     code: "platform.view",
     module: "platform",
-    description: "Super Admin: client companies & demand by area",
+    description: "Client companies & demand by area on Dashboard",
   },
 ] as const;
+
+/** Permissions reserved for Super Admin unless manually granted via Users & RBAC. */
+export const SUPER_ADMIN_ONLY_PERMISSIONS = new Set([
+  "license.manage",
+  "license.view",
+  "platform.view",
+]);
 
 const DEFAULT_ACCOUNTS = [
   { code: "1000", name: "Assets", accountType: "asset" },
@@ -63,13 +80,73 @@ const DEFAULT_ACCOUNTS = [
   { code: "5300", name: "Purchase Returns", accountType: "expense" },
 ] as const;
 
-/** Ensure permission catalog exists and Admin role has every permission (safe on every boot). */
+function settingExists(db: Db, key: string): boolean {
+  return !!db.select().from(settings).where(eq(settings.key, key)).get();
+}
+
+function upsertSystemSetting(db: Db, key: string, value: string) {
+  const existing = db.select().from(settings).where(eq(settings.key, key)).get();
+  const now = new Date().toISOString();
+  if (existing) {
+    db.update(settings).set({ value, updatedAt: now }).where(eq(settings.id, existing.id)).run();
+  } else {
+    db.insert(settings)
+      .values({ id: randomUUID(), key, value, groupName: "system", createdAt: now, updatedAt: now })
+      .run();
+  }
+}
+
+function grantMissingPermissions(
+  db: Db,
+  roleId: string,
+  permRows: { id: string; code: string }[],
+  allowCodes?: Set<string>
+) {
+  const linked = new Set(
+    db
+      .select({ permissionId: rolePermissions.permissionId })
+      .from(rolePermissions)
+      .where(eq(rolePermissions.roleId, roleId))
+      .all()
+      .map((r) => r.permissionId)
+  );
+
+  for (const p of permRows) {
+    if (allowCodes && !allowCodes.has(p.code)) continue;
+    if (linked.has(p.id)) continue;
+    db.insert(rolePermissions)
+      .values({
+        id: randomUUID(),
+        roleId,
+        permissionId: p.id,
+      })
+      .run();
+  }
+}
+
+/**
+ * Ensure permission catalog exists.
+ * Super Admin always gets every permission.
+ * Admin gets every permission except Super-Admin-only ones (License / Activated list).
+ * Super Admin can still tick those for other roles manually in Users & RBAC.
+ */
 export function ensurePermissions(db: Db): void {
   const existing = db.select().from(permissions).all();
   const byCode = new Map(existing.map((p) => [p.code, p]));
 
   for (const p of PERMISSION_CATALOG) {
-    if (byCode.has(p.code)) continue;
+    if (byCode.has(p.code)) {
+      // Keep descriptions in sync with catalog
+      const row = byCode.get(p.code)!;
+      if (row.description !== p.description || row.module !== p.module) {
+        db.update(permissions)
+          .set({ description: p.description, module: p.module })
+          .where(eq(permissions.id, row.id))
+          .run();
+        byCode.set(p.code, { ...row, description: p.description, module: p.module });
+      }
+      continue;
+    }
     const id = randomUUID();
     db.insert(permissions)
       .values({
@@ -87,10 +164,15 @@ export function ensurePermissions(db: Db): void {
     });
   }
 
+  const allPermRows = [...byCode.values()];
+  const adminAllow = new Set(
+    allPermRows.filter((p) => !SUPER_ADMIN_ONLY_PERMISSIONS.has(p.code)).map((p) => p.code)
+  );
+
   const adminRole = db.select().from(roles).where(eq(roles.name, "Admin")).get();
   if (!adminRole) return;
 
-  // Ensure Super Admin role exists (same access as Admin + platform catalog)
+  // Ensure Super Admin role exists (full access including License / Activated list)
   let superRole = db.select().from(roles).where(eq(roles.name, "Super Admin")).get();
   if (!superRole) {
     const id = randomUUID();
@@ -98,61 +180,74 @@ export function ensurePermissions(db: Db): void {
       .values({
         id,
         name: "Super Admin",
-        description: "Vendor control: companies registry & full access",
+        description: "Full access including License & Activated list",
         isSystem: true,
       })
       .run();
     superRole = db.select().from(roles).where(eq(roles.id, id)).get()!;
   }
 
-  const linked = new Set(
-    db
-      .select({ permissionId: rolePermissions.permissionId })
-      .from(rolePermissions)
-      .where(eq(rolePermissions.roleId, adminRole.id))
-      .all()
-      .map((r) => r.permissionId)
-  );
+  // Admin: shop ops defaults — no License / Activated unless Super Admin ticks them later
+  grantMissingPermissions(db, adminRole.id, allPermRows, adminAllow);
 
-  for (const p of byCode.values()) {
-    if (linked.has(p.id)) continue;
-    db.insert(rolePermissions)
-      .values({
-        id: randomUUID(),
-        roleId: adminRole.id,
-        permissionId: p.id,
-      })
-      .run();
+  // Super Admin: always everything
+  grantMissingPermissions(db, superRole.id, allPermRows);
+
+  // Migrate legacy platform.view → license.manage + license.view
+  const legacyPlatform = byCode.get("platform.view");
+  const licenseManage = byCode.get("license.manage");
+  const licenseView = byCode.get("license.view");
+  if (legacyPlatform && licenseManage && licenseView) {
+    const rolesWithLegacy = db
+      .select({ roleId: rolePermissions.roleId })
+      .from(rolePermissions)
+      .where(eq(rolePermissions.permissionId, legacyPlatform.id))
+      .all();
+    for (const { roleId } of rolesWithLegacy) {
+      grantMissingPermissions(db, roleId, [licenseManage, licenseView]);
+    }
   }
 
-  // Mirror all permissions onto Super Admin
-  const superLinked = new Set(
-    db
-      .select({ permissionId: rolePermissions.permissionId })
-      .from(rolePermissions)
-      .where(eq(rolePermissions.roleId, superRole.id))
+  // One-time: strip Super-Admin-only license/platform perms from non–Super Admin roles
+  if (!settingExists(db, "rbac_license_perms_v3")) {
+    const superOnlyIds = allPermRows
+      .filter((p) => SUPER_ADMIN_ONLY_PERMISSIONS.has(p.code))
+      .map((p) => p.id);
+    const otherRoles = db
+      .select()
+      .from(roles)
       .all()
-      .map((r) => r.permissionId)
-  );
-  for (const p of byCode.values()) {
-    if (superLinked.has(p.id)) continue;
-    db.insert(rolePermissions)
-      .values({
-        id: randomUUID(),
-        roleId: superRole.id,
-        permissionId: p.id,
-      })
-      .run();
+      .filter((r) => r.name !== "Super Admin");
+    for (const role of otherRoles) {
+      for (const permissionId of superOnlyIds) {
+        db.delete(rolePermissions)
+          .where(
+            and(eq(rolePermissions.roleId, role.id), eq(rolePermissions.permissionId, permissionId))
+          )
+          .run();
+      }
+    }
+    upsertSystemSetting(db, "rbac_license_perms_v3", new Date().toISOString());
   }
+
+  // Re-assert Super Admin full access after strip migration (License + Activated + Companies)
+  grantMissingPermissions(db, superRole.id, allPermRows);
 
   // Promote default admin user to Super Admin when that role exists
   const adminUser = db.select().from(users).where(eq(users.username, "admin")).get();
   if (adminUser && adminUser.roleId === adminRole.id && superRole) {
-    db.update(users).set({ roleId: superRole.id, updatedAt: new Date().toISOString() }).where(eq(users.id, adminUser.id)).run();
+    db.update(users)
+      .set({ roleId: superRole.id, updatedAt: new Date().toISOString() })
+      .where(eq(users.id, adminUser.id))
+      .run();
   }
 }
 
-export async function seedDatabase(db: Db): Promise<void> {
+export async function seedDatabase(
+  db: Db,
+  options?: { production?: boolean }
+): Promise<void> {
+  const production = options?.production === true;
   const existingAdmin = db.select().from(users).where(eq(users.username, "admin")).get();
   if (existingAdmin) {
     ensurePermissions(db);
@@ -177,7 +272,7 @@ export async function seedDatabase(db: Db): Promise<void> {
       {
         id: adminRoleId,
         name: "Admin",
-        description: "Full system access",
+        description: "Shop admin — all ops except License / Activated (unless granted)",
         isSystem: true,
       },
       {
@@ -197,13 +292,43 @@ export async function seedDatabase(db: Db): Promise<void> {
 
   db.insert(rolePermissions)
     .values(
+      permissionRows
+        .filter((p) => !SUPER_ADMIN_ONLY_PERMISSIONS.has(p.code))
+        .map((p) => ({
+          id: randomUUID(),
+          roleId: adminRoleId,
+          permissionId: p.id,
+        }))
+    )
+    .run();
+
+  // Super Admin is created by ensurePermissions() after first login path;
+  // also create it here on fresh seed so License stays Super-Admin-only.
+  const superAdminRoleId = randomUUID();
+  db.insert(roles)
+    .values({
+      id: superAdminRoleId,
+      name: "Super Admin",
+      description: "Full access including License & Activated list",
+      isSystem: true,
+    })
+    .run();
+  db.insert(rolePermissions)
+    .values(
       permissionRows.map((p) => ({
         id: randomUUID(),
-        roleId: adminRoleId,
+        roleId: superAdminRoleId,
         permissionId: p.id,
       }))
     )
     .run();
+  upsertSystemSetting(db, "rbac_license_perms_v3", new Date().toISOString());
+  if (production) {
+    // Client installs: force password change after first sign-in (default admin123 is temporary)
+    upsertSystemSetting(db, "must_change_password", "1");
+  } else {
+    upsertSystemSetting(db, "must_change_password", "0");
+  }
 
   const cashierCodes = new Set([
     "dashboard.view",
@@ -264,7 +389,7 @@ export async function seedDatabase(db: Db): Promise<void> {
       username: "admin",
       passwordHash,
       fullName: "System Administrator",
-      roleId: adminRoleId,
+      roleId: superAdminRoleId,
       isActive: true,
     })
     .run();

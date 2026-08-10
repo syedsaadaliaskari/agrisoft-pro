@@ -14,7 +14,7 @@ import {
   getLicenseStatus,
   listLicenses,
 } from "../db/license";
-import { PermissionError, requirePermission } from "./session";
+import { PermissionError, requireAnyPermission } from "./session";
 
 type Handler<T> = () => T | Promise<T>;
 
@@ -47,7 +47,10 @@ export function registerLicenseHandlers(isDev: boolean): void {
   });
 
   ipcMain.handle(IPC.LICENSE_LIST, async (): Promise<ActionResult<LicenseRow[]>> =>
-    guarded(() => requirePermission("platform.view"), async () => listLicenses(getDb()))
+    guarded(
+      () => requireAnyPermission("license.view", "license.manage", "platform.view"),
+      async () => listLicenses(getDb())
+    )
   );
 
   ipcMain.handle(
@@ -56,17 +59,20 @@ export function registerLicenseHandlers(isDev: boolean): void {
       _e,
       input: { name: string; installId: string; plan: LicensePlan; notes?: string | null }
     ): Promise<ActionResult<LicenseRow>> =>
-      guarded(() => requirePermission("platform.view"), async () => createLicense(getDb(), input))
+      guarded(
+        () => requireAnyPermission("license.manage", "platform.view"),
+        async () => createLicense(getDb(), input)
+      )
   );
 
   ipcMain.handle(IPC.LICENSE_DELETE, async (_e, id: string): Promise<ActionResult> =>
-    guarded(() => requirePermission("platform.view"), async () => {
+    guarded(() => requireAnyPermission("license.manage", "platform.view"), async () => {
       deleteLicense(getDb(), id);
     })
   );
 
   ipcMain.handle(IPC.LICENSE_EXPIRE_TRIAL, async (): Promise<ActionResult<LicenseStatus>> =>
-    guarded(() => requirePermission("platform.view"), async () => {
+    guarded(() => requireAnyPermission("license.manage", "platform.view"), async () => {
       expireTrialNow(getDb());
       return getLicenseStatus(getDb(), isDevFlag);
     })

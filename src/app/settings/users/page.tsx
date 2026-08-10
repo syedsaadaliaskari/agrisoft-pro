@@ -340,13 +340,20 @@ export default function UsersPage() {
           <div>
             <h2 className="text-sm font-semibold">Role access menu</h2>
             <p className="mt-1 text-xs text-[var(--text-muted)]">
-              Tick what each role can see and do - same options Admin has. Changes apply to all users
-              with that role.
+              Under <span className="font-medium text-[var(--text)]">license</span> and{" "}
+              <span className="font-medium text-[var(--text)]">platform</span>:{" "}
+              <span className="font-medium text-[var(--text)]">License (activate)</span>,{" "}
+              <span className="font-medium text-[var(--text)]">Activated list</span>, and{" "}
+              <span className="font-medium text-[var(--text)]">Companies & areas (Dashboard)</span>.
+              Super Admin has all three. Other roles stay unchecked until you tick them.
             </p>
           </div>
           <div className="grid gap-4 xl:grid-cols-2">
             {roles.map((role) => {
-              const draft = roleDrafts[role.id] ?? role.permissions;
+              const isSuper = role.name === "Super Admin";
+              const draft = isSuper
+                ? permissions.map((p) => p.code)
+                : (roleDrafts[role.id] ?? role.permissions);
               const draftSet = new Set(draft);
               return (
                 <div
@@ -357,31 +364,40 @@ export default function UsersPage() {
                     <div>
                       <div className="font-medium">{role.name}</div>
                       <div className="text-xs text-[var(--text-muted)]">{role.description}</div>
+                      {isSuper ? (
+                        <div className="mt-1 text-[11px] text-[var(--accent)]">
+                          Full access locked on — License, Activated list, and every menu.
+                        </div>
+                      ) : null}
                     </div>
                     <div className="flex flex-wrap gap-1.5">
+                      {!isSuper ? (
+                        <>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => setAllRolePerms(role.id, true)}
+                          >
+                            All
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => setAllRolePerms(role.id, false)}
+                          >
+                            None
+                          </Button>
+                        </>
+                      ) : null}
                       <Button
                         type="button"
                         size="sm"
-                        variant="secondary"
-                        onClick={() => setAllRolePerms(role.id, true)}
-                      >
-                        All
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => setAllRolePerms(role.id, false)}
-                      >
-                        None
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        disabled={savingRoleId === role.id}
+                        disabled={savingRoleId === role.id || isSuper}
                         onClick={() => void saveRolePermissions(role.id)}
                       >
-                        {savingRoleId === role.id ? "Saving..." : "Save"}
+                        {isSuper ? "Locked" : savingRoleId === role.id ? "Saving..." : "Save"}
                       </Button>
                     </div>
                   </div>
@@ -391,21 +407,33 @@ export default function UsersPage() {
                       <div key={module}>
                         <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
                           {module}
+                          {module === "license" ? " · Pro activation" : ""}
                         </div>
                         <div className="grid gap-1.5 sm:grid-cols-2">
                           {perms.map((perm) => (
                             <label
                               key={perm.code}
-                              className="flex cursor-pointer items-start gap-2 rounded-md border border-[var(--border)] bg-[var(--bg-soft)] px-2.5 py-2 text-xs"
+                              className={`flex items-start gap-2 rounded-md border border-[var(--border)] bg-[var(--bg-soft)] px-2.5 py-2 text-xs ${
+                                isSuper ? "cursor-default opacity-90" : "cursor-pointer"
+                              }`}
                             >
                               <input
                                 type="checkbox"
                                 className="mt-0.5"
                                 checked={draftSet.has(perm.code)}
+                                disabled={isSuper}
                                 onChange={() => toggleRolePerm(role.id, perm.code)}
                               />
                               <span>
-                                <span className="block font-medium text-[var(--text)]">{perm.code}</span>
+                                <span className="block font-medium text-[var(--text)]">
+                                  {perm.code === "license.manage"
+                                    ? "License (activate)"
+                                    : perm.code === "license.view"
+                                      ? "Activated list"
+                                      : perm.code === "platform.view"
+                                        ? "Companies & areas (Dashboard)"
+                                        : perm.code}
+                                </span>
                                 <span className="text-[var(--text-muted)]">
                                   {perm.description || "-"}
                                 </span>

@@ -6,7 +6,7 @@ import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { AppShellSkeleton } from "@/components/ui/Skeleton";
 import { useAuthStore } from "@/store/auth";
-import { hasPermission } from "@/lib/permissions";
+import { hasAnyPermission, hasPermission } from "@/lib/permissions";
 import { normalizePath, PAGE_META, useI18n } from "@/lib/i18n";
 import { getApi } from "@/lib/api";
 
@@ -52,8 +52,9 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
       if (cancelled) return;
       if (res.ok && !res.data.allowed) {
         const canManageLicense =
-          hasPermission(user, "platform.view") && LOCK_ALLOWED_PATHS.has(path);
-        if (!canManageLicense && path !== "/activate") {
+          hasAnyPermission(user, ["license.manage", "license.view", "platform.view"]) &&
+          LOCK_ALLOWED_PATHS.has(path);
+        if (!canManageLicense && path !== "/activate" && path !== "/settings/password") {
           router.replace("/activate");
           return;
         }
@@ -63,6 +64,12 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
     return () => {
       cancelled = true;
     };
+  }, [user, path, router]);
+
+  useEffect(() => {
+    if (!user?.mustChangePassword) return;
+    if (path === "/settings/password" || path === "/activate" || path === "/login") return;
+    router.replace("/settings/password");
   }, [user, path, router]);
 
   useEffect(() => {
@@ -98,7 +105,10 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
     return <AppShellSkeleton />;
   }
 
-  if (permission && !hasPermission(user, permission)) {
+  if (permission && !hasPermission(user, permission) && !(
+    (permission === "license.manage" && hasAnyPermission(user, ["license.manage", "platform.view"])) ||
+    (permission === "license.view" && hasAnyPermission(user, ["license.view", "platform.view", "license.manage"]))
+  )) {
     return (
       <div className="min-h-screen">
         <Sidebar />

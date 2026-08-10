@@ -37,7 +37,7 @@ import { ExportMenu } from "@/components/ExportMenu";
 import { DashboardSkeleton } from "@/components/ui/Skeleton";
 import { Alert, Button, DataTable, Input, Modal, Select, Textarea } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
-import { hasPermission } from "@/lib/permissions";
+import { hasAnyPermission } from "@/lib/permissions";
 import { useAuthStore } from "@/store/auth";
 import type {
   ClientCompany,
@@ -70,7 +70,7 @@ const emptyCompany = {
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
-  const isPlatform = hasPermission(user, "platform.view");
+  const isPlatform = hasAnyPermission(user, ["platform.view", "license.manage"]);
 
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [companies, setCompanies] = useState<ClientCompany[]>([]);

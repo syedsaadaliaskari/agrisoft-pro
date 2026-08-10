@@ -33,7 +33,8 @@ export default function LoginPage() {
   useEffect(() => {
     if (hydrated && user && !welcome) {
       setWelcome(true);
-      const timer = setTimeout(() => router.replace("/dashboard"), 700);
+      const dest = user.mustChangePassword ? "/settings/password" : "/dashboard";
+      const timer = setTimeout(() => router.replace(dest), 700);
       return () => clearTimeout(timer);
     }
   }, [hydrated, user, router, welcome]);
@@ -64,7 +65,7 @@ export default function LoginPage() {
       const result = await login(username.trim(), password);
       if (result.ok) {
         await new Promise((r) => setTimeout(r, 650));
-        router.replace("/dashboard");
+        router.replace(result.user.mustChangePassword ? "/settings/password" : "/dashboard");
       } else {
         setWelcome(false);
         setError(result.error ?? t("login.failed"));
