@@ -2,8 +2,17 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, KeyRound, LogOut, RefreshCw, ShieldCheck } from "lucide-react";
+import {
+  Copy,
+  KeyRound,
+  LogOut,
+  MessageCircle,
+  RefreshCw,
+  ShieldCheck,
+  Sprout,
+} from "lucide-react";
 import { Alert, Button } from "@/components/ui/form";
+import { InstallIdQr } from "@/components/license/InstallIdQr";
 import { getApi } from "@/lib/api";
 import { hasPermission } from "@/lib/permissions";
 import { useAuthStore } from "@/store/auth";
@@ -19,6 +28,7 @@ export default function ActivatePage() {
   const [copied, setCopied] = useState(false);
 
   const isPlatform = hasPermission(user, "platform.view");
+  const installId = status?.installId ?? "";
 
   const load = useCallback(async () => {
     const res = await getApi().getLicenseStatus();
@@ -46,9 +56,9 @@ export default function ActivatePage() {
   }, [hydrated, user, router, load]);
 
   const onCopy = async () => {
-    if (!status?.installId) return;
+    if (!installId) return;
     try {
-      await navigator.clipboard.writeText(status.installId);
+      await navigator.clipboard.writeText(installId);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -67,7 +77,7 @@ export default function ActivatePage() {
       setOkMsg("Pro activated — opening dashboard…");
       router.replace("/dashboard");
     } else {
-      setOkMsg("Not activated yet. Add this Install ID under Licenses (Super Admin), then check again.");
+      setOkMsg("Not activated yet. After the vendor activates this Install ID, tap Check again.");
     }
   };
 
@@ -85,66 +95,126 @@ export default function ActivatePage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
-      <div className="w-full max-w-lg rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] p-6 shadow-xl">
-        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
-          <KeyRound size={22} />
-        </div>
-        <h1 className="text-xl font-semibold tracking-tight">Activate Pro</h1>
-        <p className="mt-1 text-sm text-[var(--text-muted)]">
-          Your 7-day trial has ended. Send this Install ID to your vendor after payment, or activate it
-          yourself if you are Super Admin.
-        </p>
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10">
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage:
+            "radial-gradient(ellipse 70% 55% at 15% 10%, var(--atmosphere-1), transparent), radial-gradient(ellipse 50% 40% at 90% 80%, var(--atmosphere-2), transparent)",
+        }}
+      />
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.28]"
+        style={{
+          backgroundImage:
+            "linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px)",
+          backgroundSize: "56px 56px",
+          maskImage: "radial-gradient(ellipse 70% 70% at 50% 45%, black, transparent)",
+        }}
+      />
 
-        {error ? (
-          <div className="mt-4">
-            <Alert>{error}</Alert>
+      <div className="relative z-10 w-full max-w-lg animate-[fadeIn_220ms_ease-out]">
+        <div className="mb-6 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--accent)] text-[var(--logo-ink)] shadow-lg shadow-[var(--accent)]/25">
+            <Sprout size={28} strokeWidth={1.75} />
           </div>
-        ) : null}
-        {okMsg ? (
-          <div className="mt-4">
-            <Alert tone="info">{okMsg}</Alert>
-          </div>
-        ) : null}
-
-        <div className="mt-5 rounded-xl border border-[var(--border)] bg-[var(--bg-soft)]/60 p-4">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)]">
-            Install ID
-          </div>
-          <div className="mt-2 break-all font-mono text-sm font-semibold text-[var(--text)]">
-            {status?.installId ?? "—"}
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button variant="secondary" size="sm" onClick={() => void onCopy()} disabled={!status}>
-              <Copy size={14} /> {copied ? "Copied" : "Copy ID"}
-            </Button>
-            <Button size="sm" onClick={() => void onCheck()} disabled={busy}>
-              <RefreshCw size={14} /> Check activation
-            </Button>
-          </div>
-        </div>
-
-        {status?.isDevBypass ? (
-          <p className="mt-3 text-xs text-[var(--accent)]">
-            Dev mode: lock is bypassed while using <code>npm run dev</code>. Use a packaged install to
-            test the real lock, or open Licenses and use “Expire trial (test)”.
+          <p
+            className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent)]"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            Agri Soft Pro
           </p>
-        ) : null}
+        </div>
 
-        <div className="mt-5 flex flex-wrap gap-2">
-          {isPlatform ? (
-            <>
-              <Button variant="secondary" onClick={() => router.push("/settings/license")}>
-                Setup → License (activate)
-              </Button>
-              <Button onClick={() => router.push("/platform/licenses")}>
-                <ShieldCheck size={14} /> Activated list
-              </Button>
-            </>
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)]/95 p-6 shadow-2xl shadow-black/15 backdrop-blur sm:p-8">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
+              <KeyRound size={20} />
+            </div>
+            <div>
+              <h1
+                className="text-xl font-semibold tracking-tight text-[var(--text)] sm:text-2xl"
+                style={{ fontFamily: "var(--font-display)" }}
+              >
+                Activate Pro
+              </h1>
+              <p className="mt-1.5 text-sm leading-relaxed text-[var(--text-muted)]">
+                Your 7-day trial has ended. Pay your vendor, then send them this Install ID
+                (WhatsApp or message) so they can activate Monthly, Yearly, or Forever.
+              </p>
+            </div>
+          </div>
+
+          {error ? (
+            <div className="mt-5">
+              <Alert>{error}</Alert>
+            </div>
           ) : null}
-          <Button variant="ghost" onClick={() => void onLogout()}>
-            <LogOut size={14} /> Logout
-          </Button>
+          {okMsg ? (
+            <div className="mt-5">
+              <Alert tone="info">{okMsg}</Alert>
+            </div>
+          ) : null}
+
+          <div className="mt-6 flex flex-col items-center">
+            {installId ? (
+              <InstallIdQr installId={installId} size={200} />
+            ) : (
+              <div className="flex h-[232px] w-[232px] items-center justify-center rounded-2xl border border-dashed border-[var(--border)] bg-[var(--bg-soft)] text-sm text-[var(--text-muted)]">
+                Loading ID…
+              </div>
+            )}
+            <p className="mt-4 max-w-sm text-center text-xs leading-relaxed text-[var(--text-muted)]">
+              Scan this QR with your phone camera or Google Lens to see your Install ID. Or copy
+              the ID below and send it on WhatsApp.
+            </p>
+          </div>
+
+          <div className="mt-5 rounded-xl border border-[var(--border)] bg-[var(--bg-soft)]/70 p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)]">
+              Install ID
+            </div>
+            <div className="mt-2 break-all font-mono text-base font-semibold tracking-wide text-[var(--text)]">
+              {installId || "—"}
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={() => void onCopy()} disabled={!installId}>
+                <Copy size={14} /> {copied ? "Copied" : "Copy ID"}
+              </Button>
+              <Button onClick={() => void onCheck()} disabled={busy}>
+                <RefreshCw size={14} className={busy ? "animate-spin" : undefined} /> Check
+                activation
+              </Button>
+            </div>
+            <p className="mt-3 flex items-start gap-1.5 text-[11px] leading-relaxed text-[var(--text-muted)]">
+              <MessageCircle size={12} className="mt-0.5 shrink-0 text-[var(--accent)]" />
+              After payment, send the Install ID to your vendor. They activate it from Super Admin
+              → Setup → License — you do not type a product key.
+            </p>
+          </div>
+
+          {status?.isDevBypass ? (
+            <p className="mt-4 text-xs text-[var(--accent)]">
+              Dev mode: lock is bypassed while using <code>npm run dev</code>. Use a packaged
+              install to test the real lock, or open License and use “Expire trial (test)”.
+            </p>
+          ) : null}
+
+          <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-[var(--border)] pt-5">
+            {isPlatform ? (
+              <>
+                <Button variant="secondary" size="sm" onClick={() => router.push("/settings/license")}>
+                  Setup → License
+                </Button>
+                <Button size="sm" onClick={() => router.push("/platform/licenses")}>
+                  <ShieldCheck size={14} /> Activated list
+                </Button>
+              </>
+            ) : null}
+            <Button variant="ghost" size="sm" className="ms-auto" onClick={() => void onLogout()}>
+              <LogOut size={14} /> Logout
+            </Button>
+          </div>
         </div>
       </div>
     </div>
