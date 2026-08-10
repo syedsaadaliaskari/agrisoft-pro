@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Languages, Moon, Sprout, Sun } from "lucide-react";
+import { Languages, Moon, Sun } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 import { useTheme } from "@/lib/theme";
 import { isElectron } from "@/lib/api";
@@ -119,9 +119,11 @@ export default function LoginPage() {
 
       {welcome ? (
         <div className="relative z-10 w-full max-w-md text-center animate-[fadeIn_280ms_ease-out]">
-          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-[var(--accent)] text-[var(--logo-ink)] shadow-lg shadow-[var(--accent)]/30">
-            <Sprout size={36} strokeWidth={1.75} />
-          </div>
+          <img
+            src="/logo.png"
+            alt="Agri Soft Pro"
+            className="mx-auto mb-6 h-20 w-20 rounded-2xl object-cover shadow-lg shadow-[var(--accent)]/30 ring-1 ring-[var(--border)]"
+          />
           <h1 className="text-2xl font-semibold tracking-tight">{t("login.welcome")}</h1>
           <p
             className="mt-3 text-sm text-[var(--text-muted)]"
@@ -143,9 +145,11 @@ export default function LoginPage() {
       ) : (
         <div className="relative w-full max-w-[400px] animate-[fadeIn_220ms_ease-out]">
           <div className="mb-8 text-center">
-            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--accent)] text-[var(--logo-ink)] shadow-lg shadow-[var(--accent)]/25">
-              <Sprout size={32} strokeWidth={1.75} />
-            </div>
+            <img
+              src="/logo.png"
+              alt="Agri Soft Pro"
+              className="mx-auto mb-5 h-16 w-16 rounded-2xl object-cover shadow-lg shadow-[var(--accent)]/25 ring-1 ring-[var(--border)]"
+            />
             <h1
               className="text-3xl font-semibold tracking-tight text-[var(--text)]"
               style={{ fontFamily: "var(--font-display)" }}

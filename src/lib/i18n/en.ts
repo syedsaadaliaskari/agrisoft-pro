@@ -86,6 +86,7 @@ export const en: Dict = {
   "nav.changePassword": "Change password",
   "nav.licenseInfo": "License",
   "nav.backup": "Backup & Restore",
+  "nav.audit": "Audit log",
   "nav.settings": "Settings",
 
   "pages.dashboard.title": "Dashboard",
@@ -158,8 +159,10 @@ export const en: Dict = {
   "pages.licenseInfo.subtitle": "Your Install ID and activate companies",
   "pages.backup.title": "Backup & Restore",
   "pages.backup.subtitle": "Local database snapshots — free, on this PC only",
+  "pages.audit.title": "Audit log",
+  "pages.audit.subtitle": "Who did what in the shop — search, filter, and export",
   "pages.settings.title": "Settings",
-  "pages.settings.subtitle": "Shop profile, security, and audit log",
+  "pages.settings.subtitle": "Shop profile, security, and shortcuts",
 
   "login.signIn": "Sign in",
   "login.subtitle": "Sign in to your workspace",

@@ -51,6 +51,7 @@ const api: ElectronAPI = {
 
   listInventory: () => ipcRenderer.invoke(IPC.INVENTORY_LIST),
   adjustStock: (input) => ipcRenderer.invoke(IPC.INVENTORY_ADJUST, input),
+  findInventoryByBarcode: (barcode) => ipcRenderer.invoke(IPC.INVENTORY_FIND_BARCODE, barcode),
 
   listCustomers: () => ipcRenderer.invoke(IPC.CUSTOMERS_LIST),
   createCustomer: (input) => ipcRenderer.invoke(IPC.CUSTOMERS_CREATE, input),
@@ -118,6 +119,8 @@ const api: ElectronAPI = {
 
   getSettings: () => ipcRenderer.invoke(IPC.SETTINGS_GET_ALL),
   updateSettings: (input) => ipcRenderer.invoke(IPC.SETTINGS_UPDATE, input),
+  setShopLogo: (dataUrl) => ipcRenderer.invoke(IPC.SETTINGS_SET_LOGO, dataUrl),
+  clearShopLogo: () => ipcRenderer.invoke(IPC.SETTINGS_CLEAR_LOGO),
   listUsers: () => ipcRenderer.invoke(IPC.USERS_LIST),
   createUser: (input) => ipcRenderer.invoke(IPC.USERS_CREATE, input),
   updateUser: (id, input) => ipcRenderer.invoke(IPC.USERS_UPDATE, id, input),

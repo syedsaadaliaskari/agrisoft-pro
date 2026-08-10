@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
+import { BarcodeScanField } from "@/components/BarcodeScanField";
 import { ExportMenu } from "@/components/ExportMenu";
 import { PrintMenu } from "@/components/PrintMenu";
 import {
@@ -261,6 +262,33 @@ export default function SalesPage() {
       },
     ]);
     setPickVariantId("");
+    setError("");
+  };
+
+  const addLineFromScan = (row: (typeof inventory)[number]) => {
+    const existing = lines.find((l) => l.variantId === row.variantId);
+    if (existing) {
+      setLines((prev) =>
+        prev.map((l) =>
+          l.variantId === row.variantId
+            ? { ...l, quantity: String(Number(l.quantity || 0) + 1) }
+            : l
+        )
+      );
+      setError("");
+      return;
+    }
+    setLines((prev) => [
+      ...prev,
+      {
+        key: `${row.variantId}-${Date.now()}`,
+        variantId: row.variantId,
+        label: `${row.productName} (${row.size}/${row.color})`,
+        stockQty: row.stockQty,
+        quantity: "1",
+        unitPrice: String(row.salePrice),
+      },
+    ]);
     setError("");
   };
 
@@ -610,7 +638,13 @@ export default function SalesPage() {
               }
             >
               <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end">
-                <div className="flex-1">
+                <div className="min-w-[200px] flex-1">
+                  <BarcodeScanField
+                    onFound={addLineFromScan}
+                    onError={(msg) => setError(msg)}
+                  />
+                </div>
+                <div className="flex-[1.4]">
                   <Select
                     label="Add product pack"
                     value={pickVariantId}

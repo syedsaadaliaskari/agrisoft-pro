@@ -1,9 +1,9 @@
 /** Vendor support contacts — edit these before shipping client builds. */
 export const VENDOR_SUPPORT = {
-  /** WhatsApp number in international form, digits only (no +). Example: 923001234567 */
-  whatsappE164: "923001234567",
+  /** WhatsApp number in international form, digits only (no +). */
+  whatsappE164: "923168762618",
   /** Shown on Activate Pro screen */
-  whatsappDisplay: "+92 300 1234567",
+  whatsappDisplay: "+92 316 8762618",
   label: "WhatsApp vendor",
 };
 

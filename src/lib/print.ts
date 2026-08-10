@@ -20,6 +20,7 @@ function baseStyles(size: ReceiptSize) {
       * { box-sizing: border-box; }
       body { font-family: "Segoe UI", Arial, sans-serif; color: #111; margin: 0; padding: 10px; width: 280px; font-size: 11px; }
       h1 { font-size: 14px; margin: 0 0 2px; text-align: center; }
+      .logo { display: block; max-height: 48px; max-width: 120px; margin: 0 auto 6px; object-fit: contain; }
       .sub { text-align: center; font-size: 10px; color: #444; margin-bottom: 8px; line-height: 1.35; }
       .meta { margin-bottom: 8px; }
       .meta div { display: flex; justify-content: space-between; gap: 6px; margin: 2px 0; }
@@ -43,6 +44,7 @@ function baseStyles(size: ReceiptSize) {
     .sheet { max-width: 800px; margin: 0 auto; }
     .header { display: flex; justify-content: space-between; gap: 16px; border-bottom: 2px solid #111; padding-bottom: 12px; margin-bottom: 16px; }
     .brand h1 { font-size: 22px; margin: 0 0 4px; }
+    .brand .logo { display: block; max-height: 64px; max-width: 160px; margin-bottom: 8px; object-fit: contain; }
     .brand .sub { color: #444; font-size: 12px; line-height: 1.4; }
     .doc-title { text-align: right; }
     .doc-title .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #555; }
@@ -80,16 +82,20 @@ type ShopBits = {
   shopAddress?: string | null;
   shopPhone?: string | null;
   receiptFooter?: string | null;
+  shopLogoDataUrl?: string | null;
 };
 
 function shopBlock(shop: ShopBits, size: ReceiptSize) {
   const name = shop.shopName || "Agri Soft Pro";
   const addr = shop.shopAddress || "";
   const phone = shop.shopPhone || "";
+  const logo = shop.shopLogoDataUrl
+    ? `<img class="logo" src="${shop.shopLogoDataUrl}" alt="" />`
+    : "";
   if (size === "thermal") {
-    return `<h1>${esc(name)}</h1><div class="sub">${esc(addr)}${addr && phone ? "<br/>" : ""}${esc(phone)}</div>`;
+    return `${logo}<h1>${esc(name)}</h1><div class="sub">${esc(addr)}${addr && phone ? "<br/>" : ""}${esc(phone)}</div>`;
   }
-  return `<div class="brand"><h1>${esc(name)}</h1><div class="sub">${esc(addr)}${addr && phone ? "<br/>" : ""}${esc(phone)}</div></div>`;
+  return `<div class="brand">${logo}<h1>${esc(name)}</h1><div class="sub">${esc(addr)}${addr && phone ? "<br/>" : ""}${esc(phone)}</div></div>`;
 }
 
 export function buildSalePrintHtml(sale: Sale, size: ReceiptSize = "thermal", currency = "Rs"): string {

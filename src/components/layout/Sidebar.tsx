@@ -19,9 +19,11 @@ export function Sidebar() {
       style={{ width: "var(--sidebar-width)" }}
     >
       <div className="flex h-16 items-center gap-3 border-b border-[var(--border)] px-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--accent)] text-sm font-bold text-[var(--logo-ink)]">
-          AS
-        </div>
+        <img
+          src="/logo.png"
+          alt="Agri Soft Pro"
+          className="h-9 w-9 rounded-lg object-cover shadow-sm ring-1 ring-[var(--border)]"
+        />
         <div>
           <div className="text-sm font-semibold tracking-wide text-[var(--text)]">{t("brand.name")}</div>
           <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--accent)]">{t("brand.pro")}</div>

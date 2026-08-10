@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import type { Db } from "./index";
 import { auditLogs, users } from "./schema";
 import { desc, eq } from "drizzle-orm";
-import type { AuditListQuery, AuditLogRow } from "../../shared/ipc";
+import type { AuditListQuery, AuditListResult, AuditLogRow } from "../../shared/ipc";
 
 export type AuditWriteInput = {
   userId?: string | null;
@@ -26,11 +26,14 @@ export function writeAuditLog(db: Db, input: AuditWriteInput): void {
     .run();
 }
 
-export function listAuditLogs(db: Db, query: AuditListQuery = {}): AuditLogRow[] {
-  const limit = Math.min(Math.max(query.limit ?? 100, 1), 500);
+export function listAuditLogs(db: Db, query: AuditListQuery = {}): AuditListResult {
+  const limit = Math.min(Math.max(query.limit ?? 100, 1), 1000);
+  const offset = Math.max(query.offset ?? 0, 0);
   const fromDate = query.fromDate?.trim() || null;
   const toDate = query.toDate?.trim() || null;
   const module = query.module?.trim() || null;
+  const action = query.action?.trim() || null;
+  const search = query.search?.trim().toLowerCase() || null;
 
   const rows = db
     .select({
@@ -48,23 +51,44 @@ export function listAuditLogs(db: Db, query: AuditListQuery = {}): AuditLogRow[]
     .orderBy(desc(auditLogs.createdAt))
     .all();
 
-  return rows
-    .filter((r) => {
-      if (module && r.module !== module) return false;
-      const day = r.createdAt.slice(0, 10);
-      if (fromDate && day < fromDate) return false;
-      if (toDate && day > toDate) return false;
-      return true;
-    })
-    .slice(0, limit)
-    .map((r) => ({
-      id: r.id,
-      userId: r.userId,
-      username: r.username,
-      action: r.action,
-      module: r.module,
-      entityId: r.entityId,
-      details: r.details,
-      createdAt: r.createdAt,
-    }));
+  const filtered = rows.filter((r) => {
+    if (module && r.module !== module) return false;
+    if (action && r.action !== action) return false;
+    const day = r.createdAt.slice(0, 10);
+    if (fromDate && day < fromDate) return false;
+    if (toDate && day > toDate) return false;
+    if (search) {
+      const hay = `${r.username ?? ""} ${r.module} ${r.action} ${r.details ?? ""} ${r.entityId ?? ""}`.toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
+
+  const mapped: AuditLogRow[] = filtered.slice(offset, offset + limit).map((r) => ({
+    id: r.id,
+    userId: r.userId,
+    username: r.username,
+    action: r.action,
+    module: r.module,
+    entityId: r.entityId,
+    details: r.details,
+    createdAt: r.createdAt,
+  }));
+
+  return {
+    rows: mapped,
+    total: filtered.length,
+    ...listAuditFacets(db),
+  };
+}
+
+/** Distinct modules/actions for filter dropdowns */
+export function listAuditFacets(db: Db): { modules: string[]; actions: string[] } {
+  const rows = db
+    .select({ module: auditLogs.module, action: auditLogs.action })
+    .from(auditLogs)
+    .all();
+  const modules = [...new Set(rows.map((r) => r.module))].sort();
+  const actions = [...new Set(rows.map((r) => r.action))].sort();
+  return { modules, actions };
 }

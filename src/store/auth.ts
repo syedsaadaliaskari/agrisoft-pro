@@ -9,7 +9,9 @@ type AuthState = {
   loading: boolean;
   hydrated: boolean;
   hydrate: () => Promise<void>;
-  login: (username: string, password: string) => Promise<{ ok: boolean; error?: string }>;
+  login: (username: string, password: string) => Promise<
+    { ok: true; user: SessionUser } | { ok: false; error?: string }
+  >;
   logout: () => Promise<void>;
 };
 
@@ -50,7 +52,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     if (result.ok) {
       set({ user: result.user, loading: false, hydrated: true });
-      return { ok: true };
+      return { ok: true, user: result.user };
     }
     set({ loading: false });
     return { ok: false, error: result.error };

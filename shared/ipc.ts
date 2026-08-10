@@ -57,6 +57,7 @@ export const IPC = {
   // Inventory
   INVENTORY_LIST: "inventory:list",
   INVENTORY_ADJUST: "inventory:adjust",
+  INVENTORY_FIND_BARCODE: "inventory:findByBarcode",
 
   // Customers
   CUSTOMERS_LIST: "customers:list",
@@ -130,6 +131,8 @@ export const IPC = {
   // Settings / users / audit
   SETTINGS_GET_ALL: "settings:getAll",
   SETTINGS_UPDATE: "settings:update",
+  SETTINGS_SET_LOGO: "settings:setLogo",
+  SETTINGS_CLEAR_LOGO: "settings:clearLogo",
   USERS_LIST: "users:list",
   USERS_CREATE: "users:create",
   USERS_UPDATE: "users:update",
@@ -373,6 +376,8 @@ export type InventoryRow = {
   productName: string;
   productSku: string;
   variantSku: string;
+  barcode: string | null;
+  productBarcode: string | null;
   size: string;
   color: string;
   stockQty: number;
@@ -709,6 +714,11 @@ export type Purchase = {
   createdAt: string;
   updatedAt: string;
   items?: PurchaseItem[];
+  shopName?: string;
+  shopPhone?: string;
+  shopAddress?: string;
+  receiptFooter?: string;
+  shopLogoDataUrl?: string | null;
 };
 
 export type PurchaseReturnLineInput = {
@@ -821,6 +831,8 @@ export type Sale = {
   shopPhone?: string;
   shopAddress?: string;
   receiptFooter?: string;
+  /** Data URL for receipt header logo (custom shop branding) */
+  shopLogoDataUrl?: string | null;
 };
 
 export type SaleReturnLineInput = {
@@ -1173,7 +1185,17 @@ export type AuditListQuery = {
   fromDate?: string;
   toDate?: string;
   module?: string;
+  action?: string;
+  search?: string;
   limit?: number;
+  offset?: number;
+};
+
+export type AuditListResult = {
+  rows: AuditLogRow[];
+  total: number;
+  modules: string[];
+  actions: string[];
 };
 
 export type BackupFileInfo = {
@@ -1276,6 +1298,7 @@ export type ElectronAPI = {
 
   listInventory: () => Promise<ActionResult<InventoryRow[]>>;
   adjustStock: (input: StockAdjustInput) => Promise<ActionResult<InventoryRow>>;
+  findInventoryByBarcode: (barcode: string) => Promise<ActionResult<InventoryRow>>;
 
   listCustomers: () => Promise<ActionResult<Customer[]>>;
   createCustomer: (input: CustomerInput) => Promise<ActionResult<Customer>>;
@@ -1346,6 +1369,8 @@ export type ElectronAPI = {
 
   getSettings: () => Promise<ActionResult<SettingsMap>>;
   updateSettings: (input: SettingsUpdateInput) => Promise<ActionResult<SettingsMap>>;
+  setShopLogo: (dataUrl: string) => Promise<ActionResult<SettingsMap>>;
+  clearShopLogo: () => Promise<ActionResult<SettingsMap>>;
 
   listUsers: () => Promise<ActionResult<AppUser[]>>;
   createUser: (input: UserCreateInput) => Promise<ActionResult<AppUser>>;
@@ -1354,7 +1379,7 @@ export type ElectronAPI = {
   listRoles: () => Promise<ActionResult<RoleInfo[]>>;
   listPermissions: () => Promise<ActionResult<PermissionInfo[]>>;
   setRolePermissions: (roleId: string, permissionCodes: string[]) => Promise<ActionResult<RoleInfo>>;
-  listAuditLogs: (query?: AuditListQuery) => Promise<ActionResult<AuditLogRow[]>>;
+  listAuditLogs: (query?: AuditListQuery) => Promise<ActionResult<AuditListResult>>;
 
   /** Print self-contained HTML via a dedicated Electron print window. */
   printHtml: (html: string) => Promise<ActionResult>;

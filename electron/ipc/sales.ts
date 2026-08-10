@@ -16,6 +16,7 @@ import { getDb } from "../db";
 import { nextDocumentNumber } from "../db/counters";
 import { requireAccountByCode } from "../db/accounts";
 import { getSettingsMap } from "../db/settings";
+import { readShopLogoDataUrl } from "../db/branding";
 import { writeAuditLog } from "../db/audit";
 import {
   sales,
@@ -127,6 +128,7 @@ function enrichSale(id: string, withItems = true): Sale | null {
     shopPhone: settings.shop_phone || "",
     shopAddress: settings.shop_address || "",
     receiptFooter: settings.receipt_footer || "",
+    shopLogoDataUrl: readShopLogoDataUrl(),
   };
 
   if (withItems) {

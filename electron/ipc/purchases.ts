@@ -17,6 +17,8 @@ import { nextDocumentNumber } from "../db/counters";
 import { requireAccountByCode } from "../db/accounts";
 import { writeAuditLog } from "../db/audit";
 import { insertVoucherEntry, money } from "../db/ledger";
+import { getSettingsMap } from "../db/settings";
+import { readShopLogoDataUrl } from "../db/branding";
 import {
   purchases,
   purchaseItems,
@@ -91,6 +93,7 @@ function enrichPurchase(id: string, withItems = true): Purchase | null {
   const vendor = row.vendorId
     ? db.select().from(vendors).where(eq(vendors.id, row.vendorId)).get()
     : null;
+  const settings = getSettingsMap(db);
   const base: Purchase = {
     id: row.id,
     voucherId: row.voucherId,
@@ -110,6 +113,11 @@ function enrichPurchase(id: string, withItems = true): Purchase | null {
     createdBy: row.createdBy,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    shopName: settings.shop_name || "Agri Soft Pro",
+    shopPhone: settings.shop_phone || "",
+    shopAddress: settings.shop_address || "",
+    receiptFooter: settings.receipt_footer || "",
+    shopLogoDataUrl: readShopLogoDataUrl(),
   };
   if (withItems) {
     base.items = db

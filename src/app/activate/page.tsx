@@ -9,7 +9,6 @@ import {
   MessageCircle,
   RefreshCw,
   ShieldCheck,
-  Sprout,
 } from "lucide-react";
 import { Alert, Button } from "@/components/ui/form";
 import { InstallIdQr } from "@/components/license/InstallIdQr";
@@ -121,9 +120,11 @@ export default function ActivatePage() {
 
       <div className="relative z-10 w-full max-w-lg animate-[fadeIn_220ms_ease-out]">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--accent)] text-[var(--logo-ink)] shadow-lg shadow-[var(--accent)]/25">
-            <Sprout size={28} strokeWidth={1.75} />
-          </div>
+          <img
+            src="/logo.png"
+            alt="Agri Soft Pro"
+            className="mx-auto mb-4 h-14 w-14 rounded-2xl object-cover shadow-lg shadow-[var(--accent)]/25 ring-1 ring-[var(--border)]"
+          />
           <p
             className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent)]"
             style={{ fontFamily: "var(--font-display)" }}

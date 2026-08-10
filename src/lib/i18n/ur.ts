@@ -86,6 +86,7 @@ export const ur: Dict = {
   "nav.changePassword": "پاس ورڈ تبدیل کریں",
   "nav.licenseInfo": "لائسنس",
   "nav.backup": "بیک اپ و بحالی",
+  "nav.audit": "آڈٹ لاگ",
   "nav.settings": "ترتیبات",
 
   "pages.dashboard.title": "ڈیش بورڈ",
@@ -158,8 +159,10 @@ export const ur: Dict = {
   "pages.licenseInfo.subtitle": "آپ کی انسٹال آئی ڈی اور کمپنی ایکٹیویشن",
   "pages.backup.title": "بیک اپ و بحالی",
   "pages.backup.subtitle": "مقامی ڈیٹا بیس کے سنیپ شاٹس — صرف اس کمپیوٹر پر",
+  "pages.audit.title": "آڈٹ لاگ",
+  "pages.audit.subtitle": "دکان میں کس نے کیا کیا — تلاش، فلٹر اور ایکسپورٹ",
   "pages.settings.title": "ترتیبات",
-  "pages.settings.subtitle": "دکان کا پروفائل، سیکیورٹی اور آڈٹ لاگ",
+  "pages.settings.subtitle": "دکان کا پروفائل، سیکیورٹی اور شارٹ کٹس",
 
   "login.signIn": "سائن ان",
   "login.subtitle": "اپنے ورک اسپیس میں سائن ان کریں",

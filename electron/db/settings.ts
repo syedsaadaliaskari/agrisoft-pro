@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import type { Db } from "./index";
 import { settings } from "./schema";
 import type { SettingsMap, SettingsUpdateInput } from "../../shared/ipc";
+import { hasShopLogo, readShopLogoDataUrl } from "./branding";
 
 const EDITABLE_KEYS = [
   "shop_name",
@@ -20,6 +21,16 @@ export function getSettingsMap(db: Db): SettingsMap {
   for (const row of rows) {
     map[row.key] = row.value ?? "";
   }
+  return map;
+}
+
+/** Settings map plus live logo data URL for UI/print (not stored in DB as blob). */
+export function getSettingsMapWithBranding(db: Db): SettingsMap {
+  const map = getSettingsMap(db);
+  map.shop_logo = hasShopLogo() ? "1" : "";
+  const dataUrl = readShopLogoDataUrl();
+  if (dataUrl) map.shop_logo_data_url = dataUrl;
+  else delete map.shop_logo_data_url;
   return map;
 }
 
@@ -51,5 +62,5 @@ export function updateSettings(db: Db, input: SettingsUpdateInput): SettingsMap 
     }
   }
 
-  return getSettingsMap(db);
+  return getSettingsMapWithBranding(db);
 }

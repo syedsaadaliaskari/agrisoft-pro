@@ -5,12 +5,12 @@ import {
   type SettingsMap,
   type SettingsUpdateInput,
   type AuditListQuery,
-  type AuditLogRow,
+  type AuditListResult,
 } from "../../shared/ipc";
 import { getDb } from "../db";
-import { getSettingsMap, updateSettings } from "../db/settings";
-import { listAuditLogs } from "../db/audit";
-import { writeAuditLog } from "../db/audit";
+import { getSettingsMapWithBranding, updateSettings } from "../db/settings";
+import { listAuditLogs, writeAuditLog } from "../db/audit";
+import { clearShopLogo, saveShopLogoFromDataUrl } from "../db/branding";
 import { PermissionError, requirePermission } from "./session";
 
 function ok<T>(data: T): ActionResult<T> {
@@ -31,7 +31,7 @@ export function registerSettingsHandlers(): void {
   ipcMain.handle(IPC.SETTINGS_GET_ALL, async (): Promise<ActionResult<SettingsMap>> => {
     try {
       requirePermission("settings.manage");
-      return ok(getSettingsMap(getDb()));
+      return ok(getSettingsMapWithBranding(getDb()));
     } catch (err) {
       return fail(asError(err));
     }
@@ -42,14 +42,14 @@ export function registerSettingsHandlers(): void {
     async (_e, input: SettingsUpdateInput): Promise<ActionResult<SettingsMap>> => {
       try {
         const session = requirePermission("settings.manage");
-        const map = updateSettings(getDb(), input ?? {});
+        updateSettings(getDb(), input ?? {});
         writeAuditLog(getDb(), {
           userId: session.id,
           action: "update",
           module: "settings",
           details: "Updated shop settings",
         });
-        return ok(map);
+        return ok(getSettingsMapWithBranding(getDb()));
       } catch (err) {
         return fail(asError(err));
       }
@@ -57,8 +57,44 @@ export function registerSettingsHandlers(): void {
   );
 
   ipcMain.handle(
+    IPC.SETTINGS_SET_LOGO,
+    async (_e, dataUrl: string): Promise<ActionResult<SettingsMap>> => {
+      try {
+        const session = requirePermission("settings.manage");
+        const result = saveShopLogoFromDataUrl(dataUrl ?? "");
+        if (!result.ok) return fail(result.error);
+        writeAuditLog(getDb(), {
+          userId: session.id,
+          action: "update",
+          module: "settings",
+          details: "Updated shop logo branding",
+        });
+        return ok(getSettingsMapWithBranding(getDb()));
+      } catch (err) {
+        return fail(asError(err));
+      }
+    }
+  );
+
+  ipcMain.handle(IPC.SETTINGS_CLEAR_LOGO, async (): Promise<ActionResult<SettingsMap>> => {
+    try {
+      const session = requirePermission("settings.manage");
+      clearShopLogo();
+      writeAuditLog(getDb(), {
+        userId: session.id,
+        action: "update",
+        module: "settings",
+        details: "Removed shop logo branding",
+      });
+      return ok(getSettingsMapWithBranding(getDb()));
+    } catch (err) {
+      return fail(asError(err));
+    }
+  });
+
+  ipcMain.handle(
     IPC.AUDIT_LIST,
-    async (_e, query?: AuditListQuery): Promise<ActionResult<AuditLogRow[]>> => {
+    async (_e, query?: AuditListQuery): Promise<ActionResult<AuditListResult>> => {
       try {
         requirePermission("settings.manage");
         return ok(listAuditLogs(getDb(), query ?? {}));
