@@ -1,7 +1,10 @@
-import { randomUUID } from "crypto";
+import { createHmac, randomUUID } from "crypto";
 import { eq, desc } from "drizzle-orm";
 import type { Db } from "./index";
 import { licenses, settings } from "./schema";
+
+/** Shared app secret so activation codes work offline between vendor PC and customer PC. */
+const ACTIVATION_HMAC_SECRET = "agri-soft-pro-activation-v1";
 
 export const TRIAL_DAYS = 7;
 
@@ -29,7 +32,9 @@ export type LicenseRow = {
   activatedAt: string;
   expiresAt: string | null;
   notes: string | null;
+  phone: string | null;
   createdAt: string;
+  activationCode: string;
 };
 
 function todayIsoDate() {
@@ -94,7 +99,7 @@ export function ensureInstallIdentity(db: Db): { installId: string; installedAt:
 }
 
 function mapLicense(row: typeof licenses.$inferSelect): LicenseRow {
-  return {
+  const base = {
     id: row.id,
     name: row.name,
     installId: row.installId,
@@ -102,8 +107,35 @@ function mapLicense(row: typeof licenses.$inferSelect): LicenseRow {
     activatedAt: row.activatedAt,
     expiresAt: row.expiresAt,
     notes: row.notes,
+    phone: row.phone ?? null,
     createdAt: row.createdAt,
   };
+  return { ...base, activationCode: buildActivationCode(base) };
+}
+
+type ActivationPayload = {
+  v: 1;
+  installId: string;
+  name: string;
+  plan: LicensePlan;
+  activatedAt: string;
+  expiresAt: string | null;
+};
+
+export function buildActivationCode(
+  row: Pick<LicenseRow, "installId" | "name" | "plan" | "activatedAt" | "expiresAt">
+): string {
+  const payload: ActivationPayload = {
+    v: 1,
+    installId: row.installId,
+    name: row.name,
+    plan: row.plan,
+    activatedAt: row.activatedAt,
+    expiresAt: row.expiresAt,
+  };
+  const body = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+  const sig = createHmac("sha256", ACTIVATION_HMAC_SECRET).update(body).digest("base64url").slice(0, 24);
+  return `ASP1.${body}.${sig}`;
 }
 
 function findActiveLicense(db: Db, installId: string): LicenseRow | null {
@@ -183,7 +215,13 @@ export function listLicenses(db: Db): LicenseRow[] {
 
 export function createLicense(
   db: Db,
-  input: { name: string; installId: string; plan: LicensePlan; notes?: string | null }
+  input: {
+    name: string;
+    installId: string;
+    plan: LicensePlan;
+    notes?: string | null;
+    phone?: string | null;
+  }
 ): LicenseRow {
   const name = input.name.trim();
   const installId = input.installId.trim().toUpperCase();
@@ -200,6 +238,7 @@ export function createLicense(
 
   const id = randomUUID();
   const now = new Date().toISOString();
+  const phone = input.phone?.trim() || null;
   db.insert(licenses)
     .values({
       id,
@@ -209,6 +248,7 @@ export function createLicense(
       activatedAt,
       expiresAt,
       notes: input.notes?.trim() || null,
+      phone,
       createdAt: now,
       updatedAt: now,
     })
@@ -247,5 +287,69 @@ export function lockThisInstallNow(db: Db): LicenseStatus {
     db.delete(licenses).where(eq(licenses.id, row.id)).run();
   }
   expireTrialNow(db);
+  return getLicenseStatus(db, false);
+}
+
+/** Customer PC: paste code from vendor WhatsApp to unlock this install. */
+export function applyActivationCode(db: Db, rawCode: string): LicenseStatus {
+  const code = rawCode.trim().replace(/\s+/g, "");
+  const parts = code.split(".");
+  if (parts.length !== 3 || parts[0] !== "ASP1") {
+    throw new Error("Invalid activation code");
+  }
+  const [, body, sig] = parts;
+  const expected = createHmac("sha256", ACTIVATION_HMAC_SECRET)
+    .update(body)
+    .digest("base64url")
+    .slice(0, 24);
+  if (sig !== expected) {
+    throw new Error("Invalid or tampered activation code");
+  }
+
+  let payload: ActivationPayload;
+  try {
+    payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as ActivationPayload;
+  } catch {
+    throw new Error("Invalid activation code");
+  }
+
+  if (payload?.v !== 1 || !payload.installId || !payload.plan) {
+    throw new Error("Invalid activation code");
+  }
+  if (!["monthly", "yearly", "forever"].includes(payload.plan)) {
+    throw new Error("Invalid plan in activation code");
+  }
+
+  const { installId } = ensureInstallIdentity(db);
+  if (payload.installId.toUpperCase() !== installId) {
+    throw new Error(
+      `This code is for ${payload.installId}, but this PC is ${installId}`
+    );
+  }
+
+  if (payload.plan !== "forever" && payload.expiresAt && payload.expiresAt < todayIsoDate()) {
+    throw new Error("This activation code has expired");
+  }
+
+  if (findActiveLicense(db, installId)) {
+    return getLicenseStatus(db, false);
+  }
+
+  const id = randomUUID();
+  const now = new Date().toISOString();
+  db.insert(licenses)
+    .values({
+      id,
+      name: (payload.name || "Activated").trim() || "Activated",
+      installId,
+      plan: payload.plan,
+      activatedAt: payload.activatedAt || todayIsoDate(),
+      expiresAt: payload.plan === "forever" ? null : payload.expiresAt,
+      notes: "Applied from activation code",
+      createdAt: now,
+      updatedAt: now,
+    })
+    .run();
+
   return getLicenseStatus(db, false);
 }

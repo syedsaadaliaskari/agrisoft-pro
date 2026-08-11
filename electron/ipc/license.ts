@@ -8,6 +8,7 @@ import {
 } from "../../shared/ipc";
 import { getDb } from "../db";
 import {
+  applyActivationCode,
   createLicense,
   deleteLicense,
   expireTrialNow,
@@ -15,6 +16,7 @@ import {
   listLicenses,
   lockThisInstallNow,
 } from "../db/license";
+import { enqueueLicenseActivated, flushN8nQueue } from "../db/n8n";
 import { PermissionError, requireAnyPermission } from "./session";
 
 type Handler<T> = () => T | Promise<T>;
@@ -58,12 +60,21 @@ export function registerLicenseHandlers(isDev: boolean): void {
     IPC.LICENSE_CREATE,
     async (
       _e,
-      input: { name: string; installId: string; plan: LicensePlan; notes?: string | null }
+      input: {
+        name: string;
+        installId: string;
+        plan: LicensePlan;
+        notes?: string | null;
+        phone?: string | null;
+      }
     ): Promise<ActionResult<LicenseRow>> =>
-      guarded(
-        () => requireAnyPermission("license.manage", "platform.view"),
-        async () => createLicense(getDb(), input)
-      )
+      guarded(() => requireAnyPermission("license.manage", "platform.view"), async () => {
+        const row = createLicense(getDb(), input);
+        enqueueLicenseActivated(getDb(), row, input.phone ?? row.phone);
+        // Fire-and-forget flush; offline keeps item in queue
+        void flushN8nQueue(getDb());
+        return row;
+      })
   );
 
   ipcMain.handle(IPC.LICENSE_DELETE, async (_e, id: string): Promise<ActionResult> =>
@@ -83,5 +94,17 @@ export function registerLicenseHandlers(isDev: boolean): void {
     guarded(() => requireAnyPermission("license.manage", "platform.view"), async () =>
       lockThisInstallNow(getDb())
     )
+  );
+
+  // Public: locked customers paste the code you send on WhatsApp (no login required).
+  ipcMain.handle(
+    IPC.LICENSE_APPLY_CODE,
+    async (_e, code: string): Promise<ActionResult<LicenseStatus>> => {
+      try {
+        return { ok: true, data: applyActivationCode(getDb(), String(code ?? "")) };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : "Activation failed" };
+      }
+    }
   );
 }

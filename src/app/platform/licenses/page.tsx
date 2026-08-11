@@ -2,15 +2,17 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Ban } from "lucide-react";
+import { Ban, Copy } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { OpsEmptyState } from "@/components/ops/DocumentWorkspace";
 import { Alert, Button, DataTable } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
+import { useAuthStore } from "@/store/auth";
 import type { LicenseRow } from "@shared/ipc";
 
 export default function ActivatedListPage() {
   const router = useRouter();
+  const logout = useAuthStore((s) => s.logout);
   const [rows, setRows] = useState<LicenseRow[]>([]);
   const [thisInstallId, setThisInstallId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -37,13 +39,23 @@ export default function ActivatedListPage() {
     void load();
   }, [load]);
 
+  const onCopyCode = async (row: LicenseRow) => {
+    try {
+      await navigator.clipboard.writeText(row.activationCode);
+      setOkMsg(`Activation code copied for ${row.name}. Send it on WhatsApp.`);
+      setError("");
+    } catch {
+      setError("Could not copy activation code");
+    }
+  };
+
   const onStopAccess = async (row: LicenseRow) => {
     const isThisPc = thisInstallId && row.installId === thisInstallId;
     if (
       !confirm(
         isThisPc
           ? `Stop access on THIS PC now for ${row.name}?\n\nApp will lock and show the Activate / QR screen.`
-          : `Stop access for ${row.name} (${row.installId})?\n\nThis only removes the record on this PC. It does not remotely lock another computer.`
+          : `Remove activation record for ${row.name} (${row.installId}) on this PC?\n\nTo lock their PC you must Stop access on their machine (or they stay locked until they get a new code).`
       )
     ) {
       return;
@@ -57,6 +69,7 @@ export default function ActivatedListPage() {
     }
     if (isThisPc) {
       setOkMsg("Access stopped on this PC. Opening lock screen…");
+      await logout();
       router.replace("/activate");
       return;
     }
@@ -67,7 +80,7 @@ export default function ActivatedListPage() {
   return (
     <AppShell
       title="Activated list"
-      subtitle="Companies activated for Pro — stop access anytime"
+      subtitle="Copy activation codes · stop access anytime"
       permission="license.view"
     >
       {error ? (
@@ -83,9 +96,10 @@ export default function ActivatedListPage() {
 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="max-w-xl text-xs text-[var(--text-muted)]">
-          Use <span className="font-medium text-[var(--text)]">Stop access</span> anytime (half
-          payment, etc.). On this PC it locks immediately with QR. On another customer PC you must
-          run Stop there (or use Setup → License → Stop access now).
+          <span className="font-medium text-[var(--text)]">Copy code</span> → WhatsApp to customer.
+          They paste it on their lock screen.{" "}
+          <span className="font-medium text-[var(--text)]">Stop access</span> on this PC locks
+          immediately.
         </p>
         <Button variant="ghost" size="sm" onClick={() => void load()} disabled={loading}>
           Refresh
@@ -95,7 +109,7 @@ export default function ActivatedListPage() {
       {!loading && !rows.length ? (
         <OpsEmptyState
           title="No activated companies yet"
-          hint="Open Setup → License, paste an Install ID, and activate Monthly / Yearly / Forever."
+          hint="Open Setup → License, paste an Install ID, activate, then copy the activation code."
         />
       ) : (
         <DataTable
@@ -110,14 +124,24 @@ export default function ActivatedListPage() {
               <td className="px-4 py-3 text-sm">{row.activatedAt}</td>
               <td className="px-4 py-3 text-sm">{row.expiresAt ?? "Never"}</td>
               <td className="px-4 py-3">
-                <Button
-                  variant="danger"
-                  size="sm"
-                  onClick={() => void onStopAccess(row)}
-                  title="Stop access"
-                >
-                  <Ban size={14} /> Stop access
-                </Button>
+                <div className="flex flex-wrap gap-1.5">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void onCopyCode(row)}
+                    title="Copy activation code"
+                  >
+                    <Copy size={14} /> Code
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={() => void onStopAccess(row)}
+                    title="Stop access"
+                  >
+                    <Ban size={14} /> Stop
+                  </Button>
+                </div>
               </td>
             </tr>
           ))}

@@ -13,6 +13,10 @@ const EDITABLE_KEYS = [
   "currency_code",
   "tax_mode",
   "receipt_footer",
+  "n8n_enabled",
+  "n8n_webhook_url",
+  "n8n_payment_days_before",
+  "n8n_min_due_amount",
 ] as const;
 
 export function getSettingsMap(db: Db): SettingsMap {
@@ -48,7 +52,17 @@ export function updateSettings(db: Db, input: SettingsUpdateInput): SettingsMap 
         .run();
     } else {
       const groupName =
-        key.startsWith("shop_") ? "shop" : key.startsWith("currency_") ? "general" : key === "tax_mode" ? "tax" : key === "receipt_footer" ? "receipt" : "general";
+        key.startsWith("shop_")
+          ? "shop"
+          : key.startsWith("currency_")
+            ? "general"
+            : key === "tax_mode"
+              ? "tax"
+              : key === "receipt_footer"
+                ? "receipt"
+                : key.startsWith("n8n_")
+                  ? "n8n"
+                  : "general";
       db.insert(settings)
         .values({
           id: randomUUID(),

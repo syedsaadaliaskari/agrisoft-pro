@@ -214,6 +214,19 @@ app.whenReady().then(async () => {
     console.warn("Auto backup on start failed:", err);
   }
 
+  // n8n WhatsApp queue: scan reminders + flush (needs internet to send)
+  const runN8nPass = async () => {
+    try {
+      const { getDb } = await import("./db");
+      const { runN8nAutomationPass } = await import("./db/n8n");
+      await runN8nAutomationPass(getDb());
+    } catch (err) {
+      console.warn("n8n automation pass failed:", err);
+    }
+  };
+  void runN8nPass();
+  setInterval(() => void runN8nPass(), 6 * 60 * 60 * 1000);
+
   ipcMain.handle(IPC.APP_PRINT_HTML, async (_event, html: string): Promise<ActionResult> => {
     if (!html || typeof html !== "string") {
       return { ok: false, error: "Nothing to print" };

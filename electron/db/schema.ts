@@ -497,6 +497,7 @@ export const licenses = sqliteTable(
     activatedAt: text("activated_at").notNull(),
     expiresAt: text("expires_at"), // null = forever
     notes: text("notes"),
+    phone: text("phone"),
     ...timestamps,
   },
   (t) => [index("licenses_install_idx").on(t.installId)]

@@ -146,6 +146,11 @@ const api: ElectronAPI = {
   deleteLicense: (id) => ipcRenderer.invoke(IPC.LICENSE_DELETE, id),
   expireTrialForTesting: () => ipcRenderer.invoke(IPC.LICENSE_EXPIRE_TRIAL),
   lockThisInstallNow: () => ipcRenderer.invoke(IPC.LICENSE_LOCK_NOW),
+  applyActivationCode: (code) => ipcRenderer.invoke(IPC.LICENSE_APPLY_CODE, code),
+
+  getN8nStatus: () => ipcRenderer.invoke(IPC.N8N_STATUS),
+  flushN8nQueue: () => ipcRenderer.invoke(IPC.N8N_FLUSH),
+  testN8nWebhook: (to) => ipcRenderer.invoke(IPC.N8N_TEST, to),
 };
 
 contextBridge.exposeInMainWorld("api", api);

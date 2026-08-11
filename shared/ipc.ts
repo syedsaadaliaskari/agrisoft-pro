@@ -160,6 +160,11 @@ export const IPC = {
   LICENSE_DELETE: "license:delete",
   LICENSE_EXPIRE_TRIAL: "license:expireTrial",
   LICENSE_LOCK_NOW: "license:lockNow",
+  LICENSE_APPLY_CODE: "license:applyCode",
+
+  N8N_STATUS: "n8n:status",
+  N8N_FLUSH: "n8n:flush",
+  N8N_TEST: "n8n:test",
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
@@ -1122,6 +1127,10 @@ export type SettingsUpdateInput = {
   currency_code?: string;
   tax_mode?: string;
   receipt_footer?: string;
+  n8n_enabled?: string;
+  n8n_webhook_url?: string;
+  n8n_payment_days_before?: string;
+  n8n_min_due_amount?: string;
 };
 
 export type AppUser = {
@@ -1240,7 +1249,9 @@ export type LicenseRow = {
   activatedAt: string;
   expiresAt: string | null;
   notes: string | null;
+  phone: string | null;
   createdAt: string;
+  activationCode: string;
 };
 
 export type LicenseCreateInput = {
@@ -1248,6 +1259,7 @@ export type LicenseCreateInput = {
   installId: string;
   plan: LicensePlan;
   notes?: string | null;
+  phone?: string | null;
 };
 
 export type ElectronAPI = {
@@ -1404,6 +1416,17 @@ export type ElectronAPI = {
   deleteLicense: (id: string) => Promise<ActionResult>;
   expireTrialForTesting: () => Promise<ActionResult<LicenseStatus>>;
   lockThisInstallNow: () => Promise<ActionResult<LicenseStatus>>;
+  applyActivationCode: (code: string) => Promise<ActionResult<LicenseStatus>>;
+
+  getN8nStatus: () => Promise<
+    ActionResult<{ enabled: boolean; webhookUrl: string; paymentDaysBefore: number; minDueAmount: number }>
+  >;
+  flushN8nQueue: () => Promise<
+    ActionResult<{ sent: number; remaining: number; enqueued: number; error?: string }>
+  >;
+  testN8nWebhook: (to?: string | null) => Promise<
+    ActionResult<{ sent: number; remaining: number; error?: string }>
+  >;
 };
 
 declare global {

@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
+import { getApi } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 
 export default function HomePage() {
@@ -16,7 +17,19 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!hydrated) return;
-    router.replace(user ? "/dashboard" : "/login");
+    let cancelled = false;
+    void (async () => {
+      const res = await getApi().getLicenseStatus();
+      if (cancelled) return;
+      if (res.ok && !res.data.allowed) {
+        router.replace("/activate");
+        return;
+      }
+      router.replace(user ? "/dashboard" : "/login");
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [hydrated, user, router]);
 
   return (

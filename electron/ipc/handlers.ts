@@ -29,6 +29,7 @@ import { registerUserHandlers } from "./users";
 import { registerCompanyHandlers } from "./companies";
 import { registerBackupHandlers } from "./backup";
 import { registerLicenseHandlers } from "./license";
+import { registerN8nHandlers } from "./n8n";
 import { getCurrentSession, setCurrentSession, PermissionError, requireSession } from "./session";
 import { writeAuditLog } from "../db/audit";
 
@@ -201,4 +202,5 @@ export function registerIpcHandlers(appVersion: string, isDev: boolean): void {
   registerCompanyHandlers();
   registerBackupHandlers();
   registerLicenseHandlers(isDev);
+  registerN8nHandlers();
 }

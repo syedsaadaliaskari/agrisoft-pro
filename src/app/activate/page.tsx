@@ -2,63 +2,53 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Copy,
-  KeyRound,
-  LogOut,
-  MessageCircle,
-  RefreshCw,
-  ShieldCheck,
-} from "lucide-react";
-import { Alert, Button } from "@/components/ui/form";
+import { Copy, KeyRound, MessageCircle, RefreshCw } from "lucide-react";
+import { Alert, Button, Input } from "@/components/ui/form";
 import { InstallIdQr } from "@/components/license/InstallIdQr";
 import { getApi } from "@/lib/api";
-import { hasAnyPermission, hasPermission } from "@/lib/permissions";
 import { useAuthStore } from "@/store/auth";
 import { VENDOR_SUPPORT, whatsappActivationUrl } from "@shared/support";
 import type { LicenseStatus } from "@shared/ipc";
 
 export default function ActivatePage() {
   const router = useRouter();
-  const { user, hydrated, hydrate, logout } = useAuthStore();
+  const { hydrated, hydrate, logout } = useAuthStore();
   const [status, setStatus] = useState<LicenseStatus | null>(null);
   const [error, setError] = useState("");
   const [okMsg, setOkMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [activationCode, setActivationCode] = useState("");
 
-  const canActivateLicense = hasAnyPermission(user, ["license.manage", "platform.view"]);
-  const canViewActivated = hasAnyPermission(user, [
-    "license.view",
-    "license.manage",
-    "platform.view",
-  ]);
   const installId = status?.installId ?? "";
+
+  const goLoginAfterUnlock = useCallback(async () => {
+    await logout();
+    router.replace("/login");
+  }, [logout, router]);
 
   const load = useCallback(async () => {
     const res = await getApi().getLicenseStatus();
     if (!res.ok) {
       setError(res.error);
       setStatus(null);
-      return;
+      return res;
     }
     setStatus(res.data);
     if (res.data.allowed) {
-      router.replace("/dashboard");
+      setOkMsg("Pro is active. Opening login…");
+      await goLoginAfterUnlock();
     }
-  }, [router]);
+    return res;
+  }, [goLoginAfterUnlock]);
 
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
 
   useEffect(() => {
-    if (hydrated && !user) {
-      router.replace("/login");
-      return;
-    }
-    if (user) void load();
-  }, [hydrated, user, router, load]);
+    void load();
+  }, [load]);
 
   const onCopy = async () => {
     if (!installId) return;
@@ -75,23 +65,38 @@ export default function ActivatePage() {
     setBusy(true);
     setError("");
     setOkMsg("");
-    await load();
+    const res = await load();
     setBusy(false);
-    const res = await getApi().getLicenseStatus();
-    if (res.ok && res.data.allowed) {
-      setOkMsg("Pro activated — opening dashboard…");
-      router.replace("/dashboard");
-    } else {
-      setOkMsg("Not activated yet. After the vendor activates this Install ID, tap Check again.");
+    if (res && res.ok && !res.data.allowed) {
+      setOkMsg("Still locked. Paste the activation code your vendor sent, then tap Activate.");
     }
   };
 
-  const onLogout = async () => {
-    await logout();
-    router.replace("/login");
+  const onApplyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activationCode.trim()) {
+      setError("Paste the activation code from your vendor");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setOkMsg("");
+    const res = await getApi().applyActivationCode(activationCode.trim());
+    setBusy(false);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    if (!res.data.allowed) {
+      setError("Code applied but this PC is still locked. Contact your vendor.");
+      setStatus(res.data);
+      return;
+    }
+    setOkMsg("Activated. Opening login…");
+    await goLoginAfterUnlock();
   };
 
-  if (!hydrated || !user) {
+  if (!hydrated && !status) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-[var(--text-muted)]">
         Loading…
@@ -146,8 +151,8 @@ export default function ActivatePage() {
                 Activate Pro
               </h1>
               <p className="mt-1.5 text-sm leading-relaxed text-[var(--text-muted)]">
-                Your 7-day trial has ended. Pay your vendor, then send them this Install ID
-                (WhatsApp or message) so they can activate Monthly, Yearly, or Forever.
+                Send your Install ID to the vendor. When they reply with an activation code, paste it
+                below — then use the normal login screen.
               </p>
             </div>
           </div>
@@ -172,8 +177,7 @@ export default function ActivatePage() {
               </div>
             )}
             <p className="mt-4 max-w-sm text-center text-xs leading-relaxed text-[var(--text-muted)]">
-              Scan this QR with your phone camera or Google Lens to see your Install ID. Or copy
-              the ID below and send it on WhatsApp.
+              Scan this QR or copy the Install ID and send it on WhatsApp ({VENDOR_SUPPORT.whatsappDisplay}).
             </p>
           </div>
 
@@ -200,38 +204,26 @@ export default function ActivatePage() {
               </Button>
               <Button onClick={() => void onCheck()} disabled={busy}>
                 <RefreshCw size={14} className={busy ? "animate-spin" : undefined} /> Check
-                activation
               </Button>
             </div>
-            <p className="mt-3 text-[11px] leading-relaxed text-[var(--text-muted)]">
-              After payment, send this Install ID on WhatsApp ({VENDOR_SUPPORT.whatsappDisplay}). Your
-              vendor activates Monthly / Yearly / Forever from Super Admin → Setup → License — you do
-              not type a product key.
-            </p>
           </div>
 
-          {status?.isDevBypass ? (
-            <p className="mt-4 text-xs text-[var(--accent)]">
-              Dev mode: lock is bypassed while using <code>npm run dev</code>. Use a packaged
-              install to test the real lock, or open License and use “Expire trial (test)”.
-            </p>
-          ) : null}
-
-          <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-[var(--border)] pt-5">
-            {canActivateLicense ? (
-              <Button variant="secondary" size="sm" onClick={() => router.push("/settings/license")}>
-                Setup → License
-              </Button>
-            ) : null}
-            {canViewActivated ? (
-              <Button size="sm" onClick={() => router.push("/platform/licenses")}>
-                <ShieldCheck size={14} /> Activated list
-              </Button>
-            ) : null}
-            <Button variant="ghost" size="sm" className="ms-auto" onClick={() => void onLogout()}>
-              <LogOut size={14} /> Logout
+          <form
+            onSubmit={(e) => void onApplyCode(e)}
+            className="mt-5 space-y-3 rounded-xl border border-[var(--border)] bg-[var(--bg)]/50 p-4"
+          >
+            <div className="text-sm font-semibold">Activation code from vendor</div>
+            <Input
+              label="Paste code"
+              value={activationCode}
+              onChange={(e) => setActivationCode(e.target.value)}
+              placeholder="ASP1.…"
+              autoComplete="off"
+            />
+            <Button type="submit" disabled={busy || !activationCode.trim()}>
+              Activate with code
             </Button>
-          </div>
+          </form>
         </div>
       </div>
     </div>

@@ -22,9 +22,14 @@ export default function SettingsPage() {
     currency_code: "PKR",
     tax_mode: "exclusive",
     receipt_footer: "",
+    n8n_enabled: "0",
+    n8n_webhook_url: "",
+    n8n_payment_days_before: "3",
+    n8n_min_due_amount: "1",
   });
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
+  const [n8nBusy, setN8nBusy] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [saving, setSaving] = useState(false);
@@ -39,6 +44,10 @@ export default function SettingsPage() {
       currency_code: map.currency_code ?? "PKR",
       tax_mode: map.tax_mode ?? "exclusive",
       receipt_footer: map.receipt_footer ?? "",
+      n8n_enabled: map.n8n_enabled === "1" ? "1" : "0",
+      n8n_webhook_url: map.n8n_webhook_url ?? "",
+      n8n_payment_days_before: map.n8n_payment_days_before || "3",
+      n8n_min_due_amount: map.n8n_min_due_amount || "1",
     });
     setLogoPreview(map.shop_logo_data_url || null);
   };
@@ -130,6 +139,40 @@ export default function SettingsPage() {
     applyMap(res.data);
     setSuccess("Shop logo removed");
     void loadAudit();
+  };
+
+  const onN8nFlush = async () => {
+    setN8nBusy(true);
+    setError("");
+    setSuccess("");
+    const res = await getApi().flushN8nQueue();
+    setN8nBusy(false);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    setSuccess(
+      `n8n: enqueued ${res.data.enqueued}, sent ${res.data.sent}, remaining ${res.data.remaining}${
+        res.data.error ? ` (${res.data.error})` : ""
+      }`
+    );
+  };
+
+  const onN8nTest = async () => {
+    setN8nBusy(true);
+    setError("");
+    setSuccess("");
+    const res = await getApi().testN8nWebhook(form.shop_phone || null);
+    setN8nBusy(false);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    setSuccess(
+      `Test webhook: sent ${res.data.sent}, remaining ${res.data.remaining}${
+        res.data.error ? ` — ${res.data.error}` : ""
+      }`
+    );
   };
 
   return (
@@ -278,6 +321,50 @@ export default function SettingsPage() {
               onChange={(e) => setForm((f) => ({ ...f, receipt_footer: e.target.value }))}
             />
           </div>
+
+          <div className="sm:col-span-2 border-t border-[var(--border)] pt-4 text-sm font-semibold">
+            n8n WhatsApp automation
+          </div>
+          <p className="sm:col-span-2 -mt-2 text-xs text-[var(--text-muted)]">
+            App + activation codes work offline. WhatsApp sends need internet. If offline, messages
+            queue and send when you are online (app start + every 6 hours, or tap Flush now).
+          </p>
+          <Select
+            label="n8n enabled"
+            value={form.n8n_enabled}
+            onChange={(e) => setForm((f) => ({ ...f, n8n_enabled: e.target.value }))}
+            options={[
+              { value: "0", label: "Off" },
+              { value: "1", label: "On" },
+            ]}
+          />
+          <Input
+            label="Remind license (days before expiry)"
+            value={form.n8n_payment_days_before}
+            onChange={(e) => setForm((f) => ({ ...f, n8n_payment_days_before: e.target.value }))}
+          />
+          <div className="sm:col-span-2">
+            <Input
+              label="n8n webhook URL"
+              value={form.n8n_webhook_url}
+              onChange={(e) => setForm((f) => ({ ...f, n8n_webhook_url: e.target.value }))}
+              placeholder="https://your-n8n…/webhook/…"
+            />
+          </div>
+          <Input
+            label="Min customer due (Rs) to remind"
+            value={form.n8n_min_due_amount}
+            onChange={(e) => setForm((f) => ({ ...f, n8n_min_due_amount: e.target.value }))}
+          />
+          <div className="flex flex-wrap items-end gap-2">
+            <Button type="button" variant="secondary" disabled={n8nBusy} onClick={() => void onN8nTest()}>
+              {n8nBusy ? "…" : "Send test"}
+            </Button>
+            <Button type="button" variant="ghost" disabled={n8nBusy} onClick={() => void onN8nFlush()}>
+              Flush / scan now
+            </Button>
+          </div>
+
           <div className="sm:col-span-2">
             <Button type="submit" disabled={saving}>
               {saving ? "Saving…" : "Save settings"}

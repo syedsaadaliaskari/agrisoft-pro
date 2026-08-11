@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Languages, Moon, Sun } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 import { useTheme } from "@/lib/theme";
-import { isElectron } from "@/lib/api";
+import { getApi, isElectron } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n/types";
 
@@ -20,6 +20,7 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [welcome, setWelcome] = useState(false);
   const [welcomeLine, setWelcomeLine] = useState(0);
+  const [licenseChecked, setLicenseChecked] = useState(false);
 
   const welcomeLines = useMemo(
     () => [t("login.welcome1"), t("login.welcome2"), t("login.welcome3")],
@@ -31,13 +32,30 @@ export default function LoginPage() {
   }, [hydrate]);
 
   useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const res = await getApi().getLicenseStatus();
+      if (cancelled) return;
+      if (res.ok && !res.data.allowed) {
+        router.replace("/activate");
+        return;
+      }
+      setLicenseChecked(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  useEffect(() => {
+    if (!licenseChecked) return;
     if (hydrated && user && !welcome) {
       setWelcome(true);
       const dest = user.mustChangePassword ? "/settings/password" : "/dashboard";
       const timer = setTimeout(() => router.replace(dest), 700);
       return () => clearTimeout(timer);
     }
-  }, [hydrated, user, router, welcome]);
+  }, [hydrated, user, router, welcome, licenseChecked]);
 
   useEffect(() => {
     if (!welcome && !submitting && !loading) return;
@@ -62,8 +80,20 @@ export default function LoginPage() {
     setSubmitting(true);
     setWelcome(true);
     try {
+      const license = await getApi().getLicenseStatus();
+      if (license.ok && !license.data.allowed) {
+        setWelcome(false);
+        router.replace("/activate");
+        return;
+      }
       const result = await login(username.trim(), password);
       if (result.ok) {
+        const again = await getApi().getLicenseStatus();
+        if (again.ok && !again.data.allowed) {
+          setWelcome(false);
+          router.replace("/activate");
+          return;
+        }
         await new Promise((r) => setTimeout(r, 650));
         router.replace(result.user.mustChangePassword ? "/settings/password" : "/dashboard");
       } else {
@@ -75,7 +105,15 @@ export default function LoginPage() {
     }
   };
 
-  const busy = loading || submitting || welcome;
+  const busy = loading || submitting || welcome || !licenseChecked;
+
+  if (!licenseChecked) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-sm text-[var(--text-muted)]">
+        {t("common.starting")}
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4">

@@ -439,6 +439,7 @@ CREATE TABLE IF NOT EXISTS licenses (
   activated_at TEXT NOT NULL,
   expires_at TEXT,
   notes TEXT,
+  phone TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -466,6 +467,11 @@ export async function initDatabase(): Promise<Db> {
   sqlite.pragma("journal_mode = WAL");
 
   applyBootstrapSchema(sqlite);
+  try {
+    sqlite.exec("ALTER TABLE licenses ADD COLUMN phone TEXT");
+  } catch {
+    // column already exists
+  }
 
   db = drizzle(sqlite, { schema });
 

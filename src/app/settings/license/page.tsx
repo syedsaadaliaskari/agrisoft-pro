@@ -6,20 +6,25 @@ import { Copy, KeyRound, Plus } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Alert, Button, Input, Select } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
+import { useAuthStore } from "@/store/auth";
 import type { LicensePlan, LicenseStatus } from "@shared/ipc";
 
 export default function LicenseInfoPage() {
   const router = useRouter();
+  const logout = useAuthStore((s) => s.logout);
   const [status, setStatus] = useState<LicenseStatus | null>(null);
   const [error, setError] = useState("");
   const [okMsg, setOkMsg] = useState("");
   const [copied, setCopied] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [lastCode, setLastCode] = useState("");
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     name: "",
     installId: "",
     plan: "forever" as LicensePlan,
     notes: "",
+    phone: "",
   });
 
   const load = useCallback(async () => {
@@ -48,30 +53,47 @@ export default function LicenseInfoPage() {
     }
   };
 
+  const onCopyCode = async () => {
+    if (!lastCode) return;
+    try {
+      await navigator.clipboard.writeText(lastCode);
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 1500);
+    } catch {
+      setError("Could not copy activation code");
+    }
+  };
+
   const onCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setError("");
     setOkMsg("");
+    setLastCode("");
     const res = await getApi().createLicense({
       name: form.name,
       installId: form.installId,
       plan: form.plan,
       notes: form.notes || null,
+      phone: form.phone || null,
     });
     setSaving(false);
     if (!res.ok) {
       setError(res.error);
       return;
     }
-    setOkMsg(`Activated ${res.data.plan} for ${res.data.name} (${res.data.installId})`);
-    setForm({ name: "", installId: "", plan: "forever", notes: "" });
+    setLastCode(res.data.activationCode);
+    setOkMsg(
+      `Activated ${res.data.plan} for ${res.data.name}. Copy the activation code (and n8n will WhatsApp it if enabled + online).`
+    );
+    setForm({ name: "", installId: "", plan: "forever", notes: "", phone: "" });
     await load();
   };
 
-  const goToLockScreenIfNeeded = (next: LicenseStatus) => {
+  const forceQrLockScreen = async (next: LicenseStatus) => {
     setStatus(next);
     if (!next.allowed) {
+      await logout();
       router.replace("/activate");
     }
   };
@@ -84,7 +106,6 @@ export default function LicenseInfoPage() {
       setError(res.error);
       return;
     }
-    // If Pro is still active, expire-trial alone will not lock — say so clearly.
     if (res.data.allowed) {
       setOkMsg(
         `Trial date expired, but Status is still ${res.data.mode === "pro" ? "Pro" : "open"}. Use “Stop access now” to remove Pro and show the QR lock screen.`
@@ -93,13 +114,13 @@ export default function LicenseInfoPage() {
       return;
     }
     setOkMsg("Locked — opening Activate Pro (QR)…");
-    goToLockScreenIfNeeded(res.data);
+    await forceQrLockScreen(res.data);
   };
 
   const onLockNow = async () => {
     if (
       !confirm(
-        "Stop access on THIS PC now?\n\nRemoves Pro for this Install ID and shows the Activate / QR lock screen immediately. You can unlock later by activating again."
+        "Stop access on THIS PC now?\n\nRemoves Pro for this Install ID and shows the Activate / QR lock screen immediately. Unlock later by sending yourself a fresh activation code from another Super Admin PC, or activate again before locking."
       )
     ) {
       return;
@@ -111,7 +132,7 @@ export default function LicenseInfoPage() {
       return;
     }
     setOkMsg("Access stopped. Opening lock screen…");
-    goToLockScreenIfNeeded(res.data);
+    await forceQrLockScreen(res.data);
   };
 
   const modeLabel =
@@ -124,7 +145,7 @@ export default function LicenseInfoPage() {
   return (
     <AppShell
       title="License"
-      subtitle="Your Install ID and activate companies"
+      subtitle="Activate companies and send them an activation code"
       permission="license.manage"
     >
       {error ? (
@@ -146,8 +167,8 @@ export default function LicenseInfoPage() {
           </div>
           <h2 className="mt-2 text-lg font-semibold">Install ID</h2>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
-            Copy this ID when you need it. Paste it into the form below only when you want to activate
-            this PC (or paste a customer&apos;s ID to activate them).
+            Customer sends their Install ID. You activate below, then WhatsApp them the activation
+            code. They paste it on the lock screen — no passwords.
           </p>
           <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--bg-soft)]/60 px-3 py-3 font-mono text-sm font-semibold">
             {status?.installId ?? "…"}
@@ -166,11 +187,6 @@ export default function LicenseInfoPage() {
               Stop access now
             </Button>
           </div>
-          <p className="mt-3 text-xs leading-relaxed text-[var(--text-muted)]">
-            <span className="font-medium text-[var(--text)]">Stop access now</span> removes Pro on
-            this PC immediately (half payment, unpaid balance, testing). You do not wait for month
-            end. Locked users see the Activate Pro screen with Install ID QR.
-          </p>
           <div className="mt-4 space-y-1 text-sm text-[var(--text-muted)]">
             <div>
               <span className="font-medium text-[var(--text)]">Status: </span>
@@ -199,8 +215,8 @@ export default function LicenseInfoPage() {
         >
           <div className="sm:col-span-2 text-sm font-semibold">Activate a company</div>
           <p className="sm:col-span-2 -mt-1 text-xs text-[var(--text-muted)]">
-            Enter company name and Install ID, choose plan, then activate. Fields stay empty until you
-            type or paste.
+            Paste their Install ID, choose plan, activate — then copy the activation code and send it
+            on WhatsApp.
           </p>
           <Input
             label="Company / name"
@@ -228,6 +244,14 @@ export default function LicenseInfoPage() {
           </div>
           <div className="sm:col-span-2">
             <Input
+              label="Customer WhatsApp (for n8n auto-send)"
+              value={form.phone}
+              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+              placeholder="92300…"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <Input
               label="Notes (optional)"
               value={form.notes}
               onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
@@ -239,6 +263,23 @@ export default function LicenseInfoPage() {
             </Button>
           </div>
         </form>
+
+        {lastCode ? (
+          <section className="max-w-3xl rounded-2xl border border-[var(--accent)]/40 bg-[var(--accent-soft)]/40 p-5">
+            <div className="text-sm font-semibold text-[var(--text)]">Activation code — send on WhatsApp</div>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              Customer pastes this on their Activate Pro screen, then uses normal login.
+            </p>
+            <div className="mt-3 break-all rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-3 font-mono text-xs leading-relaxed">
+              {lastCode}
+            </div>
+            <div className="mt-3">
+              <Button variant="secondary" onClick={() => void onCopyCode()}>
+                <Copy size={14} /> {copiedCode ? "Copied" : "Copy activation code"}
+              </Button>
+            </div>
+          </section>
+        ) : null}
       </div>
     </AppShell>
   );

@@ -17,12 +17,10 @@ type Props = {
   permission?: string;
 };
 
-const LOCK_ALLOWED_PATHS = new Set(["/activate", "/settings/license", "/platform/licenses"]);
-
 export function AppShell({ title, subtitle, children, permission }: Props) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, hydrated, hydrate } = useAuthStore();
+  const { user, hydrated, hydrate, logout } = useAuthStore();
   const { t } = useI18n();
   const [licenseReady, setLicenseReady] = useState(false);
 
@@ -51,20 +49,17 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
       const res = await getApi().getLicenseStatus();
       if (cancelled) return;
       if (res.ok && !res.data.allowed) {
-        const canManageLicense =
-          hasAnyPermission(user, ["license.manage", "license.view", "platform.view"]) &&
-          LOCK_ALLOWED_PATHS.has(path);
-        if (!canManageLicense && path !== "/activate" && path !== "/settings/password") {
-          router.replace("/activate");
-          return;
-        }
+        // Hard lock: no app screens at all — QR gate only (after logout).
+        await logout();
+        router.replace("/activate");
+        return;
       }
       setLicenseReady(true);
     })();
     return () => {
       cancelled = true;
     };
-  }, [user, path, router]);
+  }, [user, path, router, logout]);
 
   useEffect(() => {
     if (!user?.mustChangePassword) return;
@@ -101,7 +96,7 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
 
   if (!user) return null;
 
-  if (!licenseReady && path !== "/activate") {
+  if (!licenseReady) {
     return <AppShellSkeleton />;
   }
 
