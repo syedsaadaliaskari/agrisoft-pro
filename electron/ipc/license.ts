@@ -13,6 +13,7 @@ import {
   expireTrialNow,
   getLicenseStatus,
   listLicenses,
+  lockThisInstallNow,
 } from "../db/license";
 import { PermissionError, requireAnyPermission } from "./session";
 
@@ -76,5 +77,11 @@ export function registerLicenseHandlers(isDev: boolean): void {
       expireTrialNow(getDb());
       return getLicenseStatus(getDb(), isDevFlag);
     })
+  );
+
+  ipcMain.handle(IPC.LICENSE_LOCK_NOW, async (): Promise<ActionResult<LicenseStatus>> =>
+    guarded(() => requireAnyPermission("license.manage", "platform.view"), async () =>
+      lockThisInstallNow(getDb())
+    )
   );
 }

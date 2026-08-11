@@ -93,7 +93,7 @@
       "target": [
         "nsis"
       ],
-      "icon": "build/icon.png"
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
@@ -102,8 +102,8 @@
       "createStartMenuShortcut": true,
       "shortcutName": "Agri Soft Pro",
       "uninstallDisplayName": "Agri Soft Pro",
-      "installerIcon": "build/icon.png",
-      "uninstallerIcon": "build/icon.png"
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
     }
   }
 }

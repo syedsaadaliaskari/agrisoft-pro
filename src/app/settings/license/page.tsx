@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Copy, KeyRound, Plus } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Alert, Button, Input, Select } from "@/components/ui/form";
@@ -8,6 +9,7 @@ import { getApi } from "@/lib/api";
 import type { LicensePlan, LicenseStatus } from "@shared/ipc";
 
 export default function LicenseInfoPage() {
+  const router = useRouter();
   const [status, setStatus] = useState<LicenseStatus | null>(null);
   const [error, setError] = useState("");
   const [okMsg, setOkMsg] = useState("");
@@ -67,6 +69,13 @@ export default function LicenseInfoPage() {
     await load();
   };
 
+  const goToLockScreenIfNeeded = (next: LicenseStatus) => {
+    setStatus(next);
+    if (!next.allowed) {
+      router.replace("/activate");
+    }
+  };
+
   const onExpireTrial = async () => {
     if (!confirm("Set trial as expired for THIS install? (for testing lock screen)")) return;
     setError("");
@@ -75,8 +84,34 @@ export default function LicenseInfoPage() {
       setError(res.error);
       return;
     }
-    setOkMsg("Trial expired for testing. Activate Pro with this Install ID to unlock again.");
-    setStatus(res.data);
+    // If Pro is still active, expire-trial alone will not lock — say so clearly.
+    if (res.data.allowed) {
+      setOkMsg(
+        `Trial date expired, but Status is still ${res.data.mode === "pro" ? "Pro" : "open"}. Use “Stop access now” to remove Pro and show the QR lock screen.`
+      );
+      setStatus(res.data);
+      return;
+    }
+    setOkMsg("Locked — opening Activate Pro (QR)…");
+    goToLockScreenIfNeeded(res.data);
+  };
+
+  const onLockNow = async () => {
+    if (
+      !confirm(
+        "Stop access on THIS PC now?\n\nRemoves Pro for this Install ID and shows the Activate / QR lock screen immediately. You can unlock later by activating again."
+      )
+    ) {
+      return;
+    }
+    setError("");
+    const res = await getApi().lockThisInstallNow();
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    setOkMsg("Access stopped. Opening lock screen…");
+    goToLockScreenIfNeeded(res.data);
   };
 
   const modeLabel =
@@ -127,7 +162,15 @@ export default function LicenseInfoPage() {
             <Button type="button" variant="secondary" onClick={() => void onExpireTrial()}>
               Expire trial (test)
             </Button>
+            <Button type="button" variant="danger" onClick={() => void onLockNow()}>
+              Stop access now
+            </Button>
           </div>
+          <p className="mt-3 text-xs leading-relaxed text-[var(--text-muted)]">
+            <span className="font-medium text-[var(--text)]">Stop access now</span> removes Pro on
+            this PC immediately (half payment, unpaid balance, testing). You do not wait for month
+            end. Locked users see the Activate Pro screen with Install ID QR.
+          </p>
           <div className="mt-4 space-y-1 text-sm text-[var(--text-muted)]">
             <div>
               <span className="font-medium text-[var(--text)]">Status: </span>

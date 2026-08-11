@@ -218,11 +218,34 @@ export function createLicense(
 }
 
 export function deleteLicense(db: Db, id: string): void {
+  const row = db.select().from(licenses).where(eq(licenses.id, id)).get();
   db.delete(licenses).where(eq(licenses.id, id)).run();
+  // If we removed Pro for THIS PC and nothing else covers it, lock immediately
+  // (do not wait for trial days or month end).
+  if (row) {
+    const { installId } = ensureInstallIdentity(db);
+    if (row.installId === installId && !findActiveLicense(db, installId)) {
+      expireTrialNow(db);
+    }
+  }
 }
 
 /** Testing helper: set install date so trial is already over. */
 export function expireTrialNow(db: Db): void {
   ensureInstallIdentity(db);
   setSetting(db, "license_installed_at", addDaysIso(todayIsoDate(), -(TRIAL_DAYS + 1)));
+}
+
+/**
+ * Immediately lock THIS install: remove its Pro rows and end trial.
+ * Does not affect other Install IDs stored in the activated list.
+ */
+export function lockThisInstallNow(db: Db): LicenseStatus {
+  const { installId } = ensureInstallIdentity(db);
+  const rows = db.select().from(licenses).where(eq(licenses.installId, installId)).all();
+  for (const row of rows) {
+    db.delete(licenses).where(eq(licenses.id, row.id)).run();
+  }
+  expireTrialNow(db);
+  return getLicenseStatus(db, false);
 }

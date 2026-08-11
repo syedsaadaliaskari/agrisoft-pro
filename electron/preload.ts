@@ -145,6 +145,7 @@ const api: ElectronAPI = {
   createLicense: (input) => ipcRenderer.invoke(IPC.LICENSE_CREATE, input),
   deleteLicense: (id) => ipcRenderer.invoke(IPC.LICENSE_DELETE, id),
   expireTrialForTesting: () => ipcRenderer.invoke(IPC.LICENSE_EXPIRE_TRIAL),
+  lockThisInstallNow: () => ipcRenderer.invoke(IPC.LICENSE_LOCK_NOW),
 };
 
 contextBridge.exposeInMainWorld("api", api);

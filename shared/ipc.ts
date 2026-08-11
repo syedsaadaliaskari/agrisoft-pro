@@ -159,6 +159,7 @@ export const IPC = {
   LICENSE_CREATE: "license:create",
   LICENSE_DELETE: "license:delete",
   LICENSE_EXPIRE_TRIAL: "license:expireTrial",
+  LICENSE_LOCK_NOW: "license:lockNow",
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
@@ -1402,6 +1403,7 @@ export type ElectronAPI = {
   createLicense: (input: LicenseCreateInput) => Promise<ActionResult<LicenseRow>>;
   deleteLicense: (id: string) => Promise<ActionResult>;
   expireTrialForTesting: () => Promise<ActionResult<LicenseStatus>>;
+  lockThisInstallNow: () => Promise<ActionResult<LicenseStatus>>;
 };
 
 declare global {
