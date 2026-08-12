@@ -10,7 +10,7 @@ import {
 } from "../../shared/ipc";
 import { getDb } from "../db";
 import { clientCompanies } from "../db/schema";
-import { requirePermission, requireAnyPermission, PermissionError } from "./session";
+import { requireAnyPermission, PermissionError } from "./session";
 
 function ok<T>(data: T): ActionResult<T> {
   return { ok: true, data };
@@ -64,7 +64,7 @@ export function registerCompanyHandlers(): void {
   registerHandler(
     IPC.COMPANIES_CREATE,
     async (_e, input: ClientCompanyInput): Promise<ActionResult<ClientCompany>> =>
-      guarded(() => requireAnyPermission("license.manage", "license.view", "platform.view"), async () => {
+      guarded(() => requireAnyPermission("license.manage", "platform.view"), async () => {
         const companyName = input.companyName?.trim();
         const area = input.area?.trim();
         const joinedAt = input.joinedAt?.trim();
@@ -94,7 +94,7 @@ export function registerCompanyHandlers(): void {
   registerHandler(
     IPC.COMPANIES_UPDATE,
     async (_e, id: string, input: ClientCompanyInput): Promise<ActionResult<ClientCompany>> =>
-      guarded(() => requireAnyPermission("license.manage", "license.view", "platform.view"), async () => {
+      guarded(() => requireAnyPermission("license.manage", "platform.view"), async () => {
         const companyName = input.companyName?.trim();
         const area = input.area?.trim();
         const joinedAt = input.joinedAt?.trim();
@@ -123,7 +123,7 @@ export function registerCompanyHandlers(): void {
   );
 
   registerHandler(IPC.COMPANIES_DELETE, async (_e, id: string): Promise<ActionResult> =>
-    guarded(() => requireAnyPermission("license.manage", "license.view", "platform.view"), async () => {
+    guarded(() => requireAnyPermission("license.manage", "platform.view"), async () => {
       const db = getDb();
       const current = db.select().from(clientCompanies).where(eq(clientCompanies.id, id)).get();
       if (!current) return fail("Company not found");

@@ -97,8 +97,21 @@ export default function DashboardPage() {
 
     if (isPlatform) {
       const [list, dem] = await Promise.all([api.listClientCompanies(), api.getCompaniesDemand()]);
-      if (list.ok) setCompanies(list.data);
-      if (dem.ok) setDemand(dem.data);
+      if (!list.ok) {
+        setError((prev) => prev || list.error);
+        setCompanies([]);
+      } else {
+        setCompanies(list.data);
+      }
+      if (!dem.ok) {
+        setError((prev) => prev || dem.error);
+        setDemand(null);
+      } else {
+        setDemand(dem.data);
+      }
+    } else {
+      setCompanies([]);
+      setDemand(null);
     }
     setLoading(false);
   }, [isPlatform]);

@@ -28,6 +28,7 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
   const meta = PAGE_META[path];
   const displayTitle = meta ? t(meta.title) : title;
   const displaySubtitle = meta?.subtitle ? t(meta.subtitle) : subtitle;
+  const isSuperAdmin = user?.roleName === "Super Admin";
 
   useEffect(() => {
     void hydrate();
@@ -46,15 +47,18 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
     }
     let cancelled = false;
     void (async () => {
-      const res = await getApi().getLicenseStatus();
-      if (cancelled) return;
-      if (res.ok && !res.data.allowed) {
-        // Hard lock: no app screens at all — QR gate only (after logout).
-        await logout();
-        router.replace("/activate");
-        return;
+      try {
+        const res = await getApi().getLicenseStatus();
+        if (cancelled) return;
+        if (res.ok && !res.data.allowed) {
+          await logout();
+          router.replace("/activate");
+          return;
+        }
+      } catch {
+        /* status unavailable (e.g. LAN down) — still open the app shell */
       }
-      setLicenseReady(true);
+      if (!cancelled) setLicenseReady(true);
     })();
     return () => {
       cancelled = true;
@@ -70,6 +74,8 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
       "/products",
       "/customers",
       "/reports/sales",
+      "/platform/licenses",
+      "/settings/license",
     ];
     for (const href of routes) {
       try {
@@ -94,10 +100,16 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
     return <AppShellSkeleton />;
   }
 
-  if (permission && !hasPermission(user, permission) && !(
-    (permission === "license.manage" && hasAnyPermission(user, ["license.manage", "platform.view"])) ||
-    (permission === "license.view" && hasAnyPermission(user, ["license.view", "platform.view", "license.manage"]))
-  )) {
+  const allowed =
+    isSuperAdmin ||
+    !permission ||
+    hasPermission(user, permission) ||
+    (permission === "license.manage" &&
+      hasAnyPermission(user, ["license.manage", "platform.view"])) ||
+    (permission === "license.view" &&
+      hasAnyPermission(user, ["license.view", "platform.view", "license.manage"]));
+
+  if (!allowed) {
     return (
       <div className="min-h-screen">
         <Sidebar />

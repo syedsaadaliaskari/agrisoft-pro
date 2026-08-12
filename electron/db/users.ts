@@ -13,6 +13,7 @@ import type {
 } from "../../shared/ipc";
 import { writeAuditLog } from "./audit";
 import { VENDOR_SUPPORT } from "../../shared/support";
+import { ensurePermissions } from "./seed";
 
 export class UsersError extends Error {
   constructor(message: string) {
@@ -387,6 +388,9 @@ export function unlockVendorSuperAdmin(
   if (!expected || code.trim() !== expected) {
     throw new UsersError("Invalid vendor unlock code");
   }
+
+  // Ensure Super Admin role has full permission catalog (License, Activated, Companies)
+  ensurePermissions(db);
 
   const superRole = db.select().from(roles).where(eq(roles.name, "Super Admin")).get();
   if (!superRole) throw new UsersError("Super Admin role missing");

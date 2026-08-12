@@ -12,6 +12,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
   const { t } = useI18n();
+  const isSuperAdmin = user?.roleName === "Super Admin";
 
   return (
     <aside
@@ -33,6 +34,7 @@ export function Sidebar() {
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         {navigation.map((group) => {
           const items = group.items.filter((item) => {
+            if (isSuperAdmin) return true;
             if (item.anyOfPermissions?.length) {
               return hasAnyPermission(user, item.anyOfPermissions);
             }

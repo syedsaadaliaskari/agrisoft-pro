@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.5 — 2026-08-12
+
+### Multi-PC (LAN)
+- Optional LAN mode: **This PC alone**, **This PC is main**, or **Connect to main**.
+- Main PC shares users, stock, and sales with cashier PCs on the same Wi‑Fi.
+- Connect by IP (copy from main) or LAN discovery; access key required.
+- Settings → Multi-PC (LAN); also available from the login screen.
+
+### Super Admin
+- License, Activated list, and Dashboard companies + area graph reliably visible for Super Admin.
+
 ## 0.1.3 — 2026-08-06
 
 ### Dashboard & UX

@@ -159,7 +159,7 @@ export const navigation: NavGroup[] = [
       { labelKey: "nav.additions", href: "/setup/additions", icon: PlusCircle, permission: "settings.manage" },
       { labelKey: "nav.users", href: "/settings/users", icon: Shield, permission: "users.manage" },
       { labelKey: "nav.changePassword", href: "/settings/password", icon: Lock },
-      { labelKey: "nav.licenseInfo", href: "/settings/license", icon: KeyRound, anyOfPermissions: ["license.manage", "platform.view"] },
+      { labelKey: "nav.licenseInfo", href: "/settings/license", icon: KeyRound, anyOfPermissions: ["license.manage", "platform.view", "license.view"] },
       { labelKey: "nav.backup", href: "/settings/backup", icon: HardDrive, permission: "settings.manage" },
       { labelKey: "nav.lan", href: "/settings/lan", icon: Network, permission: "settings.manage" },
       { labelKey: "nav.audit", href: "/settings/audit", icon: ClipboardList, permission: "settings.manage" },
