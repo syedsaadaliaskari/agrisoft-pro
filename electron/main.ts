@@ -1,10 +1,12 @@
-import { app, BrowserWindow, shell, ipcMain, protocol, dialog } from "electron";
+import { app, BrowserWindow, shell, protocol, dialog } from "electron";
 import path from "path";
 import fs from "fs";
 import { initDatabase, closeDatabase } from "./db";
 import { runAutoBackup, shouldSkipQuitAutoBackup } from "./db/backup";
 import { registerIpcHandlers } from "./ipc/handlers";
+import { registerHandler } from "./ipc/register";
 import { setupAutoUpdater } from "./updater";
+import { applyLanModeFromConfig } from "./lan";
 import { IPC, type ActionResult } from "../shared/ipc";
 
 let quitting = false;
@@ -207,16 +209,27 @@ app.whenReady().then(async () => {
   await initDatabase();
   registerIpcHandlers(app.getVersion(), isDev);
 
-  // Auto daily backup on start if today's file is missing
   try {
-    await runAutoBackup(false);
+    await applyLanModeFromConfig();
+  } catch (err) {
+    console.warn("LAN mode start failed:", err);
+  }
+
+  // Auto daily backup on start if today's file is missing (main/standalone only)
+  try {
+    const { loadLanConfig } = await import("./lan/config");
+    if (loadLanConfig().mode !== "client") {
+      await runAutoBackup(false);
+    }
   } catch (err) {
     console.warn("Auto backup on start failed:", err);
   }
 
-  // n8n WhatsApp queue: scan reminders + flush (needs internet to send)
+  // n8n WhatsApp queue: scan reminders + flush (needs internet to send) — main/standalone only
   const runN8nPass = async () => {
     try {
+      const { loadLanConfig } = await import("./lan/config");
+      if (loadLanConfig().mode === "client") return;
       const { getDb } = await import("./db");
       const { runN8nAutomationPass } = await import("./db/n8n");
       await runN8nAutomationPass(getDb());
@@ -227,14 +240,18 @@ app.whenReady().then(async () => {
   void runN8nPass();
   setInterval(() => void runN8nPass(), 6 * 60 * 60 * 1000);
 
-  ipcMain.handle(IPC.APP_PRINT_HTML, async (_event, html: string): Promise<ActionResult> => {
-    if (!html || typeof html !== "string") {
-      return { ok: false, error: "Nothing to print" };
-    }
-    return printHtmlDocument(html);
-  });
+  registerHandler(
+    IPC.APP_PRINT_HTML,
+    async (_event, html: string): Promise<ActionResult> => {
+      if (!html || typeof html !== "string") {
+        return { ok: false, error: "Nothing to print" };
+      }
+      return printHtmlDocument(html);
+    },
+    { localOnly: true }
+  );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.APP_SAVE_FILE,
     async (
       _event,
@@ -266,7 +283,8 @@ app.whenReady().then(async () => {
           error: err instanceof Error ? err.message : "Save failed",
         };
       }
-    }
+    },
+    { localOnly: true }
   );
 
   await createWindow();
@@ -289,18 +307,28 @@ app.on("window-all-closed", () => {
 app.on("before-quit", (event) => {
   if (quitting) return;
   if (shouldSkipQuitAutoBackup()) {
-    closeDatabase();
+    void import("./lan/server").then((m) => m.stopLanServer()).finally(() => {
+      closeDatabase();
+    });
     return;
   }
   event.preventDefault();
   quitting = true;
   void (async () => {
     try {
-      // Refresh today's auto backup with end-of-day data
-      await runAutoBackup(true);
+      const { loadLanConfig } = await import("./lan/config");
+      if (loadLanConfig().mode !== "client") {
+        await runAutoBackup(true);
+      }
     } catch (err) {
       console.warn("Auto backup on quit failed:", err);
     } finally {
+      try {
+        const { stopLanServer } = await import("./lan/server");
+        await stopLanServer();
+      } catch {
+        /* ignore */
+      }
       closeDatabase();
       app.exit(0);
     }

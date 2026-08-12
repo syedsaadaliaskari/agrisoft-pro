@@ -28,6 +28,7 @@ import {
   HardDrive,
   KeyRound,
   Lock,
+  Network,
   type LucideIcon,
 } from "lucide-react";
 
@@ -160,6 +161,7 @@ export const navigation: NavGroup[] = [
       { labelKey: "nav.changePassword", href: "/settings/password", icon: Lock },
       { labelKey: "nav.licenseInfo", href: "/settings/license", icon: KeyRound, anyOfPermissions: ["license.manage", "platform.view"] },
       { labelKey: "nav.backup", href: "/settings/backup", icon: HardDrive, permission: "settings.manage" },
+      { labelKey: "nav.lan", href: "/settings/lan", icon: Network, permission: "settings.manage" },
       { labelKey: "nav.audit", href: "/settings/audit", icon: ClipboardList, permission: "settings.manage" },
       { labelKey: "nav.settings", href: "/settings", icon: Settings, permission: "settings.manage" },
     ],

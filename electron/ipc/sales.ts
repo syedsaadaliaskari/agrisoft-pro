@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { registerHandler } from "./register";
 import { and, asc, desc, eq, ne } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import {
@@ -203,7 +203,7 @@ function insertEntry(
 }
 
 export function registerSalesHandlers(): void {
-  ipcMain.handle(IPC.SALES_LIST, async (): Promise<ActionResult<Sale[]>> =>
+  registerHandler(IPC.SALES_LIST, async (): Promise<ActionResult<Sale[]>> =>
     guarded(() => requirePermission("sales.view"), async () => {
       const rows = getDb()
         .select({ id: sales.id })
@@ -215,7 +215,7 @@ export function registerSalesHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.SALES_GET, async (_e, id: string): Promise<ActionResult<Sale>> =>
+  registerHandler(IPC.SALES_GET, async (_e, id: string): Promise<ActionResult<Sale>> =>
     guarded(() => requirePermission("sales.view"), async () => {
       const sale = enrichSale(id, true);
       if (!sale || sale.status === "deleted") return fail("Sale not found");
@@ -223,7 +223,7 @@ export function registerSalesHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.SALES_LIST_BY_CUSTOMER, async (_e, customerId: string): Promise<ActionResult<Sale[]>> =>
+  registerHandler(IPC.SALES_LIST_BY_CUSTOMER, async (_e, customerId: string): Promise<ActionResult<Sale[]>> =>
     guarded(() => requirePermission("sales.view"), async () => {
       const rows = getDb()
         .select({ id: sales.id })
@@ -235,7 +235,7 @@ export function registerSalesHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.SALES_CREATE, async (_e, input: CreateSaleInput): Promise<ActionResult<Sale>> =>
+  registerHandler(IPC.SALES_CREATE, async (_e, input: CreateSaleInput): Promise<ActionResult<Sale>> =>
     guarded(() => requirePermission("sales.create"), async () => {
       if (!input.items?.length) return fail("Add at least one line item");
       if (!input.invoiceDate?.trim()) return fail("Invoice date is required");
@@ -477,7 +477,7 @@ export function registerSalesHandlers(): void {
     })
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.SALES_UPDATE,
     async (_e, id: string, input: CreateSaleInput): Promise<ActionResult<Sale>> =>
       guarded(() => requirePermission("sales.create"), async () => {
@@ -741,7 +741,7 @@ export function registerSalesHandlers(): void {
       })
   );
 
-  ipcMain.handle(IPC.SALES_DELETE, async (_e, id: string): Promise<ActionResult> =>
+  registerHandler(IPC.SALES_DELETE, async (_e, id: string): Promise<ActionResult> =>
     guarded(() => requirePermission("sales.create"), async () => {
       const db = getDb();
       const session = getCurrentSession();
@@ -807,7 +807,7 @@ export function registerSalesHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.SALE_RETURNS_LIST, async (): Promise<ActionResult<SaleReturn[]>> =>
+  registerHandler(IPC.SALE_RETURNS_LIST, async (): Promise<ActionResult<SaleReturn[]>> =>
     guarded(() => requirePermission("sales.return"), async () => {
       const rows = getDb()
         .select({ id: saleReturns.id })
@@ -818,7 +818,7 @@ export function registerSalesHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.SALE_RETURNS_GET, async (_e, id: string): Promise<ActionResult<SaleReturn>> =>
+  registerHandler(IPC.SALE_RETURNS_GET, async (_e, id: string): Promise<ActionResult<SaleReturn>> =>
     guarded(() => requirePermission("sales.return"), async () => {
       const doc = enrichSaleReturn(id, true);
       if (!doc) return fail("Sale return not found");
@@ -826,7 +826,7 @@ export function registerSalesHandlers(): void {
     })
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.SALE_RETURNS_CREATE,
     async (_e, input: CreateSaleReturnInput): Promise<ActionResult<SaleReturn>> =>
       guarded(() => requirePermission("sales.return"), async () => {

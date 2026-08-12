@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { registerHandler } from "./register";
 import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import {
@@ -152,7 +152,7 @@ function validateBalanced(entries: { debit: number; credit: number }[]) {
 }
 
 export function registerLedgerHandlers(): void {
-  ipcMain.handle(IPC.VOUCHERS_POST, async (_e, input: PostVoucherInput): Promise<ActionResult<Voucher>> =>
+  registerHandler(IPC.VOUCHERS_POST, async (_e, input: PostVoucherInput): Promise<ActionResult<Voucher>> =>
     guarded(() => requirePermission("transactions.create"), async () => {
       if (!input.entries?.length) return fail("Entries required");
       validateBalanced(input.entries);
@@ -214,7 +214,7 @@ export function registerLedgerHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.VOUCHERS_GET, async (_e, id: string): Promise<ActionResult<Voucher>> =>
+  registerHandler(IPC.VOUCHERS_GET, async (_e, id: string): Promise<ActionResult<Voucher>> =>
     guarded(() => requirePermission("transactions.view"), async () => {
       const v = enrichVoucher(id);
       if (!v) return fail("Voucher not found");
@@ -222,7 +222,7 @@ export function registerLedgerHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.VOUCHERS_LIST, async (_e, filter?: VoucherListFilter): Promise<ActionResult<Voucher[]>> =>
+  registerHandler(IPC.VOUCHERS_LIST, async (_e, filter?: VoucherListFilter): Promise<ActionResult<Voucher[]>> =>
     guarded(() => requirePermission("transactions.create"), async () => {
       const db = getDb();
       const types = filter?.voucherType
@@ -242,7 +242,7 @@ export function registerLedgerHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.VOUCHERS_CANCEL, async (_e, id: string): Promise<ActionResult> =>
+  registerHandler(IPC.VOUCHERS_CANCEL, async (_e, id: string): Promise<ActionResult> =>
     guarded(() => requirePermission("transactions.create"), async () => {
       const db = getDb();
       const row = db.select().from(vouchers).where(eq(vouchers.id, id)).get();
@@ -256,7 +256,7 @@ export function registerLedgerHandlers(): void {
     })
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.VOUCHERS_UPDATE,
     async (_e, id: string, input: PostVoucherInput): Promise<ActionResult<Voucher>> =>
       guarded(() => requirePermission("transactions.create"), async () => {
@@ -309,7 +309,7 @@ export function registerLedgerHandlers(): void {
       })
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.LEDGER_ACCOUNT,
     async (_e, accountId: string, query?: LedgerQuery): Promise<ActionResult<AccountLedger>> =>
       guarded(() => requirePermission("ledgers.view"), async () => {
@@ -352,7 +352,7 @@ export function registerLedgerHandlers(): void {
       })
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.LEDGER_PARTY,
     async (
       _e,
@@ -477,7 +477,7 @@ export function registerLedgerHandlers(): void {
       })
   );
 
-  ipcMain.handle(IPC.TX_RECEIVE, async (_e, input: ReceivePaymentInput): Promise<ActionResult<Voucher>> =>
+  registerHandler(IPC.TX_RECEIVE, async (_e, input: ReceivePaymentInput): Promise<ActionResult<Voucher>> =>
     guarded(() => requirePermission("transactions.create"), async () => {
       const amount = money(Number(input.amount));
       if (amount <= 0) return fail("Amount must be positive");
@@ -523,7 +523,7 @@ export function registerLedgerHandlers(): void {
     })
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.TX_RECEIVE_UPDATE,
     async (_e, id: string, input: ReceivePaymentInput): Promise<ActionResult<Voucher>> =>
       guarded(() => requirePermission("transactions.create"), async () => {
@@ -571,7 +571,7 @@ export function registerLedgerHandlers(): void {
       })
   );
 
-  ipcMain.handle(IPC.TX_PAY, async (_e, input: MakePaymentInput): Promise<ActionResult<Voucher>> =>
+  registerHandler(IPC.TX_PAY, async (_e, input: MakePaymentInput): Promise<ActionResult<Voucher>> =>
     guarded(() => requirePermission("transactions.create"), async () => {
       const amount = money(Number(input.amount));
       if (amount <= 0) return fail("Amount must be positive");
@@ -617,7 +617,7 @@ export function registerLedgerHandlers(): void {
     })
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.TX_PAY_UPDATE,
     async (_e, id: string, input: MakePaymentInput): Promise<ActionResult<Voucher>> =>
       guarded(() => requirePermission("transactions.create"), async () => {
@@ -665,7 +665,7 @@ export function registerLedgerHandlers(): void {
       })
   );
 
-  ipcMain.handle(IPC.TX_EXPENSE, async (_e, input: ExpenseVoucherInput): Promise<ActionResult<Voucher>> =>
+  registerHandler(IPC.TX_EXPENSE, async (_e, input: ExpenseVoucherInput): Promise<ActionResult<Voucher>> =>
     guarded(() => requirePermission("transactions.create"), async () => {
       const amount = money(Number(input.amount));
       if (amount <= 0) return fail("Amount must be positive");
@@ -710,7 +710,7 @@ export function registerLedgerHandlers(): void {
     })
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.TX_EXPENSE_UPDATE,
     async (_e, id: string, input: ExpenseVoucherInput): Promise<ActionResult<Voucher>> =>
       guarded(() => requirePermission("transactions.create"), async () => {
@@ -757,7 +757,7 @@ export function registerLedgerHandlers(): void {
       })
   );
 
-  ipcMain.handle(IPC.TX_INCOME, async (_e, input: IncomeVoucherInput): Promise<ActionResult<Voucher>> =>
+  registerHandler(IPC.TX_INCOME, async (_e, input: IncomeVoucherInput): Promise<ActionResult<Voucher>> =>
     guarded(() => requirePermission("transactions.create"), async () => {
       const amount = money(Number(input.amount));
       if (amount <= 0) return fail("Amount must be positive");
@@ -802,7 +802,7 @@ export function registerLedgerHandlers(): void {
     })
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.TX_INCOME_UPDATE,
     async (_e, id: string, input: IncomeVoucherInput): Promise<ActionResult<Voucher>> =>
       guarded(() => requirePermission("transactions.create"), async () => {

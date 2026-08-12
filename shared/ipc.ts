@@ -1,3 +1,11 @@
+import type {
+  LanConfigUpdateInput,
+  LanDiscoveredServer,
+  LanRuntimeStatus,
+} from "./lan";
+
+export type { LanConfig, LanConfigUpdateInput, LanDiscoveredServer, LanMode, LanRuntimeStatus } from "./lan";
+
 /** Shared IPC channel names between Electron main and renderer */
 export const IPC = {
   PING: "app:ping",
@@ -166,6 +174,13 @@ export const IPC = {
   N8N_STATUS: "n8n:status",
   N8N_FLUSH: "n8n:flush",
   N8N_TEST: "n8n:test",
+
+  // LAN multi-PC (local to this install — not proxied)
+  LAN_STATUS: "lan:status",
+  LAN_UPDATE: "lan:update",
+  LAN_TEST: "lan:test",
+  LAN_DISCOVER: "lan:discover",
+  LAN_LOCAL_ADDRESSES: "lan:localAddresses",
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
@@ -1429,6 +1444,16 @@ export type ElectronAPI = {
   testN8nWebhook: (to?: string | null) => Promise<
     ActionResult<{ sent: number; remaining: number; error?: string }>
   >;
+
+  getLanStatus: () => Promise<ActionResult<LanRuntimeStatus>>;
+  updateLanConfig: (input: LanConfigUpdateInput) => Promise<ActionResult<LanRuntimeStatus>>;
+  testLanConnection: (input?: {
+    host?: string;
+    port?: number;
+    accessKey?: string;
+  }) => Promise<ActionResult<{ name: string }>>;
+  discoverLanServers: () => Promise<ActionResult<LanDiscoveredServer[]>>;
+  getLanLocalAddresses: () => Promise<ActionResult<string[]>>;
 };
 
 declare global {

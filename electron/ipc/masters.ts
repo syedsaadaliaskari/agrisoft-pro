@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { registerHandler } from "./register";
 import { eq, asc, count } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import {
@@ -110,21 +110,21 @@ async function guarded<T>(check: () => void, fn: Handler<T>): Promise<ActionResu
 }
 
 export function registerMasterHandlers(): void {
-  ipcMain.handle(IPC.DOCS_NEXT_NUMBER, async (_e, docType: DocType): Promise<ActionResult<string>> =>
+  registerHandler(IPC.DOCS_NEXT_NUMBER, async (_e, docType: DocType): Promise<ActionResult<string>> =>
     guarded(() => requireSession(), async () => {
       const code = nextDocumentNumber(getDb(), docType);
       return ok(code);
     })
   );
 
-  ipcMain.handle(IPC.UNITS_LIST, async (): Promise<ActionResult<Unit[]>> =>
+  registerHandler(IPC.UNITS_LIST, async (): Promise<ActionResult<Unit[]>> =>
     guarded(() => requirePermission("products.view"), async () => {
       const rows = getDb().select().from(units).orderBy(asc(units.name)).all();
       return ok(rows.map(mapUnit));
     })
   );
 
-  ipcMain.handle(IPC.UNITS_CREATE, async (_e, input: UnitInput): Promise<ActionResult<Unit>> =>
+  registerHandler(IPC.UNITS_CREATE, async (_e, input: UnitInput): Promise<ActionResult<Unit>> =>
     guarded(() => requirePermission("products.manage"), async () => {
       const name = input.name?.trim();
       const shortName = input.shortName?.trim();
@@ -144,7 +144,7 @@ export function registerMasterHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.UNITS_UPDATE, async (_e, id: string, input: UnitInput): Promise<ActionResult<Unit>> =>
+  registerHandler(IPC.UNITS_UPDATE, async (_e, id: string, input: UnitInput): Promise<ActionResult<Unit>> =>
     guarded(() => requirePermission("products.manage"), async () => {
       const name = input.name?.trim();
       const shortName = input.shortName?.trim();
@@ -172,7 +172,7 @@ export function registerMasterHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.UNITS_DELETE, async (_e, id: string): Promise<ActionResult> =>
+  registerHandler(IPC.UNITS_DELETE, async (_e, id: string): Promise<ActionResult> =>
     guarded(() => requirePermission("products.manage"), async () => {
       const db = getDb();
       const current = db.select().from(units).where(eq(units.id, id)).get();
@@ -186,14 +186,14 @@ export function registerMasterHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.CATEGORIES_LIST, async (): Promise<ActionResult<Category[]>> =>
+  registerHandler(IPC.CATEGORIES_LIST, async (): Promise<ActionResult<Category[]>> =>
     guarded(() => requirePermission("products.view"), async () => {
       const rows = getDb().select().from(categories).orderBy(asc(categories.name)).all();
       return ok(rows.map(mapCategory));
     })
   );
 
-  ipcMain.handle(IPC.CATEGORIES_CREATE, async (_e, input: CategoryInput): Promise<ActionResult<Category>> =>
+  registerHandler(IPC.CATEGORIES_CREATE, async (_e, input: CategoryInput): Promise<ActionResult<Category>> =>
     guarded(() => requirePermission("products.manage"), async () => {
       const name = input.name?.trim();
       if (!name) return fail("Name is required");
@@ -223,7 +223,7 @@ export function registerMasterHandlers(): void {
     })
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.CATEGORIES_UPDATE,
     async (_e, id: string, input: CategoryInput): Promise<ActionResult<Category>> =>
       guarded(() => requirePermission("products.manage"), async () => {
@@ -262,7 +262,7 @@ export function registerMasterHandlers(): void {
       })
   );
 
-  ipcMain.handle(IPC.CATEGORIES_DELETE, async (_e, id: string): Promise<ActionResult> =>
+  registerHandler(IPC.CATEGORIES_DELETE, async (_e, id: string): Promise<ActionResult> =>
     guarded(() => requirePermission("products.manage"), async () => {
       const db = getDb();
       const current = db.select().from(categories).where(eq(categories.id, id)).get();
@@ -283,14 +283,14 @@ export function registerMasterHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.TAXES_LIST, async (): Promise<ActionResult<Tax[]>> =>
+  registerHandler(IPC.TAXES_LIST, async (): Promise<ActionResult<Tax[]>> =>
     guarded(() => requireSession(), async () => {
       const rows = getDb().select().from(taxes).orderBy(asc(taxes.name)).all();
       return ok(rows.map(mapTax));
     })
   );
 
-  ipcMain.handle(IPC.TAXES_CREATE, async (_e, input: TaxInput): Promise<ActionResult<Tax>> =>
+  registerHandler(IPC.TAXES_CREATE, async (_e, input: TaxInput): Promise<ActionResult<Tax>> =>
     guarded(() => requirePermission("settings.manage"), async () => {
       const name = input.name?.trim();
       if (!name) return fail("Name is required");
@@ -318,7 +318,7 @@ export function registerMasterHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.TAXES_UPDATE, async (_e, id: string, input: TaxInput): Promise<ActionResult<Tax>> =>
+  registerHandler(IPC.TAXES_UPDATE, async (_e, id: string, input: TaxInput): Promise<ActionResult<Tax>> =>
     guarded(() => requirePermission("settings.manage"), async () => {
       const name = input.name?.trim();
       if (!name) return fail("Name is required");
@@ -349,7 +349,7 @@ export function registerMasterHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.TAXES_DELETE, async (_e, id: string): Promise<ActionResult> =>
+  registerHandler(IPC.TAXES_DELETE, async (_e, id: string): Promise<ActionResult> =>
     guarded(() => requirePermission("settings.manage"), async () => {
       const db = getDb();
       const current = db.select().from(taxes).where(eq(taxes.id, id)).get();
@@ -363,14 +363,14 @@ export function registerMasterHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.DISCOUNTS_LIST, async (): Promise<ActionResult<Discount[]>> =>
+  registerHandler(IPC.DISCOUNTS_LIST, async (): Promise<ActionResult<Discount[]>> =>
     guarded(() => requireSession(), async () => {
       const rows = getDb().select().from(discounts).orderBy(asc(discounts.name)).all();
       return ok(rows.map(mapDiscount));
     })
   );
 
-  ipcMain.handle(IPC.DISCOUNTS_CREATE, async (_e, input: DiscountInput): Promise<ActionResult<Discount>> =>
+  registerHandler(IPC.DISCOUNTS_CREATE, async (_e, input: DiscountInput): Promise<ActionResult<Discount>> =>
     guarded(() => requirePermission("settings.manage"), async () => {
       const name = input.name?.trim();
       if (!name) return fail("Name is required");
@@ -399,7 +399,7 @@ export function registerMasterHandlers(): void {
     })
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.DISCOUNTS_UPDATE,
     async (_e, id: string, input: DiscountInput): Promise<ActionResult<Discount>> =>
       guarded(() => requirePermission("settings.manage"), async () => {
@@ -433,7 +433,7 @@ export function registerMasterHandlers(): void {
       })
   );
 
-  ipcMain.handle(IPC.DISCOUNTS_DELETE, async (_e, id: string): Promise<ActionResult> =>
+  registerHandler(IPC.DISCOUNTS_DELETE, async (_e, id: string): Promise<ActionResult> =>
     guarded(() => requirePermission("settings.manage"), async () => {
       const db = getDb();
       const current = db.select().from(discounts).where(eq(discounts.id, id)).get();
@@ -443,14 +443,14 @@ export function registerMasterHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.ADDITIONS_LIST, async (): Promise<ActionResult<Addition[]>> =>
+  registerHandler(IPC.ADDITIONS_LIST, async (): Promise<ActionResult<Addition[]>> =>
     guarded(() => requireSession(), async () => {
       const rows = getDb().select().from(additions).orderBy(asc(additions.name)).all();
       return ok(rows.map(mapAddition));
     })
   );
 
-  ipcMain.handle(IPC.ADDITIONS_CREATE, async (_e, input: AdditionInput): Promise<ActionResult<Addition>> =>
+  registerHandler(IPC.ADDITIONS_CREATE, async (_e, input: AdditionInput): Promise<ActionResult<Addition>> =>
     guarded(() => requirePermission("settings.manage"), async () => {
       const name = input.name?.trim();
       if (!name) return fail("Name is required");
@@ -479,7 +479,7 @@ export function registerMasterHandlers(): void {
     })
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.ADDITIONS_UPDATE,
     async (_e, id: string, input: AdditionInput): Promise<ActionResult<Addition>> =>
       guarded(() => requirePermission("settings.manage"), async () => {
@@ -513,7 +513,7 @@ export function registerMasterHandlers(): void {
       })
   );
 
-  ipcMain.handle(IPC.ADDITIONS_DELETE, async (_e, id: string): Promise<ActionResult> =>
+  registerHandler(IPC.ADDITIONS_DELETE, async (_e, id: string): Promise<ActionResult> =>
     guarded(() => requirePermission("settings.manage"), async () => {
       const db = getDb();
       const current = db.select().from(additions).where(eq(additions.id, id)).get();

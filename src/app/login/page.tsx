@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Languages, Moon, Sun } from "lucide-react";
+import Link from "next/link";
+import { Languages, Moon, Sun, Network } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 import { useTheme } from "@/lib/theme";
 import { getApi, isElectron } from "@/lib/api";
@@ -241,6 +242,13 @@ export default function LoginPage() {
             >
               {t("login.signIn")}
             </button>
+
+            <Link
+              href="/settings/lan"
+              className="flex items-center justify-center gap-1.5 pt-1 text-xs text-[var(--text-muted)] hover:text-[var(--text)]"
+            >
+              <Network size={13} /> Multi-PC / LAN setup
+            </Link>
           </form>
         </div>
       )}

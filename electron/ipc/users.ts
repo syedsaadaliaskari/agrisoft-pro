@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { registerHandler } from "./register";
 import {
   IPC,
   type ActionResult,
@@ -36,7 +36,7 @@ function asError(err: unknown): string {
 }
 
 export function registerUserHandlers(): void {
-  ipcMain.handle(IPC.USERS_LIST, async (): Promise<ActionResult<AppUser[]>> => {
+  registerHandler(IPC.USERS_LIST, async (): Promise<ActionResult<AppUser[]>> => {
     try {
       requirePermission("users.manage");
       return ok(listUsers(getDb()));
@@ -45,7 +45,7 @@ export function registerUserHandlers(): void {
     }
   });
 
-  ipcMain.handle(IPC.ROLES_LIST, async (): Promise<ActionResult<RoleInfo[]>> => {
+  registerHandler(IPC.ROLES_LIST, async (): Promise<ActionResult<RoleInfo[]>> => {
     try {
       const session = requirePermission("users.manage");
       const all = listRoles(getDb());
@@ -56,7 +56,7 @@ export function registerUserHandlers(): void {
     }
   });
 
-  ipcMain.handle(IPC.PERMISSIONS_LIST, async (): Promise<ActionResult<PermissionInfo[]>> => {
+  registerHandler(IPC.PERMISSIONS_LIST, async (): Promise<ActionResult<PermissionInfo[]>> => {
     try {
       requirePermission("users.manage");
       return ok(listPermissions(getDb()));
@@ -65,7 +65,7 @@ export function registerUserHandlers(): void {
     }
   });
 
-  ipcMain.handle(
+  registerHandler(
     IPC.ROLES_SET_PERMISSIONS,
     async (_e, roleId: string, permissionCodes: string[]): Promise<ActionResult<RoleInfo>> => {
       try {
@@ -78,7 +78,7 @@ export function registerUserHandlers(): void {
     }
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.USERS_CREATE,
     async (_e, input: UserCreateInput): Promise<ActionResult<AppUser>> => {
       try {
@@ -90,7 +90,7 @@ export function registerUserHandlers(): void {
     }
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.USERS_UPDATE,
     async (_e, id: string, input: UserUpdateInput): Promise<ActionResult<AppUser>> => {
       try {
@@ -102,7 +102,7 @@ export function registerUserHandlers(): void {
     }
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.USERS_SET_PASSWORD,
     async (_e, id: string, password: string): Promise<ActionResult> => {
       try {

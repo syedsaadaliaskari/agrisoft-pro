@@ -67,6 +67,7 @@ export const PAGE_META: Record<string, { title: string; subtitle?: string }> = {
   "/settings/users": { title: "pages.users.title", subtitle: "pages.users.subtitle" },
   "/settings/password": { title: "pages.password.title", subtitle: "pages.password.subtitle" },
   "/settings/backup": { title: "pages.backup.title", subtitle: "pages.backup.subtitle" },
+  "/settings/lan": { title: "pages.lan.title", subtitle: "pages.lan.subtitle" },
   "/settings/audit": { title: "pages.audit.title", subtitle: "pages.audit.subtitle" },
   "/settings": { title: "pages.settings.title", subtitle: "pages.settings.subtitle" },
 };

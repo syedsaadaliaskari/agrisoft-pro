@@ -1,13 +1,47 @@
+import { AsyncLocalStorage } from "async_hooks";
 import type { SessionUser } from "../../shared/ipc";
 
-let currentSession: SessionUser | null = null;
+type RequestContext = {
+  /** Authenticated user for this request (null = anonymous). */
+  user: SessionUser | null;
+  /** True when serving a LAN cashier request (not the local UI session). */
+  remote: boolean;
+};
+
+const requestContext = new AsyncLocalStorage<RequestContext>();
+
+/** Local UI session on this PC (Mode A / main PC operator). */
+let localSession: SessionUser | null = null;
+
+export function runWithRequestContext<T>(ctx: RequestContext, fn: () => T): T {
+  return requestContext.run(ctx, fn);
+}
+
+export async function runWithRequestContextAsync<T>(
+  ctx: RequestContext,
+  fn: () => Promise<T>
+): Promise<T> {
+  return requestContext.run(ctx, fn);
+}
+
+export function isRemoteRequest(): boolean {
+  return requestContext.getStore()?.remote === true;
+}
 
 export function setCurrentSession(user: SessionUser | null): void {
-  currentSession = user;
+  if (isRemoteRequest()) {
+    // Remote sessions are token-backed; do not clobber the main PC UI session.
+    const store = requestContext.getStore();
+    if (store) store.user = user;
+    return;
+  }
+  localSession = user;
 }
 
 export function getCurrentSession(): SessionUser | null {
-  return currentSession;
+  const store = requestContext.getStore();
+  if (store) return store.user;
+  return localSession;
 }
 
 export class PermissionError extends Error {
@@ -18,8 +52,9 @@ export class PermissionError extends Error {
 }
 
 export function requireSession(): SessionUser {
-  if (!currentSession) throw new PermissionError("Not authenticated");
-  return currentSession;
+  const session = getCurrentSession();
+  if (!session) throw new PermissionError("Not authenticated");
+  return session;
 }
 
 export function sessionHasPermission(user: SessionUser, code: string): boolean {

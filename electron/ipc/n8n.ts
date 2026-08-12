@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { registerHandler } from "./register";
 import {
   IPC,
   type ActionResult,
@@ -30,19 +30,19 @@ async function guarded<T>(check: () => void, fn: Handler<T>): Promise<ActionResu
 }
 
 export function registerN8nHandlers(): void {
-  ipcMain.handle(IPC.N8N_STATUS, async (): Promise<ActionResult<{ enabled: boolean; webhookUrl: string; paymentDaysBefore: number; minDueAmount: number }>> =>
+  registerHandler(IPC.N8N_STATUS, async (): Promise<ActionResult<{ enabled: boolean; webhookUrl: string; paymentDaysBefore: number; minDueAmount: number }>> =>
     guarded(() => requireAnyPermission("license.manage", "settings.manage", "platform.view"), async () =>
       getN8nConfig(getDb())
     )
   );
 
-  ipcMain.handle(IPC.N8N_FLUSH, async (): Promise<ActionResult<{ sent: number; remaining: number; enqueued: number; error?: string }>> =>
+  registerHandler(IPC.N8N_FLUSH, async (): Promise<ActionResult<{ sent: number; remaining: number; enqueued: number; error?: string }>> =>
     guarded(() => requireAnyPermission("license.manage", "settings.manage", "platform.view"), async () =>
       runN8nAutomationPass(getDb())
     )
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.N8N_TEST,
     async (_e, to?: string | null): Promise<ActionResult<{ sent: number; remaining: number; error?: string }>> =>
       guarded(() => requireAnyPermission("license.manage", "settings.manage", "platform.view"), async () => {

@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { registerHandler } from "./register";
 import { asc, eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import {
@@ -50,7 +50,7 @@ function mapCompany(row: typeof clientCompanies.$inferSelect): ClientCompany {
 }
 
 export function registerCompanyHandlers(): void {
-  ipcMain.handle(IPC.COMPANIES_LIST, async (): Promise<ActionResult<ClientCompany[]>> =>
+  registerHandler(IPC.COMPANIES_LIST, async (): Promise<ActionResult<ClientCompany[]>> =>
     guarded(() => requireAnyPermission("license.manage", "platform.view"), async () => {
       const rows = getDb()
         .select()
@@ -61,7 +61,7 @@ export function registerCompanyHandlers(): void {
     })
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.COMPANIES_CREATE,
     async (_e, input: ClientCompanyInput): Promise<ActionResult<ClientCompany>> =>
       guarded(() => requireAnyPermission("license.manage", "platform.view"), async () => {
@@ -91,7 +91,7 @@ export function registerCompanyHandlers(): void {
       })
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.COMPANIES_UPDATE,
     async (_e, id: string, input: ClientCompanyInput): Promise<ActionResult<ClientCompany>> =>
       guarded(() => requireAnyPermission("license.manage", "platform.view"), async () => {
@@ -122,7 +122,7 @@ export function registerCompanyHandlers(): void {
       })
   );
 
-  ipcMain.handle(IPC.COMPANIES_DELETE, async (_e, id: string): Promise<ActionResult> =>
+  registerHandler(IPC.COMPANIES_DELETE, async (_e, id: string): Promise<ActionResult> =>
     guarded(() => requireAnyPermission("license.manage", "platform.view"), async () => {
       const db = getDb();
       const current = db.select().from(clientCompanies).where(eq(clientCompanies.id, id)).get();
@@ -132,7 +132,7 @@ export function registerCompanyHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.COMPANIES_DEMAND, async (): Promise<ActionResult<CompaniesDemandSummary>> =>
+  registerHandler(IPC.COMPANIES_DEMAND, async (): Promise<ActionResult<CompaniesDemandSummary>> =>
     guarded(() => requireAnyPermission("license.manage", "platform.view"), async () => {
       const db = getDb();
       const all = db.select().from(clientCompanies).all();

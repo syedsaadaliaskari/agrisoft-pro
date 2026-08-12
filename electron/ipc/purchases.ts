@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { registerHandler } from "./register";
 import { and, asc, desc, eq, ne } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import {
@@ -166,7 +166,7 @@ function enrichReturn(id: string, withItems = true): PurchaseReturn | null {
 }
 
 export function registerPurchaseHandlers(): void {
-  ipcMain.handle(IPC.PURCHASES_LIST, async (): Promise<ActionResult<Purchase[]>> =>
+  registerHandler(IPC.PURCHASES_LIST, async (): Promise<ActionResult<Purchase[]>> =>
     guarded(() => requirePermission("purchases.view"), async () => {
       const rows = getDb()
         .select({ id: purchases.id })
@@ -178,7 +178,7 @@ export function registerPurchaseHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.PURCHASES_GET, async (_e, id: string): Promise<ActionResult<Purchase>> =>
+  registerHandler(IPC.PURCHASES_GET, async (_e, id: string): Promise<ActionResult<Purchase>> =>
     guarded(() => requirePermission("purchases.view"), async () => {
       const row = enrichPurchase(id, true);
       if (!row || row.status === "deleted") return fail("Purchase not found");
@@ -186,7 +186,7 @@ export function registerPurchaseHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.PURCHASES_LIST_BY_VENDOR, async (_e, vendorId: string): Promise<ActionResult<Purchase[]>> =>
+  registerHandler(IPC.PURCHASES_LIST_BY_VENDOR, async (_e, vendorId: string): Promise<ActionResult<Purchase[]>> =>
     guarded(() => requirePermission("purchases.view"), async () => {
       const rows = getDb()
         .select({ id: purchases.id })
@@ -198,7 +198,7 @@ export function registerPurchaseHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.PURCHASES_CREATE, async (_e, input: CreatePurchaseInput): Promise<ActionResult<Purchase>> =>
+  registerHandler(IPC.PURCHASES_CREATE, async (_e, input: CreatePurchaseInput): Promise<ActionResult<Purchase>> =>
     guarded(() => requirePermission("purchases.create"), async () => {
       if (!input.items?.length) return fail("Add at least one line item");
       if (!input.invoiceDate?.trim()) return fail("Invoice date is required");
@@ -398,7 +398,7 @@ export function registerPurchaseHandlers(): void {
     })
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.PURCHASES_UPDATE,
     async (_e, id: string, input: CreatePurchaseInput): Promise<ActionResult<Purchase>> =>
       guarded(() => requirePermission("purchases.create"), async () => {
@@ -630,7 +630,7 @@ export function registerPurchaseHandlers(): void {
       })
   );
 
-  ipcMain.handle(IPC.PURCHASES_DELETE, async (_e, id: string): Promise<ActionResult> =>
+  registerHandler(IPC.PURCHASES_DELETE, async (_e, id: string): Promise<ActionResult> =>
     guarded(() => requirePermission("purchases.create"), async () => {
       const db = getDb();
       const session = getCurrentSession();
@@ -700,7 +700,7 @@ export function registerPurchaseHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.PURCHASE_RETURNS_LIST, async (): Promise<ActionResult<PurchaseReturn[]>> =>
+  registerHandler(IPC.PURCHASE_RETURNS_LIST, async (): Promise<ActionResult<PurchaseReturn[]>> =>
     guarded(() => requirePermission("purchases.return"), async () => {
       const rows = getDb()
         .select({ id: purchaseReturns.id })
@@ -711,7 +711,7 @@ export function registerPurchaseHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.PURCHASE_RETURNS_GET, async (_e, id: string): Promise<ActionResult<PurchaseReturn>> =>
+  registerHandler(IPC.PURCHASE_RETURNS_GET, async (_e, id: string): Promise<ActionResult<PurchaseReturn>> =>
     guarded(() => requirePermission("purchases.return"), async () => {
       const doc = enrichReturn(id, true);
       if (!doc) return fail("Purchase return not found");
@@ -719,7 +719,7 @@ export function registerPurchaseHandlers(): void {
     })
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.PURCHASE_RETURNS_CREATE,
     async (_e, input: CreatePurchaseReturnInput): Promise<ActionResult<PurchaseReturn>> =>
       guarded(() => requirePermission("purchases.return"), async () => {

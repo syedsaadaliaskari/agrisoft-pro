@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { registerHandler } from "./register";
 import { asc, count, eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import {
@@ -134,14 +134,14 @@ function allocatePartyCode(
 }
 
 export function registerPartyHandlers(): void {
-  ipcMain.handle(IPC.CUSTOMERS_LIST, async (): Promise<ActionResult<Customer[]>> =>
+  registerHandler(IPC.CUSTOMERS_LIST, async (): Promise<ActionResult<Customer[]>> =>
     guarded(() => requirePermission("customers.view"), async () => {
       const rows = getDb().select().from(customers).orderBy(asc(customers.name)).all();
       return ok(rows.map(mapCustomer));
     })
   );
 
-  ipcMain.handle(IPC.CUSTOMERS_CREATE, async (_e, input: CustomerInput): Promise<ActionResult<Customer>> =>
+  registerHandler(IPC.CUSTOMERS_CREATE, async (_e, input: CustomerInput): Promise<ActionResult<Customer>> =>
     guarded(() => requirePermission("customers.manage"), async () => {
       const name = input.name?.trim();
       if (!name) return fail("Name is required");
@@ -177,7 +177,7 @@ export function registerPartyHandlers(): void {
     })
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.CUSTOMERS_UPDATE,
     async (_e, id: string, input: CustomerInput): Promise<ActionResult<Customer>> =>
       guarded(() => requirePermission("customers.manage"), async () => {
@@ -227,7 +227,7 @@ export function registerPartyHandlers(): void {
       })
   );
 
-  ipcMain.handle(IPC.CUSTOMERS_DELETE, async (_e, id: string): Promise<ActionResult> =>
+  registerHandler(IPC.CUSTOMERS_DELETE, async (_e, id: string): Promise<ActionResult> =>
     guarded(() => requirePermission("customers.manage"), async () => {
       const db = getDb();
       const current = db.select().from(customers).where(eq(customers.id, id)).get();
@@ -247,14 +247,14 @@ export function registerPartyHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.VENDORS_LIST, async (): Promise<ActionResult<Vendor[]>> =>
+  registerHandler(IPC.VENDORS_LIST, async (): Promise<ActionResult<Vendor[]>> =>
     guarded(() => requirePermission("vendors.view"), async () => {
       const rows = getDb().select().from(vendors).orderBy(asc(vendors.name)).all();
       return ok(rows.map(mapVendor));
     })
   );
 
-  ipcMain.handle(IPC.VENDORS_CREATE, async (_e, input: VendorInput): Promise<ActionResult<Vendor>> =>
+  registerHandler(IPC.VENDORS_CREATE, async (_e, input: VendorInput): Promise<ActionResult<Vendor>> =>
     guarded(() => requirePermission("vendors.manage"), async () => {
       const name = input.name?.trim();
       if (!name) return fail("Name is required");
@@ -289,7 +289,7 @@ export function registerPartyHandlers(): void {
     })
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.VENDORS_UPDATE,
     async (_e, id: string, input: VendorInput): Promise<ActionResult<Vendor>> =>
       guarded(() => requirePermission("vendors.manage"), async () => {
@@ -337,7 +337,7 @@ export function registerPartyHandlers(): void {
       })
   );
 
-  ipcMain.handle(IPC.VENDORS_DELETE, async (_e, id: string): Promise<ActionResult> =>
+  registerHandler(IPC.VENDORS_DELETE, async (_e, id: string): Promise<ActionResult> =>
     guarded(() => requirePermission("vendors.manage"), async () => {
       const db = getDb();
       const current = db.select().from(vendors).where(eq(vendors.id, id)).get();

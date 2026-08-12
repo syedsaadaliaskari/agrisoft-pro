@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { registerHandler } from "./register";
 import { asc, eq } from "drizzle-orm";
 import {
   IPC,
@@ -51,7 +51,7 @@ function mapAccount(row: typeof accounts.$inferSelect): Account {
 }
 
 export function registerAccountHandlers(): void {
-  ipcMain.handle(IPC.ACCOUNTS_LIST, async (_e, filter?: AccountListFilter): Promise<ActionResult<Account[]>> =>
+  registerHandler(IPC.ACCOUNTS_LIST, async (_e, filter?: AccountListFilter): Promise<ActionResult<Account[]>> =>
     guarded(() => requireSession(), async () => {
       const db = getDb();
       let rows = db.select().from(accounts).orderBy(asc(accounts.code)).all();
@@ -70,7 +70,7 @@ export function registerAccountHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.ACCOUNTS_GET, async (_e, id: string): Promise<ActionResult<Account>> =>
+  registerHandler(IPC.ACCOUNTS_GET, async (_e, id: string): Promise<ActionResult<Account>> =>
     guarded(() => requirePermission("ledgers.view"), async () => {
       const row = getDb().select().from(accounts).where(eq(accounts.id, id)).get();
       if (!row) return fail("Account not found");

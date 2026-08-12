@@ -152,6 +152,12 @@ const api: ElectronAPI = {
   getN8nStatus: () => ipcRenderer.invoke(IPC.N8N_STATUS),
   flushN8nQueue: () => ipcRenderer.invoke(IPC.N8N_FLUSH),
   testN8nWebhook: (to) => ipcRenderer.invoke(IPC.N8N_TEST, to),
+
+  getLanStatus: () => ipcRenderer.invoke(IPC.LAN_STATUS),
+  updateLanConfig: (input) => ipcRenderer.invoke(IPC.LAN_UPDATE, input),
+  testLanConnection: (input) => ipcRenderer.invoke(IPC.LAN_TEST, input),
+  discoverLanServers: () => ipcRenderer.invoke(IPC.LAN_DISCOVER),
+  getLanLocalAddresses: () => ipcRenderer.invoke(IPC.LAN_LOCAL_ADDRESSES),
 };
 
 contextBridge.exposeInMainWorld("api", api);

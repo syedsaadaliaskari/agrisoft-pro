@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { registerHandler } from "./register";
 import {
   IPC,
   type ActionResult,
@@ -28,7 +28,7 @@ function asError(err: unknown): string {
 }
 
 export function registerSettingsHandlers(): void {
-  ipcMain.handle(IPC.SETTINGS_GET_ALL, async (): Promise<ActionResult<SettingsMap>> => {
+  registerHandler(IPC.SETTINGS_GET_ALL, async (): Promise<ActionResult<SettingsMap>> => {
     try {
       requirePermission("settings.manage");
       return ok(getSettingsMapWithBranding(getDb()));
@@ -37,7 +37,7 @@ export function registerSettingsHandlers(): void {
     }
   });
 
-  ipcMain.handle(
+  registerHandler(
     IPC.SETTINGS_UPDATE,
     async (_e, input: SettingsUpdateInput): Promise<ActionResult<SettingsMap>> => {
       try {
@@ -56,7 +56,7 @@ export function registerSettingsHandlers(): void {
     }
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.SETTINGS_SET_LOGO,
     async (_e, dataUrl: string): Promise<ActionResult<SettingsMap>> => {
       try {
@@ -76,7 +76,7 @@ export function registerSettingsHandlers(): void {
     }
   );
 
-  ipcMain.handle(IPC.SETTINGS_CLEAR_LOGO, async (): Promise<ActionResult<SettingsMap>> => {
+  registerHandler(IPC.SETTINGS_CLEAR_LOGO, async (): Promise<ActionResult<SettingsMap>> => {
     try {
       const session = requirePermission("settings.manage");
       clearShopLogo();
@@ -92,7 +92,7 @@ export function registerSettingsHandlers(): void {
     }
   });
 
-  ipcMain.handle(
+  registerHandler(
     IPC.AUDIT_LIST,
     async (_e, query?: AuditListQuery): Promise<ActionResult<AuditListResult>> => {
       try {

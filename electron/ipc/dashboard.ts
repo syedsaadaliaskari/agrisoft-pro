@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { registerHandler } from "./register";
 import { and, asc, count, desc, eq, gte, lte, ne, sql } from "drizzle-orm";
 import {
   IPC,
@@ -78,7 +78,7 @@ function daysAgo(n: number) {
 }
 
 export function registerDashboardHandlers(): void {
-  ipcMain.handle(IPC.DASHBOARD_SUMMARY, async (): Promise<ActionResult<DashboardSummary>> =>
+  registerHandler(IPC.DASHBOARD_SUMMARY, async (): Promise<ActionResult<DashboardSummary>> =>
     guarded(() => requirePermission("dashboard.view"), async () => {
       const db = getDb();
       const settings = getSettingsMap(db);
@@ -281,7 +281,7 @@ export function registerDashboardHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.REPORTS_SALES, async (_e, query?: ReportDateRange): Promise<ActionResult<SalesReport>> =>
+  registerHandler(IPC.REPORTS_SALES, async (_e, query?: ReportDateRange): Promise<ActionResult<SalesReport>> =>
     guarded(() => requirePermission("reports.view"), async () => {
       const db = getDb();
       const conditions = [ne(sales.status, "deleted")];
@@ -349,7 +349,7 @@ export function registerDashboardHandlers(): void {
     })
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.REPORTS_PURCHASES,
     async (_e, query?: ReportDateRange): Promise<ActionResult<PurchasesReport>> =>
       guarded(() => requirePermission("reports.view"), async () => {
@@ -408,7 +408,7 @@ export function registerDashboardHandlers(): void {
       })
   );
 
-  ipcMain.handle(IPC.REPORTS_PROFIT, async (_e, query?: ReportDateRange): Promise<ActionResult<ProfitReport>> =>
+  registerHandler(IPC.REPORTS_PROFIT, async (_e, query?: ReportDateRange): Promise<ActionResult<ProfitReport>> =>
     guarded(() => requirePermission("reports.view"), async () => {
       const db = getDb();
       const saleCond = [ne(sales.status, "deleted")];
@@ -451,7 +451,7 @@ export function registerDashboardHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.REPORTS_STOCK, async (): Promise<ActionResult<StockReport>> =>
+  registerHandler(IPC.REPORTS_STOCK, async (): Promise<ActionResult<StockReport>> =>
     guarded(() => requirePermission("reports.view"), async () => {
       const db = getDb();
       const rows = db
@@ -502,7 +502,7 @@ export function registerDashboardHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.REPORTS_TAX, async (_e, query?: ReportDateRange): Promise<ActionResult<TaxReport>> =>
+  registerHandler(IPC.REPORTS_TAX, async (_e, query?: ReportDateRange): Promise<ActionResult<TaxReport>> =>
     guarded(() => requirePermission("reports.view"), async () => {
       const db = getDb();
       const sCond = [ne(sales.status, "deleted")];
@@ -545,7 +545,7 @@ export function registerDashboardHandlers(): void {
     })
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.REPORTS_DELETED,
     async (_e, query?: ReportDateRange): Promise<ActionResult<DeletedDocumentsReport>> =>
       guarded(() => requirePermission("reports.view"), async () => {

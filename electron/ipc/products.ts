@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { registerHandler } from "./register";
 import { and, asc, count, eq, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import {
@@ -157,14 +157,14 @@ function allocateVariantSku(productSku: string, size: string, color: string, pre
 }
 
 export function registerProductHandlers(): void {
-  ipcMain.handle(IPC.PRODUCTS_LIST, async (): Promise<ActionResult<Product[]>> =>
+  registerHandler(IPC.PRODUCTS_LIST, async (): Promise<ActionResult<Product[]>> =>
     guarded(() => requirePermission("products.view"), async () => {
       const rows = getDb().select({ id: products.id }).from(products).orderBy(asc(products.name)).all();
       return ok(rows.map((r) => enrichProduct(r.id)!).filter(Boolean));
     })
   );
 
-  ipcMain.handle(IPC.PRODUCTS_GET, async (_e, id: string): Promise<ActionResult<Product>> =>
+  registerHandler(IPC.PRODUCTS_GET, async (_e, id: string): Promise<ActionResult<Product>> =>
     guarded(() => requirePermission("products.view"), async () => {
       const product = enrichProduct(id);
       if (!product) return fail("Product not found");
@@ -172,7 +172,7 @@ export function registerProductHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.PRODUCTS_CREATE, async (_e, input: ProductInput): Promise<ActionResult<Product>> =>
+  registerHandler(IPC.PRODUCTS_CREATE, async (_e, input: ProductInput): Promise<ActionResult<Product>> =>
     guarded(() => requirePermission("products.manage"), async () => {
       const name = input.name?.trim();
       if (!name) return fail("Name is required");
@@ -243,7 +243,7 @@ export function registerProductHandlers(): void {
     })
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.PRODUCTS_UPDATE,
     async (_e, id: string, input: ProductInput): Promise<ActionResult<Product>> =>
       guarded(() => requirePermission("products.manage"), async () => {
@@ -313,7 +313,7 @@ export function registerProductHandlers(): void {
       })
   );
 
-  ipcMain.handle(IPC.PRODUCTS_DELETE, async (_e, id: string): Promise<ActionResult> =>
+  registerHandler(IPC.PRODUCTS_DELETE, async (_e, id: string): Promise<ActionResult> =>
     guarded(() => requirePermission("products.manage"), async () => {
       const db = getDb();
       const current = db.select().from(products).where(eq(products.id, id)).get();
@@ -341,7 +341,7 @@ export function registerProductHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.VARIANTS_LIST, async (_e, productId: string): Promise<ActionResult<ProductVariant[]>> =>
+  registerHandler(IPC.VARIANTS_LIST, async (_e, productId: string): Promise<ActionResult<ProductVariant[]>> =>
     guarded(() => requirePermission("products.view"), async () => {
       const db = getDb();
       const product = db.select().from(products).where(eq(products.id, productId)).get();
@@ -356,7 +356,7 @@ export function registerProductHandlers(): void {
     })
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.VARIANTS_CREATE,
     async (_e, productId: string, input: ProductVariantInput): Promise<ActionResult<ProductVariant>> =>
       guarded(() => requirePermission("products.manage"), async () => {
@@ -421,7 +421,7 @@ export function registerProductHandlers(): void {
       })
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.VARIANTS_UPDATE,
     async (_e, id: string, input: ProductVariantInput): Promise<ActionResult<ProductVariant>> =>
       guarded(() => requirePermission("products.manage"), async () => {
@@ -486,7 +486,7 @@ export function registerProductHandlers(): void {
       })
   );
 
-  ipcMain.handle(IPC.VARIANTS_DELETE, async (_e, id: string): Promise<ActionResult> =>
+  registerHandler(IPC.VARIANTS_DELETE, async (_e, id: string): Promise<ActionResult> =>
     guarded(() => requirePermission("products.manage"), async () => {
       const db = getDb();
       const current = db.select().from(productVariants).where(eq(productVariants.id, id)).get();
@@ -516,7 +516,7 @@ export function registerProductHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC.INVENTORY_LIST, async (): Promise<ActionResult<InventoryRow[]>> =>
+  registerHandler(IPC.INVENTORY_LIST, async (): Promise<ActionResult<InventoryRow[]>> =>
     guarded(() => requirePermission("inventory.view"), async () => {
       const db = getDb();
       const rows = db
@@ -563,7 +563,7 @@ export function registerProductHandlers(): void {
     })
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.INVENTORY_FIND_BARCODE,
     async (_e, barcode: string): Promise<ActionResult<InventoryRow>> =>
       guarded(() => requireAnyPermission("sales.create", "purchases.create", "inventory.view"), async () => {
@@ -655,7 +655,7 @@ export function registerProductHandlers(): void {
       })
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.INVENTORY_ADJUST,
     async (_e, input: StockAdjustInput): Promise<ActionResult<InventoryRow>> =>
       guarded(() => requirePermission("inventory.manage"), async () => {

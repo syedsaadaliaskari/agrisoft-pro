@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { registerHandler } from "./register";
 import {
   IPC,
   type ActionResult,
@@ -41,7 +41,7 @@ let isDevFlag = false;
 export function registerLicenseHandlers(isDev: boolean): void {
   isDevFlag = isDev;
 
-  ipcMain.handle(IPC.LICENSE_STATUS, async (): Promise<ActionResult<LicenseStatus>> => {
+  registerHandler(IPC.LICENSE_STATUS, async (): Promise<ActionResult<LicenseStatus>> => {
     try {
       return { ok: true, data: getLicenseStatus(getDb(), isDevFlag) };
     } catch (err) {
@@ -49,14 +49,14 @@ export function registerLicenseHandlers(isDev: boolean): void {
     }
   });
 
-  ipcMain.handle(IPC.LICENSE_LIST, async (): Promise<ActionResult<LicenseRow[]>> =>
+  registerHandler(IPC.LICENSE_LIST, async (): Promise<ActionResult<LicenseRow[]>> =>
     guarded(
       () => requireAnyPermission("license.view", "license.manage", "platform.view"),
       async () => listLicenses(getDb())
     )
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.LICENSE_CREATE,
     async (
       _e,
@@ -77,27 +77,27 @@ export function registerLicenseHandlers(isDev: boolean): void {
       })
   );
 
-  ipcMain.handle(IPC.LICENSE_DELETE, async (_e, id: string): Promise<ActionResult> =>
+  registerHandler(IPC.LICENSE_DELETE, async (_e, id: string): Promise<ActionResult> =>
     guarded(() => requireAnyPermission("license.manage", "platform.view"), async () => {
       deleteLicense(getDb(), id);
     })
   );
 
-  ipcMain.handle(IPC.LICENSE_EXPIRE_TRIAL, async (): Promise<ActionResult<LicenseStatus>> =>
+  registerHandler(IPC.LICENSE_EXPIRE_TRIAL, async (): Promise<ActionResult<LicenseStatus>> =>
     guarded(() => requireAnyPermission("license.manage", "platform.view"), async () => {
       expireTrialNow(getDb());
       return getLicenseStatus(getDb(), isDevFlag);
     })
   );
 
-  ipcMain.handle(IPC.LICENSE_LOCK_NOW, async (): Promise<ActionResult<LicenseStatus>> =>
+  registerHandler(IPC.LICENSE_LOCK_NOW, async (): Promise<ActionResult<LicenseStatus>> =>
     guarded(() => requireAnyPermission("license.manage", "platform.view"), async () =>
       lockThisInstallNow(getDb())
     )
   );
 
   // Public: locked customers paste the code you send on WhatsApp (no login required).
-  ipcMain.handle(
+  registerHandler(
     IPC.LICENSE_APPLY_CODE,
     async (_e, code: string): Promise<ActionResult<LicenseStatus>> => {
       try {

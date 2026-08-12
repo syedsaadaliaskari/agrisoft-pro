@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { registerHandler } from "./register";
 import bcrypt from "bcryptjs";
 import { eq, count, sql } from "drizzle-orm";
 import { IPC, type SessionUser, type LoginResult, type DbStats, type AppInfo, type ActionResult } from "../../shared/ipc";
@@ -30,6 +30,7 @@ import { registerCompanyHandlers } from "./companies";
 import { registerBackupHandlers } from "./backup";
 import { registerLicenseHandlers } from "./license";
 import { registerN8nHandlers } from "./n8n";
+import { registerLanHandlers } from "./lan";
 import { getCurrentSession, setCurrentSession, PermissionError, requireSession } from "./session";
 import { writeAuditLog } from "../db/audit";
 
@@ -71,16 +72,16 @@ function loadUserSession(userId: string): SessionUser | null {
 }
 
 export function registerIpcHandlers(appVersion: string, isDev: boolean): void {
-  ipcMain.handle(IPC.PING, async () => "pong");
+  registerHandler(IPC.PING, async () => "pong");
 
-  ipcMain.handle(IPC.GET_APP_INFO, async (): Promise<AppInfo> => ({
+  registerHandler(IPC.GET_APP_INFO, async (): Promise<AppInfo> => ({
     name: "Agri Soft Pro",
     version: appVersion,
     dbPath: getDbPath(),
     isDev,
   }));
 
-  ipcMain.handle(IPC.AUTH_LOGIN, async (_e, username: string, password: string): Promise<LoginResult> => {
+  registerHandler(IPC.AUTH_LOGIN, async (_e, username: string, password: string): Promise<LoginResult> => {
     const db = getDb();
     const normalized = String(username ?? "").trim().toLowerCase();
     const user = db
@@ -119,7 +120,7 @@ export function registerIpcHandlers(appVersion: string, isDev: boolean): void {
     return { ok: true, user: session };
   });
 
-  ipcMain.handle(IPC.AUTH_LOGOUT, async () => {
+  registerHandler(IPC.AUTH_LOGOUT, async () => {
     const session = getCurrentSession();
     if (session) {
       writeAuditLog(getDb(), {
@@ -133,7 +134,7 @@ export function registerIpcHandlers(appVersion: string, isDev: boolean): void {
     setCurrentSession(null);
   });
 
-  ipcMain.handle(IPC.AUTH_CURRENT_USER, async (): Promise<SessionUser | null> => {
+  registerHandler(IPC.AUTH_CURRENT_USER, async (): Promise<SessionUser | null> => {
     const session = getCurrentSession();
     if (!session) return null;
     // Refresh permissions from DB (RBAC / ensurePermissions may have changed on boot)
@@ -142,7 +143,7 @@ export function registerIpcHandlers(appVersion: string, isDev: boolean): void {
     return fresh;
   });
 
-  ipcMain.handle(
+  registerHandler(
     IPC.AUTH_CHANGE_PASSWORD,
     async (_e, currentPassword: string, newPassword: string): Promise<ActionResult> => {
       try {
@@ -171,7 +172,7 @@ export function registerIpcHandlers(appVersion: string, isDev: boolean): void {
     }
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.AUTH_VENDOR_UNLOCK,
     async (_e, code: string): Promise<ActionResult<SessionUser>> => {
       try {
@@ -191,7 +192,7 @@ export function registerIpcHandlers(appVersion: string, isDev: boolean): void {
     }
   );
 
-  ipcMain.handle(IPC.DB_STATS, async (): Promise<DbStats> => {
+  registerHandler(IPC.DB_STATS, async (): Promise<DbStats> => {
     const db = getDb();
     const one = (
       table:
@@ -227,4 +228,5 @@ export function registerIpcHandlers(appVersion: string, isDev: boolean): void {
   registerBackupHandlers();
   registerLicenseHandlers(isDev);
   registerN8nHandlers();
+  registerLanHandlers();
 }
