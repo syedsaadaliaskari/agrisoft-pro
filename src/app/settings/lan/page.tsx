@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Network, RefreshCw, Server, MonitorSmartphone, Wifi, ArrowLeft } from "lucide-react";
+import { Network, RefreshCw, Server, MonitorSmartphone, Wifi, ArrowLeft, Copy, Check } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Alert, Button, Input } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
@@ -19,6 +19,8 @@ function LanSettingsBody() {
   const [clientHost, setClientHost] = useState("");
   const [clientPort, setClientPort] = useState("4747");
   const [clientAccessKey, setClientAccessKey] = useState("");
+  const [localIps, setLocalIps] = useState<string[]>([]);
+  const [copied, setCopied] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -33,6 +35,9 @@ function LanSettingsBody() {
     setClientHost(s.config.clientHost || "");
     setClientPort(String(s.config.clientPort || 4747));
     setClientAccessKey(s.config.clientAccessKey || "");
+    if (s.config.mode === "server" && s.localAddresses?.length) {
+      setLocalIps(s.localAddresses);
+    }
   };
 
   const load = useCallback(async () => {
@@ -53,6 +58,11 @@ function LanSettingsBody() {
     if (res.ok) setDiscovered(res.data);
   }, []);
 
+  const loadLocalIps = useCallback(async () => {
+    const res = await getApi().getLanLocalAddresses();
+    if (res.ok) setLocalIps(res.data);
+  }, []);
+
   useEffect(() => {
     void load();
   }, [load]);
@@ -63,6 +73,21 @@ function LanSettingsBody() {
     const id = setInterval(() => void refreshDiscover(), 4000);
     return () => clearInterval(id);
   }, [mode, refreshDiscover]);
+
+  useEffect(() => {
+    if (mode !== "server") return;
+    void loadLocalIps();
+  }, [mode, loadLocalIps]);
+
+  const copyText = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(value);
+      setTimeout(() => setCopied(null), 1500);
+    } catch {
+      setError("Could not copy — select and copy manually");
+    }
+  };
 
   const save = async (extra?: { regenerateAccessKey?: boolean }) => {
     setBusy(true);
@@ -84,10 +109,11 @@ function LanSettingsBody() {
       return;
     }
     applyStatus(res.data);
+    if (mode === "server") void loadLocalIps();
     setOkMsg(
       mode === "client"
         ? "Saved. Sign in with a user from the main PC."
-        : "LAN settings saved."
+        : "LAN settings saved. Copy the address below for cashier PCs."
     );
   };
 
@@ -112,6 +138,8 @@ function LanSettingsBody() {
     setClientHost(row.host);
     setClientPort(String(row.port));
   };
+
+  const portLabel = serverPort || "4747";
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
@@ -192,22 +220,19 @@ function LanSettingsBody() {
             label="Display name"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Front counter"
           />
           <Input
             label="Port"
             value={serverPort}
             onChange={(e) => setServerPort(e.target.value)}
-            placeholder="4747"
           />
           <div>
             <Input
               label="Access key (give this to cashier PCs)"
               value={accessKey}
               onChange={(e) => setAccessKey(e.target.value)}
-              placeholder="Generated on save"
             />
-            <div className="mt-2">
+            <div className="mt-2 flex flex-wrap gap-2">
               <Button
                 variant="ghost"
                 size="sm"
@@ -216,23 +241,38 @@ function LanSettingsBody() {
               >
                 Generate new key
               </Button>
+              {accessKey ? (
+                <Button variant="ghost" size="sm" onClick={() => void copyText(accessKey)}>
+                  {copied === accessKey ? <Check size={14} /> : <Copy size={14} />} Copy key
+                </Button>
+              ) : null}
             </div>
           </div>
-          {status?.localAddresses?.length ? (
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-soft)]/50 p-3 text-xs">
-              <div className="font-semibold">This PC addresses (type one on cashiers)</div>
-              <ul className="mt-1 space-y-0.5 font-mono text-[var(--text-muted)]">
-                {status.localAddresses.map((ip) => (
-                  <li key={ip}>
-                    {ip}:{serverPort || "4747"}
-                  </li>
-                ))}
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-soft)]/50 p-3 text-xs">
+            <div className="font-semibold">This PC address — copy and paste on cashier PCs</div>
+            {localIps.length ? (
+              <ul className="mt-2 space-y-2">
+                {localIps.map((ip) => {
+                  const addr = `${ip}:${portLabel}`;
+                  return (
+                    <li key={ip} className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-sm text-[var(--text)]">{addr}</span>
+                      <Button variant="secondary" size="sm" onClick={() => void copyText(addr)}>
+                        {copied === addr ? <Check size={14} /> : <Copy size={14} />} Copy
+                      </Button>
+                    </li>
+                  );
+                })}
               </ul>
+            ) : (
               <p className="mt-2 text-[var(--text-muted)]">
-                Allow Agri Soft Pro through Windows Firewall if cashiers cannot connect.
+                No network address found yet. Connect Wi‑Fi / LAN, then refresh.
               </p>
-            </div>
-          ) : null}
+            )}
+            <p className="mt-2 text-[var(--text-muted)]">
+              Allow Agri Soft Pro through Windows Firewall if cashiers cannot connect.
+            </p>
+          </div>
         </section>
       ) : null}
 
@@ -240,22 +280,29 @@ function LanSettingsBody() {
         <section className="space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5">
           <h3 className="text-sm font-semibold">Connect to main PC</h3>
           <Input
-            label="Main PC address (IP)"
+            label="Main PC address (paste IP from main PC)"
             value={clientHost}
-            onChange={(e) => setClientHost(e.target.value)}
-            placeholder="192.168.1.10"
+            onChange={(e) => {
+              const raw = e.target.value.trim();
+              // Allow pasting "192.168.x.x:4747" from main PC copy button
+              const m = raw.match(/^(.+):(\d{2,5})$/);
+              if (m) {
+                setClientHost(m[1]);
+                setClientPort(m[2]);
+                return;
+              }
+              setClientHost(e.target.value);
+            }}
           />
           <Input
             label="Port"
             value={clientPort}
             onChange={(e) => setClientPort(e.target.value)}
-            placeholder="4747"
           />
           <Input
             label="Access key (from main PC)"
             value={clientAccessKey}
             onChange={(e) => setClientAccessKey(e.target.value)}
-            placeholder="Ask shop admin"
           />
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" disabled={busy} onClick={() => void testConnection()}>

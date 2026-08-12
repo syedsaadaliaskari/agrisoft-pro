@@ -58,6 +58,7 @@ export function requireSession(): SessionUser {
 }
 
 export function sessionHasPermission(user: SessionUser, code: string): boolean {
+  if (user.roleName === "Super Admin") return true;
   if (user.permissions.includes("*")) return true;
   return user.permissions.includes(code);
 }

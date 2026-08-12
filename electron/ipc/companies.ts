@@ -51,7 +51,7 @@ function mapCompany(row: typeof clientCompanies.$inferSelect): ClientCompany {
 
 export function registerCompanyHandlers(): void {
   registerHandler(IPC.COMPANIES_LIST, async (): Promise<ActionResult<ClientCompany[]>> =>
-    guarded(() => requireAnyPermission("license.manage", "platform.view"), async () => {
+    guarded(() => requireAnyPermission("license.manage", "license.view", "platform.view"), async () => {
       const rows = getDb()
         .select()
         .from(clientCompanies)
@@ -64,7 +64,7 @@ export function registerCompanyHandlers(): void {
   registerHandler(
     IPC.COMPANIES_CREATE,
     async (_e, input: ClientCompanyInput): Promise<ActionResult<ClientCompany>> =>
-      guarded(() => requireAnyPermission("license.manage", "platform.view"), async () => {
+      guarded(() => requireAnyPermission("license.manage", "license.view", "platform.view"), async () => {
         const companyName = input.companyName?.trim();
         const area = input.area?.trim();
         const joinedAt = input.joinedAt?.trim();
@@ -94,7 +94,7 @@ export function registerCompanyHandlers(): void {
   registerHandler(
     IPC.COMPANIES_UPDATE,
     async (_e, id: string, input: ClientCompanyInput): Promise<ActionResult<ClientCompany>> =>
-      guarded(() => requireAnyPermission("license.manage", "platform.view"), async () => {
+      guarded(() => requireAnyPermission("license.manage", "license.view", "platform.view"), async () => {
         const companyName = input.companyName?.trim();
         const area = input.area?.trim();
         const joinedAt = input.joinedAt?.trim();
@@ -123,7 +123,7 @@ export function registerCompanyHandlers(): void {
   );
 
   registerHandler(IPC.COMPANIES_DELETE, async (_e, id: string): Promise<ActionResult> =>
-    guarded(() => requireAnyPermission("license.manage", "platform.view"), async () => {
+    guarded(() => requireAnyPermission("license.manage", "license.view", "platform.view"), async () => {
       const db = getDb();
       const current = db.select().from(clientCompanies).where(eq(clientCompanies.id, id)).get();
       if (!current) return fail("Company not found");
@@ -133,7 +133,7 @@ export function registerCompanyHandlers(): void {
   );
 
   registerHandler(IPC.COMPANIES_DEMAND, async (): Promise<ActionResult<CompaniesDemandSummary>> =>
-    guarded(() => requireAnyPermission("license.manage", "platform.view"), async () => {
+    guarded(() => requireAnyPermission("license.manage", "license.view", "platform.view"), async () => {
       const db = getDb();
       const all = db.select().from(clientCompanies).all();
       const byArea = new Map<string, number>();

@@ -70,7 +70,10 @@ const emptyCompany = {
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
-  const isPlatform = hasAnyPermission(user, ["platform.view", "license.manage"]);
+  /** Vendor Super Admin dashboard: client companies list + demand-by-area chart */
+  const isPlatform =
+    user?.roleName === "Super Admin" ||
+    hasAnyPermission(user, ["platform.view", "license.manage", "license.view"]);
 
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [companies, setCompanies] = useState<ClientCompany[]>([]);
