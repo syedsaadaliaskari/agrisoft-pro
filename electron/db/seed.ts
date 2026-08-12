@@ -233,21 +233,32 @@ export function ensurePermissions(db: Db): void {
   // Re-assert Super Admin full access after strip migration (License + Activated + Companies)
   grantMissingPermissions(db, superRole.id, allPermRows);
 
-  // Promote default admin user to Super Admin when that role exists
-  const adminUser = db.select().from(users).where(eq(users.username, "admin")).get();
-  if (adminUser && adminUser.roleId === adminRole.id && superRole) {
-    db.update(users)
-      .set({ roleId: superRole.id, updatedAt: new Date().toISOString() })
-      .where(eq(users.id, adminUser.id))
-      .run();
+  // Customers must NOT be Super Admin by default (license is vendor-controlled).
+  // Only a machine with vendor_unlocked=1 keeps Super Admin users.
+  const vendorUnlocked =
+    db.select().from(settings).where(eq(settings.key, "vendor_unlocked")).get()?.value === "1";
+  if (!vendorUnlocked) {
+    const saUsers = db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.roleId, superRole.id))
+      .all();
+    for (const u of saUsers) {
+      db.update(users)
+        .set({ roleId: adminRole.id, updatedAt: new Date().toISOString() })
+        .where(eq(users.id, u.id))
+        .run();
+    }
   }
+
+  // Clear legacy forced password-change flag on existing installs
+  upsertSystemSetting(db, "must_change_password", "0");
 }
 
 export async function seedDatabase(
   db: Db,
-  options?: { production?: boolean }
+  _options?: { production?: boolean }
 ): Promise<void> {
-  const production = options?.production === true;
   const existingAdmin = db.select().from(users).where(eq(users.username, "admin")).get();
   if (existingAdmin) {
     ensurePermissions(db);
@@ -323,12 +334,8 @@ export async function seedDatabase(
     )
     .run();
   upsertSystemSetting(db, "rbac_license_perms_v3", new Date().toISOString());
-  if (production) {
-    // Client installs: force password change after first sign-in (default admin123 is temporary)
-    upsertSystemSetting(db, "must_change_password", "1");
-  } else {
-    upsertSystemSetting(db, "must_change_password", "0");
-  }
+  // Never force password change — vendor gives the password; users keep it.
+  upsertSystemSetting(db, "must_change_password", "0");
 
   const cashierCodes = new Set([
     "dashboard.view",
@@ -388,8 +395,8 @@ export async function seedDatabase(
       id: randomUUID(),
       username: "admin",
       passwordHash,
-      fullName: "System Administrator",
-      roleId: superAdminRoleId,
+      fullName: "Shop Administrator",
+      roleId: adminRoleId,
       isActive: true,
     })
     .run();

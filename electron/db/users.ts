@@ -2,15 +2,17 @@ import bcrypt from "bcryptjs";
 import { and, asc, count, eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import type { Db } from "./index";
-import { permissions, rolePermissions, roles, users } from "./schema";
+import { permissions, rolePermissions, roles, settings, users } from "./schema";
 import type {
   AppUser,
   PermissionInfo,
   RoleInfo,
+  SessionUser,
   UserCreateInput,
   UserUpdateInput,
 } from "../../shared/ipc";
 import { writeAuditLog } from "./audit";
+import { VENDOR_SUPPORT } from "../../shared/support";
 
 export class UsersError extends Error {
   constructor(message: string) {
@@ -104,6 +106,18 @@ export function setRolePermissions(
     }
   }
 
+  // Non–Super Admin cannot grant license / platform permissions
+  if (!actorIsSuperAdmin(db, actorId)) {
+    const blocked = ["license.manage", "license.view", "platform.view"];
+    for (const b of blocked) {
+      const i = codes.indexOf(b);
+      if (i >= 0) codes.splice(i, 1);
+    }
+    if (role.name === "Super Admin") {
+      throw new UsersError("Only Super Admin can edit Super Admin permissions");
+    }
+  }
+
   if (codes.length === 0) {
     throw new UsersError("Select at least one permission");
   }
@@ -154,12 +168,28 @@ function isAdminRole(db: Db, roleId: string): boolean {
   return role?.name === "Admin";
 }
 
+function isSuperAdminRole(db: Db, roleId: string): boolean {
+  const role = db.select().from(roles).where(eq(roles.id, roleId)).get();
+  return role?.name === "Super Admin";
+}
+
+function actorIsSuperAdmin(db: Db, actorId: string | null): boolean {
+  if (!actorId) return false;
+  const row = db
+    .select({ roleName: roles.name })
+    .from(users)
+    .innerJoin(roles, eq(users.roleId, roles.id))
+    .where(eq(users.id, actorId))
+    .get();
+  return row?.roleName === "Super Admin";
+}
+
 export async function createUser(
   db: Db,
   input: UserCreateInput,
   actorId: string | null
 ): Promise<AppUser> {
-  const username = input.username?.trim();
+  const username = input.username?.trim().toLowerCase();
   const fullName = input.fullName?.trim();
   const password = input.password ?? "";
 
@@ -170,6 +200,9 @@ export async function createUser(
 
   const role = db.select().from(roles).where(eq(roles.id, input.roleId)).get();
   if (!role) throw new UsersError("Role not found");
+  if (role.name === "Super Admin" && !actorIsSuperAdmin(db, actorId)) {
+    throw new UsersError("Only Super Admin can create Super Admin users");
+  }
 
   const existing = db.select().from(users).where(eq(users.username, username)).get();
   if (existing) throw new UsersError("Username already exists");
@@ -230,6 +263,19 @@ export async function updateUser(
   if (input.roleId) {
     const role = db.select().from(roles).where(eq(roles.id, input.roleId)).get();
     if (!role) throw new UsersError("Role not found");
+    if (role.name === "Super Admin" && !actorIsSuperAdmin(db, actorId)) {
+      throw new UsersError("Only Super Admin can assign Super Admin");
+    }
+  }
+
+  // Shop Admin cannot strip Super Admin from someone else either by demoting last SA — allow demote only by SA
+  if (
+    isSuperAdminRole(db, current.user.roleId) &&
+    input.roleId &&
+    !isSuperAdminRole(db, input.roleId) &&
+    !actorIsSuperAdmin(db, actorId)
+  ) {
+    throw new UsersError("Only Super Admin can change a Super Admin user");
   }
 
   const fullName =
@@ -326,4 +372,75 @@ export async function changeOwnPassword(
     entityId: userId,
     details: `Password changed by ${user.username}`,
   });
+}
+
+/**
+ * Vendor-only: enter secret unlock code to become Super Admin on this PC
+ * (license activation tools). Customers never get this code.
+ */
+export function unlockVendorSuperAdmin(
+  db: Db,
+  userId: string,
+  code: string
+): SessionUser {
+  const expected = VENDOR_SUPPORT.unlockCode.trim();
+  if (!expected || code.trim() !== expected) {
+    throw new UsersError("Invalid vendor unlock code");
+  }
+
+  const superRole = db.select().from(roles).where(eq(roles.name, "Super Admin")).get();
+  if (!superRole) throw new UsersError("Super Admin role missing");
+
+  const user = db.select().from(users).where(eq(users.id, userId)).get();
+  if (!user || !user.isActive) throw new UsersError("User not found");
+
+  const now = new Date().toISOString();
+  db.update(users)
+    .set({ roleId: superRole.id, updatedAt: now })
+    .where(eq(users.id, userId))
+    .run();
+
+  const existing = db.select().from(settings).where(eq(settings.key, "vendor_unlocked")).get();
+  if (existing) {
+    db.update(settings)
+      .set({ value: "1", updatedAt: now })
+      .where(eq(settings.id, existing.id))
+      .run();
+  } else {
+    db.insert(settings)
+      .values({
+        id: randomUUID(),
+        key: "vendor_unlocked",
+        value: "1",
+        groupName: "system",
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run();
+  }
+
+  writeAuditLog(db, {
+    userId,
+    action: "vendor_unlock",
+    module: "users",
+    entityId: userId,
+    details: `Vendor unlock — ${user.username} is now Super Admin`,
+  });
+
+  const perms = db
+    .select({ code: permissions.code })
+    .from(rolePermissions)
+    .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
+    .where(eq(rolePermissions.roleId, superRole.id))
+    .all();
+
+  return {
+    id: user.id,
+    username: user.username,
+    fullName: user.fullName,
+    roleId: superRole.id,
+    roleName: "Super Admin",
+    permissions: perms.map((p) => p.code),
+    mustChangePassword: false,
+  };
 }

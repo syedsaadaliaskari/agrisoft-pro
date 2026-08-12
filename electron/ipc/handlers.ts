@@ -1,6 +1,6 @@
 import { ipcMain } from "electron";
 import bcrypt from "bcryptjs";
-import { eq, count } from "drizzle-orm";
+import { eq, count, sql } from "drizzle-orm";
 import { IPC, type SessionUser, type LoginResult, type DbStats, type AppInfo, type ActionResult } from "../../shared/ipc";
 import { getDb, getDbPath } from "../db";
 import {
@@ -15,7 +15,7 @@ import {
   purchases,
   settings,
 } from "../db/schema";
-import { changeOwnPassword, UsersError } from "../db/users";
+import { changeOwnPassword, unlockVendorSuperAdmin, UsersError } from "../db/users";
 import { registerMasterHandlers } from "./masters";
 import { registerProductHandlers } from "./products";
 import { registerPartyHandlers } from "./parties";
@@ -57,8 +57,7 @@ function loadUserSession(userId: string): SessionUser | null {
     .where(eq(rolePermissions.roleId, row.roleId))
     .all();
 
-  const mustChange =
-    db.select().from(settings).where(eq(settings.key, "must_change_password")).get()?.value === "1";
+  const mustChange = false;
 
   return {
     id: row.id,
@@ -83,13 +82,18 @@ export function registerIpcHandlers(appVersion: string, isDev: boolean): void {
 
   ipcMain.handle(IPC.AUTH_LOGIN, async (_e, username: string, password: string): Promise<LoginResult> => {
     const db = getDb();
-    const user = db.select().from(users).where(eq(users.username, username)).get();
+    const normalized = String(username ?? "").trim().toLowerCase();
+    const user = db
+      .select()
+      .from(users)
+      .where(sql`lower(${users.username}) = ${normalized}`)
+      .get();
 
     if (!user || !user.isActive) {
       return { ok: false, error: "Invalid username or password" };
     }
 
-    const valid = await bcrypt.compare(password, user.passwordHash);
+    const valid = await bcrypt.compare(String(password ?? ""), user.passwordHash);
     if (!valid) {
       return { ok: false, error: "Invalid username or password" };
     }
@@ -162,6 +166,26 @@ export function registerIpcHandlers(appVersion: string, isDev: boolean): void {
             : err instanceof Error
               ? err.message
               : "Could not change password";
+        return { ok: false, error: message };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    IPC.AUTH_VENDOR_UNLOCK,
+    async (_e, code: string): Promise<ActionResult<SessionUser>> => {
+      try {
+        const session = requireSession();
+        const next = unlockVendorSuperAdmin(getDb(), session.id, String(code ?? ""));
+        setCurrentSession(next);
+        return { ok: true, data: next };
+      } catch (err) {
+        const message =
+          err instanceof PermissionError || err instanceof UsersError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : "Vendor unlock failed";
         return { ok: false, error: message };
       }
     }

@@ -196,6 +196,13 @@ export default function UsersPage() {
           <div className="sm:col-span-2 text-sm font-semibold">
             {editingId ? "Edit user" : "Create user"}
           </div>
+          <p className="sm:col-span-2 -mt-2 text-xs text-[var(--text-muted)]">
+            Fresh installs start as shop{" "}
+            <span className="font-medium text-[var(--text)]">Admin</span> (
+            <span className="font-mono">admin</span> / <span className="font-mono">admin123</span>
+            ) — no License tools. Only the vendor unlocks Super Admin on their own PC. Create staff
+            users on each shop PC after install.
+          </p>
           <Input
             label="Username"
             value={form.username}

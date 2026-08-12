@@ -51,8 +51,7 @@ export default function LoginPage() {
     if (!licenseChecked) return;
     if (hydrated && user && !welcome) {
       setWelcome(true);
-      const dest = user.mustChangePassword ? "/settings/password" : "/dashboard";
-      const timer = setTimeout(() => router.replace(dest), 700);
+      const timer = setTimeout(() => router.replace("/dashboard"), 700);
       return () => clearTimeout(timer);
     }
   }, [hydrated, user, router, welcome, licenseChecked]);
@@ -95,7 +94,7 @@ export default function LoginPage() {
           return;
         }
         await new Promise((r) => setTimeout(r, 650));
-        router.replace(result.user.mustChangePassword ? "/settings/password" : "/dashboard");
+        router.replace("/dashboard");
       } else {
         setWelcome(false);
         setError(result.error ?? t("login.failed"));

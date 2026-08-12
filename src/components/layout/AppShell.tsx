@@ -62,12 +62,6 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
   }, [user, path, router, logout]);
 
   useEffect(() => {
-    if (!user?.mustChangePassword) return;
-    if (path === "/settings/password" || path === "/activate" || path === "/login") return;
-    router.replace("/settings/password");
-  }, [user, path, router]);
-
-  useEffect(() => {
     const routes = [
       "/dashboard",
       "/sales",

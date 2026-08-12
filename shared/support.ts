@@ -5,6 +5,11 @@ export const VENDOR_SUPPORT = {
   /** Shown on Activate Pro screen */
   whatsappDisplay: "+92 316 8762618",
   label: "WhatsApp vendor",
+  /**
+   * Secret code only YOU know. Enter it once in Settings → Vendor unlock
+   * to become Super Admin on your PC (license tools). Never share with customers.
+   */
+  unlockCode: "ASP-VENDOR-ONLY-316",
 };
 
 /** Opens WhatsApp with Install ID pre-filled for activation. */

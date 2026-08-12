@@ -17,7 +17,7 @@ export default function ChangePasswordPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [saving, setSaving] = useState(false);
-  const forced = !!user?.mustChangePassword;
+  const forced = false;
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

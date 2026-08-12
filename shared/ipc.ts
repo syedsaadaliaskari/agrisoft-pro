@@ -6,6 +6,7 @@ export const IPC = {
   AUTH_LOGOUT: "auth:logout",
   AUTH_CURRENT_USER: "auth:currentUser",
   AUTH_CHANGE_PASSWORD: "auth:changePassword",
+  AUTH_VENDOR_UNLOCK: "auth:vendorUnlock",
   DB_STATS: "db:stats",
 
   // Document numbers
@@ -1269,6 +1270,7 @@ export type ElectronAPI = {
   logout: () => Promise<void>;
   getCurrentUser: () => Promise<SessionUser | null>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<ActionResult>;
+  vendorUnlock: (code: string) => Promise<ActionResult<SessionUser>>;
   getDbStats: () => Promise<DbStats>;
 
   nextDocumentNumber: (docType: DocType) => Promise<ActionResult<string>>;

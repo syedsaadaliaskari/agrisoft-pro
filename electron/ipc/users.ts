@@ -47,8 +47,10 @@ export function registerUserHandlers(): void {
 
   ipcMain.handle(IPC.ROLES_LIST, async (): Promise<ActionResult<RoleInfo[]>> => {
     try {
-      requirePermission("users.manage");
-      return ok(listRoles(getDb()));
+      const session = requirePermission("users.manage");
+      const all = listRoles(getDb());
+      if (session.roleName === "Super Admin") return ok(all);
+      return ok(all.filter((r) => r.name !== "Super Admin"));
     } catch (err) {
       return fail(asError(err));
     }

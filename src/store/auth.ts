@@ -29,6 +29,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const user = await getApi().getCurrentUser();
         if (gen !== hydrateGeneration) return;
         if (user) set({ user });
+        else set({ user: null });
       } catch {
         /* keep cached session */
       }

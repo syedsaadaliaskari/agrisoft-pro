@@ -30,10 +30,14 @@ export default function SettingsPage() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
   const [n8nBusy, setN8nBusy] = useState(false);
+  const [vendorCode, setVendorCode] = useState("");
+  const [vendorBusy, setVendorBusy] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [saving, setSaving] = useState(false);
   const [audit, setAudit] = useState<AuditLogRow[]>([]);
+  const hydrate = useAuthStore((s) => s.hydrate);
+  const isSuperAdmin = user?.roleName === "Super Admin";
 
   const applyMap = (map: SettingsMap) => {
     setForm({
@@ -175,6 +179,22 @@ export default function SettingsPage() {
     );
   };
 
+  const onVendorUnlock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setVendorBusy(true);
+    setError("");
+    setSuccess("");
+    const res = await getApi().vendorUnlock(vendorCode);
+    setVendorBusy(false);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    setVendorCode("");
+    setSuccess("Vendor unlocked — you are Super Admin on this PC (License tools enabled).");
+    await hydrate();
+  };
+
   return (
     <AppShell title="Settings" subtitle="Shop profile, security, and shortcuts" permission="settings.manage">
       <div className="space-y-6">
@@ -234,6 +254,34 @@ export default function SettingsPage() {
             </Link>
           ) : null}
         </section>
+
+        {!isSuperAdmin ? (
+          <form
+            onSubmit={(e) => void onVendorUnlock(e)}
+            className="max-w-3xl space-y-3 rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5"
+          >
+            <div className="text-sm font-semibold">Vendor unlock (you only)</div>
+            <p className="text-xs text-[var(--text-muted)]">
+              Customer installs start as shop Admin (no License tools). Enter your private vendor
+              code once on YOUR PC to become Super Admin and manage activations.
+            </p>
+            <Input
+              label="Vendor unlock code"
+              type="password"
+              value={vendorCode}
+              onChange={(e) => setVendorCode(e.target.value)}
+              autoComplete="off"
+              required
+            />
+            <Button type="submit" disabled={vendorBusy || !vendorCode.trim()}>
+              {vendorBusy ? "Unlocking…" : "Unlock Super Admin"}
+            </Button>
+          </form>
+        ) : (
+          <div className="max-w-3xl rounded-xl border border-[var(--accent)]/30 bg-[var(--accent-soft)]/30 px-5 py-3 text-sm text-[var(--text)]">
+            This PC is vendor-unlocked (Super Admin). License / Activated tools are available.
+          </div>
+        )}
 
         <form
           onSubmit={onSave}
