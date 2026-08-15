@@ -15,9 +15,11 @@ import {
   reopenDatabase,
   getBackupRoot,
 } from "../db/backup";
+import { resetShopDatabase } from "../db/reset";
 import { writeAuditLog } from "../db/audit";
 import { getDb } from "../db";
 import { PermissionError, requirePermission } from "./session";
+import { getLanMode } from "../lan/client-bridge";
 
 function ok<T>(data: T): ActionResult<T> {
   return { ok: true, data };
@@ -182,6 +184,68 @@ export function registerBackupHandlers(): void {
         await shell.openPath(root);
         return ok(undefined);
       } catch (err) {
+        return fail(asError(err));
+      }
+    },
+    { localOnly: true }
+  );
+
+  registerHandler(
+    IPC.BACKUP_RESET_SHOP,
+    async (_e, confirmText: string): Promise<ActionResult<{ relaunching: true }>> => {
+      try {
+        const session = requirePermission("settings.manage");
+        if (getLanMode() === "client") {
+          return fail("Reset shop data only on the main PC (or This PC alone)");
+        }
+        if (String(confirmText ?? "").trim().toUpperCase() !== "RESET") {
+          return fail('Type RESET in capital letters to confirm');
+        }
+
+        const win = focusedWindow();
+        const confirm = win
+          ? await dialog.showMessageBox(win, {
+              type: "warning",
+              buttons: ["Cancel", "Erase and restart"],
+              defaultId: 0,
+              cancelId: 0,
+              title: "Reset all shop data",
+              message: "Erase all sales, stock, parties, and users?",
+              detail:
+                "This cannot be undone. Your Install ID and Pro activation are kept. The app will restart with a clean shop (admin / admin123).",
+            })
+          : await dialog.showMessageBox({
+              type: "warning",
+              buttons: ["Cancel", "Erase and restart"],
+              defaultId: 0,
+              cancelId: 0,
+              title: "Reset all shop data",
+              message: "Erase all sales, stock, parties, and users?",
+              detail:
+                "This cannot be undone. Your Install ID and Pro activation are kept. The app will restart with a clean shop (admin / admin123).",
+            });
+        if (confirm.response !== 1) {
+          return fail("Reset cancelled");
+        }
+
+        try {
+          writeAuditLog(getDb(), {
+            userId: session.id,
+            action: "reset_shop",
+            module: "backup",
+            details: "Shop data reset to empty",
+          });
+        } catch {
+          /* continue */
+        }
+
+        return await resetShopDatabase().then((data) => ok(data));
+      } catch (err) {
+        try {
+          await reopenDatabase();
+        } catch {
+          /* ignore */
+        }
         return fail(asError(err));
       }
     },

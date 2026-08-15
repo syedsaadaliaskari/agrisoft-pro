@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
@@ -75,7 +75,7 @@ export default function IncomeLedgerPage() {
         statement={
           ledger
             ? {
-                title: `${ledger.account.code} — ${ledger.account.name}`,
+                title: `${ledger.account.name}`,
                 subtitle: "Income account",
                 fromDate: ledger.fromDate,
                 toDate: ledger.toDate,

@@ -1,4 +1,4 @@
-ï»¿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Ban, Pencil, Receipt, Wallet } from "lucide-react";
@@ -181,13 +181,13 @@ export default function ExpensePage() {
               label="Expense account"
               value={expenseAccountId}
               onChange={(e) => setExpenseAccountId(e.target.value)}
-              options={expenseAccounts.map((a) => ({ value: a.id, label: `${a.code} ${a.name}` }))}
+              options={expenseAccounts.map((a) => ({ value: a.id, label: `${a.name}` }))}
             />
             <Select
               label="Paid from"
               value={accountId}
               onChange={(e) => setAccountId(e.target.value)}
-              options={cashAccounts.map((a) => ({ value: a.id, label: `${a.code} ${a.name}` }))}
+              options={cashAccounts.map((a) => ({ value: a.id, label: `${a.name}` }))}
             />
             <Input
               label="Amount"
@@ -235,8 +235,8 @@ export default function ExpensePage() {
                       <div className="font-mono text-xs font-semibold">{row.voucherNo}</div>
                       <div className="text-[11px] text-[var(--text-muted)]">{row.voucherDate}</div>
                     </td>
-                    <td className="px-4 py-3.5 text-sm">{expLine?.accountName || "â€”"}</td>
-                    <td className="px-4 py-3.5 text-[var(--text-muted)]">{row.accountName || "â€”"}</td>
+                    <td className="px-4 py-3.5 text-sm">{expLine?.accountName || "—"}</td>
+                    <td className="px-4 py-3.5 text-[var(--text-muted)]">{row.accountName || "—"}</td>
                     <td className="px-4 py-3.5 font-semibold tabular-nums">{money(row.grandTotal)}</td>
                     <td className="px-4 py-3.5">
                       <DocStatusBadge status={row.status} />

@@ -1,4 +1,4 @@
-ï»¿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, RotateCcw, Undo2, X } from "lucide-react";
@@ -129,10 +129,10 @@ export default function SaleReturnsPage() {
 
   const productOptions = useMemo(
     () => [
-      { value: "", label: "â€” Select pack â€”" },
+      { value: "", label: "— Select pack —" },
       ...inventory.map((r) => ({
         value: r.variantId,
-        label: `${r.productName} Â· ${r.size}/${r.color} Â· ${money(r.salePrice)}`,
+        label: `${r.productName} · ${r.size}/${r.color} · ${money(r.salePrice)}`,
       })),
     ],
     [inventory]
@@ -247,7 +247,7 @@ export default function SaleReturnsPage() {
   return (
     <AppShell
       title="Sale Return"
-      subtitle="Returns desk â€” restore stock and reverse settlement"
+      subtitle="Returns desk — restore stock and reverse settlement"
       permission="sales.return"
     >
       {error && !open ? (
@@ -349,14 +349,14 @@ export default function SaleReturnsPage() {
                 <div className="mt-0.5 text-[11px] text-[var(--text-muted)]">{row.returnDate}</div>
               </td>
               <td className="px-4 py-3.5">
-                <div className="font-medium">{row.customerName || "â€”"}</div>
+                <div className="font-medium">{row.customerName || "—"}</div>
                 <div className="text-[11px] text-[var(--text-muted)]">
                   {row.saleId ? "Linked to sale" : "Standalone return"}
                 </div>
               </td>
               <td className="px-4 py-3.5 font-semibold tabular-nums">{money(row.grandTotal)}</td>
               <td className="px-4 py-3.5 max-w-[220px] truncate text-[var(--text-muted)]">
-                {row.notes || "â€”"}
+                {row.notes || "—"}
               </td>
               <td className="px-4 py-3.5">
                 <div className="flex justify-end">
@@ -377,7 +377,7 @@ export default function SaleReturnsPage() {
         footer={
           <>
             <div className="mr-auto hidden text-xs text-[var(--text-muted)] sm:block">
-              {lines.length} line{lines.length === 1 ? "" : "s"} Â· {money(grand)}
+              {lines.length} line{lines.length === 1 ? "" : "s"} · {money(grand)}
             </div>
             <Button variant="secondary" onClick={() => setOpen(false)}>
               Cancel
@@ -404,10 +404,10 @@ export default function SaleReturnsPage() {
                   value={saleId}
                   onChange={(e) => void onSaleLink(e.target.value)}
                   options={[
-                    { value: "", label: "â€” None (manual) â€”" },
+                    { value: "", label: "— None (manual) —" },
                     ...sales.map((s) => ({
                       value: s.id,
-                      label: `${s.invoiceNo} Â· ${s.customerName || "Walk-in"} Â· ${money(s.grandTotal)}`,
+                      label: `${s.invoiceNo} · ${s.customerName || "Walk-in"} · ${money(s.grandTotal)}`,
                     })),
                   ]}
                 />
@@ -416,8 +416,8 @@ export default function SaleReturnsPage() {
                   value={customerId}
                   onChange={(e) => setCustomerId(e.target.value)}
                   options={[
-                    { value: "", label: "â€” None â€”" },
-                    ...customers.map((c) => ({ value: c.id, label: `${c.code} â€” ${c.name}` })),
+                    { value: "", label: "— None —" },
+                    ...customers.map((c) => ({ value: c.id, label: `${c.name}` })),
                   ]}
                 />
                 <Input
@@ -447,7 +447,7 @@ export default function SaleReturnsPage() {
                     label="Refund account"
                     value={accountId}
                     onChange={(e) => setAccountId(e.target.value)}
-                    options={accounts.map((a) => ({ value: a.id, label: `${a.code} ${a.name}` }))}
+                    options={accounts.map((a) => ({ value: a.id, label: `${a.name}` }))}
                   />
                 </div>
               ) : (

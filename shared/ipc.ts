@@ -162,6 +162,7 @@ export const IPC = {
   BACKUP_RESTORE: "backup:restore",
   BACKUP_PICK_FILE: "backup:pickFile",
   BACKUP_OPEN_FOLDER: "backup:openFolder",
+  BACKUP_RESET_SHOP: "backup:resetShop",
 
   LICENSE_STATUS: "license:status",
   LICENSE_LIST: "license:list",
@@ -1426,6 +1427,7 @@ export type ElectronAPI = {
   restoreBackup: (sourcePath: string) => Promise<ActionResult<{ relaunching: true }>>;
   pickBackupFile: () => Promise<ActionResult<string | null>>;
   openBackupFolder: () => Promise<ActionResult>;
+  resetShopData: (confirmText: string) => Promise<ActionResult<{ relaunching: true }>>;
 
   getLicenseStatus: () => Promise<ActionResult<LicenseStatus>>;
   listLicenses: () => Promise<ActionResult<LicenseRow[]>>;

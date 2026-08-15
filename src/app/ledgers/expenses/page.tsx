@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
@@ -85,7 +85,7 @@ function AccountTypeLedgerPage({
         statement={
           ledger
             ? {
-                title: `${ledger.account.code} — ${ledger.account.name}`,
+                title: `${ledger.account.name}`,
                 subtitle: `${accountType} account`,
                 fromDate: ledger.fromDate,
                 toDate: ledger.toDate,

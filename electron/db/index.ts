@@ -489,6 +489,8 @@ export async function initDatabase(): Promise<Db> {
 
   await seedDatabase(db, { production: !isDev });
   ensurePermissions(db);
+  const { ensureSimpleDocumentPrefixes } = await import("./counters");
+  ensureSimpleDocumentPrefixes(db);
   // Heavy demo (products, cashier, sample sales) — development only
   if (isDev) {
     await seedDemoData(db);

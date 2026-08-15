@@ -15,10 +15,11 @@ import {
   OpsListSkeleton,
   OpsStatStrip,
 } from "@/components/ops/DocumentWorkspace";
-import { Alert, Button, DataTable } from "@/components/ui/form";
+import { Alert, Button, DataTable, Input } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import type { BackupStatus } from "@shared/ipc";
+import { useAuthStore } from "@/store/auth";
 
 function formatBytes(n: number) {
   if (n < 1024) return `${n} B`;
@@ -37,12 +38,14 @@ function formatWhen(iso: string | null) {
 
 export default function BackupPage() {
   const { t } = useI18n();
+  const logout = useAuthStore((s) => s.logout);
   const [status, setStatus] = useState<BackupStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [autoRefreshDone, setAutoRefreshDone] = useState(false);
   const [error, setError] = useState("");
   const [okMsg, setOkMsg] = useState("");
+  const [resetConfirm, setResetConfirm] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -123,6 +126,24 @@ export default function BackupPage() {
       return;
     }
     setOkMsg("Restoring — app is restarting…");
+  };
+
+  const onResetShop = async () => {
+    setBusy(true);
+    setError("");
+    setOkMsg("");
+    const res = await getApi().resetShopData(resetConfirm);
+    setBusy(false);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    setOkMsg("Shop reset — app is restarting…");
+    try {
+      await logout();
+    } catch {
+      /* relaunch handles this */
+    }
   };
 
   const onOpenFolder = async () => {
@@ -211,6 +232,34 @@ export default function BackupPage() {
               </div>
             </section>
           </div>
+
+          <section className="mb-5 rounded-2xl border border-[var(--danger)]/40 bg-[var(--bg-elevated)] p-5">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--danger)]">
+              Danger zone
+            </div>
+            <h2 className="mt-1 text-lg font-semibold tracking-tight">Reset all shop data</h2>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              Erases sales, purchases, stock, parties, and users. Keeps Install ID and Pro activation.
+              App restarts with admin / admin123. Not available on LAN cashier PCs.
+            </p>
+            <div className="mt-3 max-w-sm">
+              <Input
+                label='Type RESET to confirm'
+                value={resetConfirm}
+                onChange={(e) => setResetConfirm(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
+            <div className="mt-4">
+              <Button
+                variant="danger"
+                disabled={busy || resetConfirm.trim().toUpperCase() !== "RESET"}
+                onClick={() => void onResetShop()}
+              >
+                Erase shop and restart
+              </Button>
+            </div>
+          </section>
 
           <div className="mb-3 flex items-end justify-between gap-3">
             <div>

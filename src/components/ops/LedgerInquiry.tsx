@@ -187,15 +187,11 @@ export function LedgerInquiry({
                         >
                           {item.name}
                         </div>
-                        <div className="mt-0.5 flex items-center gap-2 text-[11px] text-[var(--text-muted)]">
-                          <span className="font-mono">{item.code}</span>
-                          {item.hint ? (
-                            <>
-                              <span>·</span>
-                              <span className="truncate">{item.hint}</span>
-                            </>
-                          ) : null}
-                        </div>
+                        {item.hint ? (
+                          <div className="mt-0.5 truncate text-[11px] text-[var(--text-muted)]">
+                            {item.hint}
+                          </div>
+                        ) : null}
                       </button>
                     </li>
                   );
@@ -231,9 +227,6 @@ export function LedgerInquiry({
                       <CalendarRange size={12} />
                       {statement.fromDate || "Start"} → {statement.toDate || "Today"}
                     </span>
-                    {selected ? (
-                      <span className="font-mono text-[11px]">{selected.code}</span>
-                    ) : null}
                   </div>
                 </div>
                 <ExportMenu

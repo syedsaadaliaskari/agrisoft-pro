@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, Ban, Pencil, Receipt } from "lucide-react";
@@ -189,13 +189,13 @@ export default function MakePaymentPage() {
               label="Vendor"
               value={vendorId}
               onChange={(e) => setVendorId(e.target.value)}
-              options={vendors.map((v) => ({ value: v.id, label: `${v.code} — ${v.name}` }))}
+              options={vendors.map((v) => ({ value: v.id, label: `${v.name}` }))}
             />
             <Select
               label="Pay from"
               value={accountId}
               onChange={(e) => setAccountId(e.target.value)}
-              options={accounts.map((a) => ({ value: a.id, label: `${a.code} ${a.name}` }))}
+              options={accounts.map((a) => ({ value: a.id, label: `${a.name}` }))}
             />
             <Input
               label="Amount"
@@ -249,8 +249,8 @@ export default function MakePaymentPage() {
                     <div className="font-mono text-xs font-semibold">{row.voucherNo}</div>
                     <div className="text-[11px] text-[var(--text-muted)]">{row.voucherDate}</div>
                   </td>
-                  <td className="px-4 py-3.5 font-medium">{row.partyName || "—"}</td>
-                  <td className="px-4 py-3.5 text-[var(--text-muted)]">{row.accountName || "—"}</td>
+                  <td className="px-4 py-3.5 font-medium">{row.partyName || "�"}</td>
+                  <td className="px-4 py-3.5 text-[var(--text-muted)]">{row.accountName || "�"}</td>
                   <td className="px-4 py-3.5 font-semibold tabular-nums">{money(row.grandTotal)}</td>
                   <td className="px-4 py-3.5">
                     <DocStatusBadge status={row.status} />

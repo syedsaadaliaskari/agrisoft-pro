@@ -63,19 +63,19 @@ export const SUPER_ADMIN_ONLY_PERMISSIONS = new Set([
 
 const DEFAULT_ACCOUNTS = [
   { code: "1000", name: "Assets", accountType: "asset" },
-  { code: "1100", name: "Cash in Hand", accountType: "asset" },
-  { code: "1200", name: "Bank Account", accountType: "asset" },
-  { code: "1300", name: "Accounts Receivable", accountType: "asset" },
-  { code: "1400", name: "Inventory Asset", accountType: "asset" },
+  { code: "1100", name: "Cash", accountType: "asset" },
+  { code: "1200", name: "Bank", accountType: "asset" },
+  { code: "1300", name: "Receivables", accountType: "asset" },
+  { code: "1400", name: "Inventory", accountType: "asset" },
   { code: "2000", name: "Liabilities", accountType: "liability" },
-  { code: "2100", name: "Accounts Payable", accountType: "liability" },
+  { code: "2100", name: "Payables", accountType: "liability" },
   { code: "3000", name: "Equity", accountType: "equity" },
   { code: "3100", name: "Owner Equity", accountType: "equity" },
   { code: "4000", name: "Income", accountType: "income" },
-  { code: "4100", name: "Sales Revenue", accountType: "income" },
+  { code: "4100", name: "Sales", accountType: "income" },
   { code: "4200", name: "Other Income", accountType: "income" },
   { code: "5000", name: "Expenses", accountType: "expense" },
-  { code: "5100", name: "Cost of Goods Sold", accountType: "expense" },
+  { code: "5100", name: "Cost of Goods", accountType: "expense" },
   { code: "5200", name: "Operating Expenses", accountType: "expense" },
   { code: "5300", name: "Purchase Returns", accountType: "expense" },
 ] as const;
@@ -253,6 +253,23 @@ export function ensurePermissions(db: Db): void {
 
   // Clear legacy forced password-change flag on existing installs
   upsertSystemSetting(db, "must_change_password", "0");
+
+  ensureSimpleAccountNames(db);
+}
+
+/** Rename default chart accounts to short plain names (Cash, Bank, …). */
+export function ensureSimpleAccountNames(db: Db): void {
+  if (settingExists(db, "simple_account_names_v1")) return;
+  for (const a of DEFAULT_ACCOUNTS) {
+    const row = db.select().from(accounts).where(eq(accounts.code, a.code)).get();
+    if (row && row.name !== a.name) {
+      db.update(accounts)
+        .set({ name: a.name, updatedAt: new Date().toISOString() })
+        .where(eq(accounts.id, row.id))
+        .run();
+    }
+  }
+  upsertSystemSetting(db, "simple_account_names_v1", new Date().toISOString());
 }
 
 export async function seedDatabase(
@@ -464,18 +481,18 @@ export async function seedDatabase(
 
   db.insert(documentCounters)
     .values([
-      { id: randomUUID(), docType: "sale", prefix: "INV-", nextNumber: 1 },
-      { id: randomUUID(), docType: "sale_return", prefix: "SR-", nextNumber: 1 },
-      { id: randomUUID(), docType: "purchase", prefix: "PUR-", nextNumber: 1 },
-      { id: randomUUID(), docType: "purchase_return", prefix: "PR-", nextNumber: 1 },
-      { id: randomUUID(), docType: "payment", prefix: "PAY-", nextNumber: 1 },
-      { id: randomUUID(), docType: "receipt", prefix: "REC-", nextNumber: 1 },
-      { id: randomUUID(), docType: "journal", prefix: "JV-", nextNumber: 1 },
-      { id: randomUUID(), docType: "expense", prefix: "EXP-", nextNumber: 1 },
-      { id: randomUUID(), docType: "income", prefix: "INC-", nextNumber: 1 },
-      { id: randomUUID(), docType: "customer", prefix: "CUS-", nextNumber: 1 },
-      { id: randomUUID(), docType: "vendor", prefix: "VEN-", nextNumber: 1 },
-      { id: randomUUID(), docType: "product", prefix: "SKU-", nextNumber: 1 },
+      { id: randomUUID(), docType: "sale", prefix: "#", nextNumber: 1 },
+      { id: randomUUID(), docType: "sale_return", prefix: "#", nextNumber: 1 },
+      { id: randomUUID(), docType: "purchase", prefix: "#", nextNumber: 1 },
+      { id: randomUUID(), docType: "purchase_return", prefix: "#", nextNumber: 1 },
+      { id: randomUUID(), docType: "payment", prefix: "#", nextNumber: 1 },
+      { id: randomUUID(), docType: "receipt", prefix: "#", nextNumber: 1 },
+      { id: randomUUID(), docType: "journal", prefix: "#", nextNumber: 1 },
+      { id: randomUUID(), docType: "expense", prefix: "#", nextNumber: 1 },
+      { id: randomUUID(), docType: "income", prefix: "#", nextNumber: 1 },
+      { id: randomUUID(), docType: "customer", prefix: "#", nextNumber: 1 },
+      { id: randomUUID(), docType: "vendor", prefix: "#", nextNumber: 1 },
+      { id: randomUUID(), docType: "product", prefix: "#", nextNumber: 1 },
     ])
     .run();
 }

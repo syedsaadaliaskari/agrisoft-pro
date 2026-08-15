@@ -130,11 +130,13 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
   }
 
   return (
-    <div className="min-h-screen" key={pathname}>
+    <div className="min-h-screen">
       <Sidebar />
       <div style={{ marginInlineStart: "var(--sidebar-width)" }} className="min-h-screen">
         <Topbar title={displayTitle} subtitle={displaySubtitle} />
-        <main className="animate-[fadeIn_180ms_ease-out] p-6">{children}</main>
+        <main key={pathname} className="animate-[fadeIn_180ms_ease-out] p-6">
+          {children}
+        </main>
       </div>
     </div>
   );

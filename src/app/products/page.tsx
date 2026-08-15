@@ -21,7 +21,6 @@ import type { Category, Product, ProductVariant, Tax, Unit } from "@shared/ipc";
 
 const emptyProduct = {
   sku: "",
-  barcode: "",
   name: "",
   description: "",
   categoryId: "",
@@ -112,7 +111,6 @@ export default function ProductsPage() {
     setEditing(row);
     setForm({
       sku: row.sku,
-      barcode: row.barcode ?? "",
       name: row.name,
       description: row.description ?? "",
       categoryId: row.categoryId ?? "",
@@ -135,7 +133,7 @@ export default function ProductsPage() {
     setError("");
     const payload = {
       sku: form.sku || undefined,
-      barcode: form.barcode || null,
+      barcode: null,
       name: form.name,
       description: form.description || null,
       categoryId: form.categoryId || null,
@@ -353,11 +351,6 @@ export default function ProductsPage() {
             label="SKU (auto if blank)"
             value={form.sku}
             onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))}
-          />
-          <Input
-            label="Barcode"
-            value={form.barcode}
-            onChange={(e) => setForm((f) => ({ ...f, barcode: e.target.value }))}
           />
           <Input
             label="Name"

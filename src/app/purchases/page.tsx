@@ -1,4 +1,4 @@
-Ôªø"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -14,7 +14,6 @@ import {
   X,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
-import { BarcodeScanField } from "@/components/BarcodeScanField";
 import { ExportMenu } from "@/components/ExportMenu";
 import { PrintMenu } from "@/components/PrintMenu";
 import {
@@ -159,10 +158,10 @@ export default function PurchasesPage() {
 
   const productOptions = useMemo(
     () => [
-      { value: "", label: "‚Äî Search & select pack ‚Äî" },
+      { value: "", label: "ù Search & select pack ù" },
       ...inventory.map((r) => ({
         value: r.variantId,
-        label: `${r.productName} ¬∑ ${r.size}/${r.color} ¬∑ cost ${money(r.costPrice)}`,
+        label: `${r.productName} ù ${r.size}/${r.color} ù cost ${money(r.costPrice)}`,
       })),
     ],
     [inventory]
@@ -239,7 +238,7 @@ export default function PurchasesPage() {
     const row = inventory.find((r) => r.variantId === pickVariantId);
     if (!row) return;
     if (lines.some((l) => l.variantId === pickVariantId)) {
-      setError("Pack already added ‚Äî adjust quantity on the existing line");
+      setError("Pack already added ù adjust quantity on the existing line");
       return;
     }
     setLines((prev) => [
@@ -253,32 +252,6 @@ export default function PurchasesPage() {
       },
     ]);
     setPickVariantId("");
-    setError("");
-  };
-
-  const addLineFromScan = (row: (typeof inventory)[number]) => {
-    const existing = lines.find((l) => l.variantId === row.variantId);
-    if (existing) {
-      setLines((prev) =>
-        prev.map((l) =>
-          l.variantId === row.variantId
-            ? { ...l, quantity: String(Number(l.quantity || 0) + 1) }
-            : l
-        )
-      );
-      setError("");
-      return;
-    }
-    setLines((prev) => [
-      ...prev,
-      {
-        key: `${row.variantId}-${Date.now()}`,
-        variantId: row.variantId,
-        label: `${row.productName} (${row.size}/${row.color})`,
-        quantity: "1",
-        unitCost: String(row.costPrice),
-      },
-    ]);
     setError("");
   };
 
@@ -351,7 +324,7 @@ export default function PurchasesPage() {
   };
 
   return (
-    <AppShell title="Purchase" subtitle="Receiving desk ‚Äî stock in and payables" permission="purchases.view">
+    <AppShell title="Purchase" subtitle="Receiving desk ù stock in and payables" permission="purchases.view">
       {error && !composer ? (
         <div className="mb-4">
           <Alert>{error}</Alert>
@@ -442,7 +415,7 @@ export default function PurchasesPage() {
           hint={
             search || modeFilter !== "all"
               ? "Clear filters or search to see the full receiving register."
-              : "Record a vendor bill ‚Äî stock increases and payables post automatically."
+              : "Record a vendor bill ù stock increases and payables post automatically."
           }
           action={
             canCreate && !search && modeFilter === "all" ? (
@@ -474,7 +447,7 @@ export default function PurchasesPage() {
                       <Truck size={12} />
                     </span>
                     <div>
-                      <div className="font-medium">{row.vendorName || "‚Äî"}</div>
+                      <div className="font-medium">{row.vendorName || "ù"}</div>
                       <div className="text-[11px] text-[var(--text-muted)]">Supplier bill</div>
                     </div>
                   </div>
@@ -530,7 +503,7 @@ export default function PurchasesPage() {
         footer={
           <>
             <div className="mr-auto hidden text-xs text-[var(--text-muted)] sm:block">
-              {lines.length} line{lines.length === 1 ? "" : "s"} ¬∑ {money(grand)}
+              {lines.length} line{lines.length === 1 ? "" : "s"} ù {money(grand)}
             </div>
             <Button
               variant="secondary"
@@ -566,8 +539,8 @@ export default function PurchasesPage() {
                   value={vendorId}
                   onChange={(e) => setVendorId(e.target.value)}
                   options={[
-                    { value: "", label: "‚Äî Select vendor ‚Äî" },
-                    ...vendors.map((v) => ({ value: v.id, label: `${v.code} ‚Äî ${v.name}` })),
+                    { value: "", label: "ù Select vendor ù" },
+                    ...vendors.map((v) => ({ value: v.id, label: `${v.name}` })),
                   ]}
                 />
               </div>
@@ -588,7 +561,7 @@ export default function PurchasesPage() {
                   label="Cash / Bank account"
                   value={accountId}
                   onChange={(e) => setAccountId(e.target.value)}
-                  options={accounts.map((a) => ({ value: a.id, label: `${a.code} ${a.name}` }))}
+                  options={accounts.map((a) => ({ value: a.id, label: `${a.name}` }))}
                 />
                 <Input
                   label="Paid now"
@@ -611,13 +584,7 @@ export default function PurchasesPage() {
               }
             >
               <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end">
-                <div className="min-w-[200px] flex-1">
-                  <BarcodeScanField
-                    onFound={addLineFromScan}
-                    onError={(msg) => setError(msg)}
-                  />
-                </div>
-                <div className="flex-[1.4]">
+                <div className="flex-1">
                   <Select
                     label="Add product pack"
                     value={pickVariantId}
@@ -731,7 +698,7 @@ export default function PurchasesPage() {
                 { label: "Subtotal", value: money(subtotal), muted: true },
                 {
                   label: "Discount",
-                  value: `‚àí ${money(Number(discountAmount || 0))}`,
+                  value: `- ${money(Number(discountAmount || 0))}`,
                   muted: true,
                   negative: Number(discountAmount || 0) > 0,
                 },
@@ -790,7 +757,7 @@ export default function PurchasesPage() {
             <DocMetaGrid
               items={[
                 { label: "Date", value: viewing.invoiceDate },
-                { label: "Vendor", value: viewing.vendorName || "‚Äî" },
+                { label: "Vendor", value: viewing.vendorName || "ù" },
                 { label: "Payment", value: <PaymentModeBadge mode={viewing.paymentMode} /> },
                 { label: "Status", value: <DocStatusBadge status={viewing.status} /> },
               ]}

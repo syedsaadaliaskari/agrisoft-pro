@@ -1,4 +1,4 @@
-ï»¿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PackageMinus, Plus, RotateCcw, X } from "lucide-react";
@@ -233,7 +233,7 @@ export default function PurchaseReturnsPage() {
   return (
     <AppShell
       title="Purchase Return"
-      subtitle="Vendor returns â€” stock out and reverse payables"
+      subtitle="Vendor returns — stock out and reverse payables"
       permission="purchases.return"
     >
       {error && !open ? (
@@ -335,14 +335,14 @@ export default function PurchaseReturnsPage() {
                 <div className="mt-0.5 text-[11px] text-[var(--text-muted)]">{row.returnDate}</div>
               </td>
               <td className="px-4 py-3.5">
-                <div className="font-medium">{row.vendorName || "â€”"}</div>
+                <div className="font-medium">{row.vendorName || "—"}</div>
                 <div className="text-[11px] text-[var(--text-muted)]">
                   {row.purchaseId ? "Linked to purchase" : "Standalone return"}
                 </div>
               </td>
               <td className="px-4 py-3.5 font-semibold tabular-nums">{money(row.grandTotal)}</td>
               <td className="px-4 py-3.5 max-w-[220px] truncate text-[var(--text-muted)]">
-                {row.notes || "â€”"}
+                {row.notes || "—"}
               </td>
               <td className="px-4 py-3.5">
                 <div className="flex justify-end">
@@ -363,7 +363,7 @@ export default function PurchaseReturnsPage() {
         footer={
           <>
             <div className="mr-auto hidden text-xs text-[var(--text-muted)] sm:block">
-              {lines.length} line{lines.length === 1 ? "" : "s"} Â· {money(grand)}
+              {lines.length} line{lines.length === 1 ? "" : "s"} · {money(grand)}
             </div>
             <Button variant="secondary" onClick={() => setOpen(false)}>
               Cancel
@@ -390,10 +390,10 @@ export default function PurchaseReturnsPage() {
                   value={purchaseId}
                   onChange={(e) => void onPurchaseLink(e.target.value)}
                   options={[
-                    { value: "", label: "â€” None (manual) â€”" },
+                    { value: "", label: "— None (manual) —" },
                     ...purchases.map((p) => ({
                       value: p.id,
-                      label: `${p.invoiceNo} Â· ${p.vendorName || "â€”"} Â· ${money(p.grandTotal)}`,
+                      label: `${p.invoiceNo} · ${p.vendorName || "—"} · ${money(p.grandTotal)}`,
                     })),
                   ]}
                 />
@@ -402,8 +402,8 @@ export default function PurchaseReturnsPage() {
                   value={vendorId}
                   onChange={(e) => setVendorId(e.target.value)}
                   options={[
-                    { value: "", label: "â€” Select vendor â€”" },
-                    ...vendors.map((v) => ({ value: v.id, label: `${v.code} â€” ${v.name}` })),
+                    { value: "", label: "— Select vendor —" },
+                    ...vendors.map((v) => ({ value: v.id, label: `${v.name}` })),
                   ]}
                 />
                 <Input
@@ -433,7 +433,7 @@ export default function PurchaseReturnsPage() {
                     label="Refund account"
                     value={accountId}
                     onChange={(e) => setAccountId(e.target.value)}
-                    options={accounts.map((a) => ({ value: a.id, label: `${a.code} ${a.name}` }))}
+                    options={accounts.map((a) => ({ value: a.id, label: `${a.name}` }))}
                   />
                 </div>
               ) : (
@@ -451,10 +451,10 @@ export default function PurchaseReturnsPage() {
                     value={pickVariantId}
                     onChange={(e) => setPickVariantId(e.target.value)}
                     options={[
-                      { value: "", label: "â€” Select â€”" },
+                      { value: "", label: "— Select —" },
                       ...inventory.map((r) => ({
                         value: r.variantId,
-                        label: `${r.productName} Â· ${r.size}/${r.color} Â· cost ${money(r.costPrice)}`,
+                        label: `${r.productName} · ${r.size}/${r.color} · cost ${money(r.costPrice)}`,
                       })),
                     ]}
                   />

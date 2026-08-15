@@ -140,6 +140,7 @@ const api: ElectronAPI = {
   restoreBackup: (sourcePath) => ipcRenderer.invoke(IPC.BACKUP_RESTORE, sourcePath),
   pickBackupFile: () => ipcRenderer.invoke(IPC.BACKUP_PICK_FILE),
   openBackupFolder: () => ipcRenderer.invoke(IPC.BACKUP_OPEN_FOLDER),
+  resetShopData: (confirmText) => ipcRenderer.invoke(IPC.BACKUP_RESET_SHOP, confirmText),
 
   getLicenseStatus: () => ipcRenderer.invoke(IPC.LICENSE_STATUS),
   listLicenses: () => ipcRenderer.invoke(IPC.LICENSE_LIST),

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { navigation } from "@/lib/navigation";
@@ -8,11 +9,29 @@ import { useAuthStore } from "@/store/auth";
 import { hasAnyPermission, hasPermission } from "@/lib/permissions";
 import { useI18n } from "@/lib/i18n";
 
+const SCROLL_KEY = "agri_sidebar_scroll";
+
 export function Sidebar() {
   const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
   const { t } = useI18n();
   const isSuperAdmin = user?.roleName === "Super Admin";
+  const navRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    const saved = sessionStorage.getItem(SCROLL_KEY);
+    if (saved) {
+      const y = Number(saved);
+      if (!Number.isNaN(y)) el.scrollTop = y;
+    }
+    const onScroll = () => {
+      sessionStorage.setItem(SCROLL_KEY, String(el.scrollTop));
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
 
   return (
     <aside
@@ -31,7 +50,7 @@ export function Sidebar() {
         </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
+      <nav ref={navRef} className="flex-1 overflow-y-auto px-3 py-4">
         {navigation.map((group) => {
           const items = group.items.filter((item) => {
             if (isSuperAdmin) return true;

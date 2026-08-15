@@ -1,4 +1,4 @@
-Ôªø"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -14,7 +14,6 @@ import {
   X,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
-import { BarcodeScanField } from "@/components/BarcodeScanField";
 import { ExportMenu } from "@/components/ExportMenu";
 import { PrintMenu } from "@/components/PrintMenu";
 import {
@@ -162,10 +161,10 @@ export default function SalesPage() {
 
   const productOptions = useMemo(
     () => [
-      { value: "", label: "‚Äî Search & select pack ‚Äî" },
+      { value: "", label: "ù Search & select pack ù" },
       ...inventory.map((r) => ({
         value: r.variantId,
-        label: `${r.productName} ¬∑ ${r.size}/${r.color} ¬∑ stock ${r.stockQty} ¬∑ ${money(r.salePrice)}`,
+        label: `${r.productName} ù ${r.size}/${r.color} ù stock ${r.stockQty} ù ${money(r.salePrice)}`,
       })),
     ],
     [inventory]
@@ -247,7 +246,7 @@ export default function SalesPage() {
     const row = inventory.find((r) => r.variantId === pickVariantId);
     if (!row) return;
     if (lines.some((l) => l.variantId === pickVariantId)) {
-      setError("Pack already added ‚Äî change quantity on the existing line");
+      setError("Pack already added ù change quantity on the existing line");
       return;
     }
     setLines((prev) => [
@@ -262,33 +261,6 @@ export default function SalesPage() {
       },
     ]);
     setPickVariantId("");
-    setError("");
-  };
-
-  const addLineFromScan = (row: (typeof inventory)[number]) => {
-    const existing = lines.find((l) => l.variantId === row.variantId);
-    if (existing) {
-      setLines((prev) =>
-        prev.map((l) =>
-          l.variantId === row.variantId
-            ? { ...l, quantity: String(Number(l.quantity || 0) + 1) }
-            : l
-        )
-      );
-      setError("");
-      return;
-    }
-    setLines((prev) => [
-      ...prev,
-      {
-        key: `${row.variantId}-${Date.now()}`,
-        variantId: row.variantId,
-        label: `${row.productName} (${row.size}/${row.color})`,
-        stockQty: row.stockQty,
-        quantity: "1",
-        unitPrice: String(row.salePrice),
-      },
-    ]);
     setError("");
   };
 
@@ -375,7 +347,7 @@ export default function SalesPage() {
   }, [rows]);
 
   return (
-    <AppShell title="Sale" subtitle="Invoice desk ‚Äî stock out, ledger, and print" permission="sales.view">
+    <AppShell title="Sale" subtitle="Invoice desk ù stock out, ledger, and print" permission="sales.view">
       {error && !composer ? (
         <div className="mb-4">
           <Alert>{error}</Alert>
@@ -466,7 +438,7 @@ export default function SalesPage() {
           hint={
             search || modeFilter !== "all"
               ? "Try clearing filters or search to see the full register."
-              : "Create your first invoice ‚Äî add packs, set payment, and post to stock & ledger."
+              : "Create your first invoice ù add packs, set payment, and post to stock & ledger."
           }
           action={
             canCreate && !search && modeFilter === "all" ? (
@@ -552,7 +524,7 @@ export default function SalesPage() {
           <>
             <div className="mr-auto hidden items-center gap-2 text-xs text-[var(--text-muted)] sm:flex">
               <Banknote size={14} />
-              {lines.length} line{lines.length === 1 ? "" : "s"} ¬∑ {money(grand)}
+              {lines.length} line{lines.length === 1 ? "" : "s"} ù {money(grand)}
             </div>
             <Button
               variant="secondary"
@@ -596,7 +568,7 @@ export default function SalesPage() {
                   onChange={(e) => setCustomerId(e.target.value)}
                   options={[
                     { value: "", label: "Walk-in customer" },
-                    ...customers.map((c) => ({ value: c.id, label: `${c.code} ‚Äî ${c.name}` })),
+                    ...customers.map((c) => ({ value: c.id, label: `${c.name}` })),
                   ]}
                 />
               </div>
@@ -610,11 +582,11 @@ export default function SalesPage() {
                     label="Cash / Bank account"
                     value={accountId}
                     onChange={(e) => setAccountId(e.target.value)}
-                    options={accounts.map((a) => ({ value: a.id, label: `${a.code} ${a.name}` }))}
+                    options={accounts.map((a) => ({ value: a.id, label: `${a.name}` }))}
                   />
                 ) : (
                   <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--bg-soft)]/50 px-3 py-2 text-xs text-[var(--text-muted)]">
-                    Credit sale ‚Äî amount posts to customer receivable. Optional partial payment below.
+                    Credit sale ù amount posts to customer receivable. Optional partial payment below.
                   </div>
                 )}
                 <Input
@@ -638,13 +610,7 @@ export default function SalesPage() {
               }
             >
               <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end">
-                <div className="min-w-[200px] flex-1">
-                  <BarcodeScanField
-                    onFound={addLineFromScan}
-                    onError={(msg) => setError(msg)}
-                  />
-                </div>
-                <div className="flex-[1.4]">
+                <div className="flex-1">
                   <Select
                     label="Add product pack"
                     value={pickVariantId}
@@ -764,7 +730,7 @@ export default function SalesPage() {
                 { label: "Subtotal", value: money(subtotal), muted: true },
                 {
                   label: "Discount",
-                  value: `‚àí ${money(Number(discountAmount || 0))}`,
+                  value: `- ${money(Number(discountAmount || 0))}`,
                   muted: true,
                   negative: Number(discountAmount || 0) > 0,
                 },

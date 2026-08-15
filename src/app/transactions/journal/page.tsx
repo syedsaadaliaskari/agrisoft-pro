@@ -1,4 +1,4 @@
-ï»¿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Ban, BookOpen, Pencil, Plus, Scale, X } from "lucide-react";
@@ -236,8 +236,8 @@ export default function JournalPage() {
                     )
                   }
                   options={[
-                    { value: "", label: "â€” Select â€”" },
-                    ...accounts.map((a) => ({ value: a.id, label: `${a.code} ${a.name}` })),
+                    { value: "", label: "— Select —" },
+                    ...accounts.map((a) => ({ value: a.id, label: `${a.name}` })),
                   ]}
                 />
                 <Input
@@ -356,7 +356,7 @@ export default function JournalPage() {
                 </td>
                 <td className="px-4 py-3.5 font-semibold tabular-nums">{money(row.grandTotal)}</td>
                 <td className="px-4 py-3.5 max-w-[240px] truncate text-[var(--text-muted)]">
-                  {row.notes || "â€”"}
+                  {row.notes || "—"}
                 </td>
                 <td className="px-4 py-3.5">
                   <DocStatusBadge status={row.status} />
