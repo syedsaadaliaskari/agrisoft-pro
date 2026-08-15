@@ -236,7 +236,7 @@ export default function JournalPage() {
                     )
                   }
                   options={[
-                    { value: "", label: "— Select —" },
+                    { value: "", label: "â€” Select â€”" },
                     ...accounts.map((a) => ({ value: a.id, label: `${a.name}` })),
                   ]}
                 />
@@ -356,7 +356,7 @@ export default function JournalPage() {
                 </td>
                 <td className="px-4 py-3.5 font-semibold tabular-nums">{money(row.grandTotal)}</td>
                 <td className="px-4 py-3.5 max-w-[240px] truncate text-[var(--text-muted)]">
-                  {row.notes || "—"}
+                  {row.notes || "â€”"}
                 </td>
                 <td className="px-4 py-3.5">
                   <DocStatusBadge status={row.status} />

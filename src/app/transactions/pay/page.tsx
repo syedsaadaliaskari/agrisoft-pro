@@ -249,8 +249,8 @@ export default function MakePaymentPage() {
                     <div className="font-mono text-xs font-semibold">{row.voucherNo}</div>
                     <div className="text-[11px] text-[var(--text-muted)]">{row.voucherDate}</div>
                   </td>
-                  <td className="px-4 py-3.5 font-medium">{row.partyName || "—"}</td>
-                  <td className="px-4 py-3.5 text-[var(--text-muted)]">{row.accountName || "—"}</td>
+                  <td className="px-4 py-3.5 font-medium">{row.partyName || "â€”"}</td>
+                  <td className="px-4 py-3.5 text-[var(--text-muted)]">{row.accountName || "â€”"}</td>
                   <td className="px-4 py-3.5 font-semibold tabular-nums">{money(row.grandTotal)}</td>
                   <td className="px-4 py-3.5">
                     <DocStatusBadge status={row.status} />

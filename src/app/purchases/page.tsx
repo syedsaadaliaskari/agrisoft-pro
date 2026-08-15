@@ -158,10 +158,10 @@ export default function PurchasesPage() {
 
   const productOptions = useMemo(
     () => [
-      { value: "", label: "ù Search & select pack ù" },
+      { value: "", label: "‚Äî Search & select pack ‚Äî" },
       ...inventory.map((r) => ({
         value: r.variantId,
-        label: `${r.productName} ù ${r.size}/${r.color} ù cost ${money(r.costPrice)}`,
+        label: `${r.productName} ‚Äî ${r.size}/${r.color} ‚Äî cost ${money(r.costPrice)}`,
       })),
     ],
     [inventory]
@@ -238,7 +238,7 @@ export default function PurchasesPage() {
     const row = inventory.find((r) => r.variantId === pickVariantId);
     if (!row) return;
     if (lines.some((l) => l.variantId === pickVariantId)) {
-      setError("Pack already added ù adjust quantity on the existing line");
+      setError("Pack already added ‚Äî adjust quantity on the existing line");
       return;
     }
     setLines((prev) => [
@@ -324,7 +324,7 @@ export default function PurchasesPage() {
   };
 
   return (
-    <AppShell title="Purchase" subtitle="Receiving desk ù stock in and payables" permission="purchases.view">
+    <AppShell title="Purchase" subtitle="Receiving desk ‚Äî stock in and payables" permission="purchases.view">
       {error && !composer ? (
         <div className="mb-4">
           <Alert>{error}</Alert>
@@ -415,7 +415,7 @@ export default function PurchasesPage() {
           hint={
             search || modeFilter !== "all"
               ? "Clear filters or search to see the full receiving register."
-              : "Record a vendor bill ù stock increases and payables post automatically."
+              : "Record a vendor bill ‚Äî stock increases and payables post automatically."
           }
           action={
             canCreate && !search && modeFilter === "all" ? (
@@ -447,7 +447,7 @@ export default function PurchasesPage() {
                       <Truck size={12} />
                     </span>
                     <div>
-                      <div className="font-medium">{row.vendorName || "ù"}</div>
+                      <div className="font-medium">{row.vendorName || "‚Äî"}</div>
                       <div className="text-[11px] text-[var(--text-muted)]">Supplier bill</div>
                     </div>
                   </div>
@@ -503,7 +503,7 @@ export default function PurchasesPage() {
         footer={
           <>
             <div className="mr-auto hidden text-xs text-[var(--text-muted)] sm:block">
-              {lines.length} line{lines.length === 1 ? "" : "s"} ù {money(grand)}
+              {lines.length} line{lines.length === 1 ? "" : "s"} ‚Äî {money(grand)}
             </div>
             <Button
               variant="secondary"
@@ -539,7 +539,7 @@ export default function PurchasesPage() {
                   value={vendorId}
                   onChange={(e) => setVendorId(e.target.value)}
                   options={[
-                    { value: "", label: "ù Select vendor ù" },
+                    { value: "", label: "‚Äî Select vendor ‚Äî" },
                     ...vendors.map((v) => ({ value: v.id, label: `${v.name}` })),
                   ]}
                 />
@@ -757,7 +757,7 @@ export default function PurchasesPage() {
             <DocMetaGrid
               items={[
                 { label: "Date", value: viewing.invoiceDate },
-                { label: "Vendor", value: viewing.vendorName || "ù" },
+                { label: "Vendor", value: viewing.vendorName || "‚Äî" },
                 { label: "Payment", value: <PaymentModeBadge mode={viewing.paymentMode} /> },
                 { label: "Status", value: <DocStatusBadge status={viewing.status} /> },
               ]}

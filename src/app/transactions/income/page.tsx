@@ -238,8 +238,8 @@ export default function IncomePage() {
                       <div className="font-mono text-xs font-semibold">{row.voucherNo}</div>
                       <div className="text-[11px] text-[var(--text-muted)]">{row.voucherDate}</div>
                     </td>
-                    <td className="px-4 py-3.5 text-sm">{incLine?.accountName || "—"}</td>
-                    <td className="px-4 py-3.5 text-[var(--text-muted)]">{row.accountName || "—"}</td>
+                    <td className="px-4 py-3.5 text-sm">{incLine?.accountName || "â€”"}</td>
+                    <td className="px-4 py-3.5 text-[var(--text-muted)]">{row.accountName || "â€”"}</td>
                     <td className="px-4 py-3.5 font-semibold tabular-nums">{money(row.grandTotal)}</td>
                     <td className="px-4 py-3.5">
                       <DocStatusBadge status={row.status} />

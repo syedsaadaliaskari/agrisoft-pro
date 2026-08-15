@@ -161,10 +161,10 @@ export default function SalesPage() {
 
   const productOptions = useMemo(
     () => [
-      { value: "", label: "ù Search & select pack ù" },
+      { value: "", label: "‚Äî Search & select pack ‚Äî" },
       ...inventory.map((r) => ({
         value: r.variantId,
-        label: `${r.productName} ù ${r.size}/${r.color} ù stock ${r.stockQty} ù ${money(r.salePrice)}`,
+        label: `${r.productName} ‚Äî ${r.size}/${r.color} ‚Äî stock ${r.stockQty} ‚Äî ${money(r.salePrice)}`,
       })),
     ],
     [inventory]
@@ -246,7 +246,7 @@ export default function SalesPage() {
     const row = inventory.find((r) => r.variantId === pickVariantId);
     if (!row) return;
     if (lines.some((l) => l.variantId === pickVariantId)) {
-      setError("Pack already added ù change quantity on the existing line");
+      setError("Pack already added ‚Äî change quantity on the existing line");
       return;
     }
     setLines((prev) => [
@@ -347,7 +347,7 @@ export default function SalesPage() {
   }, [rows]);
 
   return (
-    <AppShell title="Sale" subtitle="Invoice desk ù stock out, ledger, and print" permission="sales.view">
+    <AppShell title="Sale" subtitle="Invoice desk ‚Äî stock out, ledger, and print" permission="sales.view">
       {error && !composer ? (
         <div className="mb-4">
           <Alert>{error}</Alert>
@@ -438,7 +438,7 @@ export default function SalesPage() {
           hint={
             search || modeFilter !== "all"
               ? "Try clearing filters or search to see the full register."
-              : "Create your first invoice ù add packs, set payment, and post to stock & ledger."
+              : "Create your first invoice ‚Äî add packs, set payment, and post to stock & ledger."
           }
           action={
             canCreate && !search && modeFilter === "all" ? (
@@ -524,7 +524,7 @@ export default function SalesPage() {
           <>
             <div className="mr-auto hidden items-center gap-2 text-xs text-[var(--text-muted)] sm:flex">
               <Banknote size={14} />
-              {lines.length} line{lines.length === 1 ? "" : "s"} ù {money(grand)}
+              {lines.length} line{lines.length === 1 ? "" : "s"} ‚Äî {money(grand)}
             </div>
             <Button
               variant="secondary"
@@ -586,7 +586,7 @@ export default function SalesPage() {
                   />
                 ) : (
                   <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--bg-soft)]/50 px-3 py-2 text-xs text-[var(--text-muted)]">
-                    Credit sale ù amount posts to customer receivable. Optional partial payment below.
+                    Credit sale ‚Äî amount posts to customer receivable. Optional partial payment below.
                   </div>
                 )}
                 <Input
