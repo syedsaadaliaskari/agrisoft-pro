@@ -129,9 +129,10 @@ export default function SalesPage() {
     const active = rows.filter((r) => r.status !== "deleted");
     const t = today();
     const todayRows = active.filter((r) => r.invoiceDate === t);
-    const todayTotal = todayRows.reduce((s, r) => s + r.grandTotal, 0);
-    const creditDue = active.reduce((s, r) => s + Math.max(0, r.grandTotal - r.paidAmount), 0);
-    const avg = active.length ? active.reduce((s, r) => s + r.grandTotal, 0) / active.length : 0;
+    const netOf = (r: (typeof active)[0]) => r.netTotal ?? r.grandTotal;
+    const todayTotal = todayRows.reduce((s, r) => s + netOf(r), 0);
+    const creditDue = active.reduce((s, r) => s + Math.max(0, netOf(r) - r.paidAmount), 0);
+    const avg = active.length ? active.reduce((s, r) => s + netOf(r), 0) / active.length : 0;
     return {
       count: active.length,
       todayCount: todayRows.length,
@@ -408,7 +409,7 @@ export default function SalesPage() {
               invoiceDate: r.invoiceDate,
               customerName: r.customerName || "Walk-in",
               paymentMode: r.paymentMode,
-              grandTotal: r.grandTotal,
+              grandTotal: r.netTotal ?? r.grandTotal,
               paidAmount: r.paidAmount,
               status: r.status,
             }))}
@@ -455,7 +456,8 @@ export default function SalesPage() {
             empty={false}
           >
             {filtered.map((row) => {
-              const due = Math.max(0, row.grandTotal - row.paidAmount);
+              const net = row.netTotal ?? row.grandTotal;
+              const due = Math.max(0, net - row.paidAmount);
               return (
                 <tr
                   key={row.id}
@@ -474,7 +476,14 @@ export default function SalesPage() {
                   <td className="px-4 py-3.5">
                     <PaymentModeBadge mode={row.paymentMode} />
                   </td>
-                  <td className="px-4 py-3.5 font-semibold tabular-nums">{money(row.grandTotal)}</td>
+                  <td className="px-4 py-3.5 font-semibold tabular-nums">
+                    {money(net)}
+                    {(row.returnedTotal ?? 0) > 0 ? (
+                      <div className="mt-0.5 text-[11px] font-normal text-[var(--text-muted)]">
+                        Returned {money(row.returnedTotal ?? 0)}
+                      </div>
+                    ) : null}
+                  </td>
                   <td className="px-4 py-3.5">
                     <div className="tabular-nums text-sm">{money(row.paidAmount)}</div>
                     <div
@@ -815,9 +824,12 @@ export default function SalesPage() {
                 { label: "Additions", value: money(viewing.additionAmount), muted: true },
                 { label: "Tax", value: money(viewing.taxAmount), muted: true },
                 { label: "Paid", value: money(viewing.paidAmount), muted: true },
+                ...(viewing.returnedTotal
+                  ? [{ label: "Returned", value: money(viewing.returnedTotal), muted: true }]
+                  : []),
               ]}
-              grand={money(viewing.grandTotal)}
-              due={money(Math.max(0, viewing.grandTotal - viewing.paidAmount))}
+              grand={money(viewing.netTotal ?? viewing.grandTotal)}
+              due={money(Math.max(0, (viewing.netTotal ?? viewing.grandTotal) - viewing.paidAmount))}
             />
             {viewing.notes ? (
               <p className="rounded-xl border border-[var(--border)] bg-[var(--bg-soft)] px-3 py-2 text-sm text-[var(--text-muted)]">

@@ -28,6 +28,16 @@ import {
   auditLogs,
   users,
 } from "../db/schema";
+import {
+  returnedTotalForSale,
+  sumPurchaseReturnTaxInRange,
+  sumPurchaseReturnsInRange,
+  sumPurchaseReturnsOnDate,
+  sumSaleReturnCogsInRange,
+  sumSaleReturnTaxInRange,
+  sumSaleReturnsInRange,
+  sumSaleReturnsOnDate,
+} from "../db/returnsNet";
 import { requirePermission, PermissionError } from "./session";
 
 function ok<T>(data: T): ActionResult<T> {
@@ -102,38 +112,49 @@ export function registerDashboardHandlers(): void {
           .from(purchases)
           .where(and(eq(purchases.invoiceDate, date), ne(purchases.status, "deleted")))
           .get();
+        const saleReturnsTotal = sumSaleReturnsOnDate(db, date);
+        const purchaseReturnsTotal = sumPurchaseReturnsOnDate(db, date);
         return {
           date,
-          salesTotal: Number(s?.total ?? 0),
+          salesTotal: money(Number(s?.total ?? 0) - saleReturnsTotal),
           salesCount: Number(s?.cnt ?? 0),
-          purchasesTotal: Number(p?.total ?? 0),
+          purchasesTotal: money(Number(p?.total ?? 0) - purchaseReturnsTotal),
           purchasesCount: Number(p?.cnt ?? 0),
         };
       };
 
       const todaySales = dayAgg(t);
 
-      const monthSales = db
-        .select({ total: sql<number>`coalesce(sum(${sales.grandTotal}), 0)` })
-        .from(sales)
-        .where(and(gte(sales.invoiceDate, monthStart), lte(sales.invoiceDate, t), ne(sales.status, "deleted")))
-        .get();
-      const monthPurchases = db
-        .select({ total: sql<number>`coalesce(sum(${purchases.grandTotal}), 0)` })
-        .from(purchases)
-        .where(
-          and(gte(purchases.invoiceDate, monthStart), lte(purchases.invoiceDate, t), ne(purchases.status, "deleted"))
-        )
-        .get();
+      const monthSalesGross = Number(
+        db
+          .select({ total: sql<number>`coalesce(sum(${sales.grandTotal}), 0)` })
+          .from(sales)
+          .where(and(gte(sales.invoiceDate, monthStart), lte(sales.invoiceDate, t), ne(sales.status, "deleted")))
+          .get()?.total ?? 0
+      );
+      const monthPurchasesGross = Number(
+        db
+          .select({ total: sql<number>`coalesce(sum(${purchases.grandTotal}), 0)` })
+          .from(purchases)
+          .where(
+            and(gte(purchases.invoiceDate, monthStart), lte(purchases.invoiceDate, t), ne(purchases.status, "deleted"))
+          )
+          .get()?.total ?? 0
+      );
+      const monthSaleReturns = sumSaleReturnsInRange(db, monthStart, t);
+      const monthPurchaseReturns = sumPurchaseReturnsInRange(db, monthStart, t);
 
-      const monthCogs = db
-        .select({
-          total: sql<number>`coalesce(sum(${saleItems.costPrice} * ${saleItems.quantity}), 0)`,
-        })
-        .from(saleItems)
-        .innerJoin(sales, eq(saleItems.saleId, sales.id))
-        .where(and(gte(sales.invoiceDate, monthStart), lte(sales.invoiceDate, t), ne(sales.status, "deleted")))
-        .get();
+      const monthCogsGross = Number(
+        db
+          .select({
+            total: sql<number>`coalesce(sum(${saleItems.costPrice} * ${saleItems.quantity}), 0)`,
+          })
+          .from(saleItems)
+          .innerJoin(sales, eq(saleItems.saleId, sales.id))
+          .where(and(gte(sales.invoiceDate, monthStart), lte(sales.invoiceDate, t), ne(sales.status, "deleted")))
+          .get()?.total ?? 0
+      );
+      const monthCogsReturned = sumSaleReturnCogsInRange(db, monthStart, t);
 
       const cash = requireAccountByCode(db, "1100", "Cash");
       const bank = requireAccountByCode(db, "1200", "Bank");
@@ -210,21 +231,20 @@ export function registerDashboardHandlers(): void {
         .limit(8)
         .all();
 
-      const openSaleInvoices =
-        db
-          .select({ value: count() })
-          .from(sales)
-          .where(
-            and(
-              ne(sales.status, "deleted"),
-              sql`${sales.grandTotal} > ${sales.paidAmount}`
-            )
-          )
-          .get()?.value ?? 0;
+      const openSaleInvoices = db
+        .select()
+        .from(sales)
+        .where(ne(sales.status, "deleted"))
+        .all()
+        .filter((r) => {
+          const returned = returnedTotalForSale(db, r.id);
+          return money(r.grandTotal - returned) > money(r.paidAmount);
+        }).length;
 
-      const monthSalesTotal = Number(monthSales?.total ?? 0);
-      const monthPurchasesTotal = Number(monthPurchases?.total ?? 0);
-      const monthProfitEstimate = money(monthSalesTotal - Number(monthCogs?.total ?? 0));
+      const monthSalesTotal = money(monthSalesGross - monthSaleReturns);
+      const monthPurchasesTotal = money(monthPurchasesGross - monthPurchaseReturns);
+      const monthCogsNet = money(monthCogsGross - monthCogsReturned);
+      const monthProfitEstimate = money(monthSalesTotal - monthCogsNet);
 
       return ok({
         todaySalesTotal: todaySales.salesTotal,
@@ -321,6 +341,9 @@ export function registerDashboardHandlers(): void {
         paidAmount: r.paidAmount,
       }));
 
+      const returnsTotal = sumSaleReturnsInRange(db, query?.fromDate, query?.toDate);
+      const returnsTax = sumSaleReturnTaxInRange(db, query?.fromDate, query?.toDate);
+
       const byMode = new Map<string, { count: number; total: number }>();
       const byDay = new Map<string, { count: number; total: number }>();
       for (const r of mapped) {
@@ -340,8 +363,8 @@ export function registerDashboardHandlers(): void {
         rows: mapped,
         totalSubtotal: money(mapped.reduce((s, r) => s + r.subtotal, 0)),
         totalDiscount: money(mapped.reduce((s, r) => s + r.discountAmount, 0)),
-        totalTax: money(mapped.reduce((s, r) => s + r.taxAmount, 0)),
-        totalGrand: money(mapped.reduce((s, r) => s + r.grandTotal, 0)),
+        totalTax: money(mapped.reduce((s, r) => s + r.taxAmount, 0) - returnsTax),
+        totalGrand: money(mapped.reduce((s, r) => s + r.grandTotal, 0) - returnsTotal),
         totalPaid: money(mapped.reduce((s, r) => s + r.paidAmount, 0)),
         byPaymentMode: [...byMode.entries()].map(([mode, v]) => ({ mode, ...v })),
         byDay: [...byDay.entries()].map(([date, v]) => ({ date, ...v })).sort((a, b) => a.date.localeCompare(b.date)),
@@ -380,6 +403,9 @@ export function registerDashboardHandlers(): void {
           paidAmount: r.paidAmount,
         }));
 
+        const returnsTotal = sumPurchaseReturnsInRange(db, query?.fromDate, query?.toDate);
+        const returnsTax = sumPurchaseReturnTaxInRange(db, query?.fromDate, query?.toDate);
+
         const byMode = new Map<string, { count: number; total: number }>();
         const byDay = new Map<string, { count: number; total: number }>();
         for (const r of mapped) {
@@ -399,8 +425,8 @@ export function registerDashboardHandlers(): void {
           rows: mapped,
           totalSubtotal: money(mapped.reduce((s, r) => s + r.subtotal, 0)),
           totalDiscount: money(mapped.reduce((s, r) => s + r.discountAmount, 0)),
-          totalTax: money(mapped.reduce((s, r) => s + r.taxAmount, 0)),
-          totalGrand: money(mapped.reduce((s, r) => s + r.grandTotal, 0)),
+          totalTax: money(mapped.reduce((s, r) => s + r.taxAmount, 0) - returnsTax),
+          totalGrand: money(mapped.reduce((s, r) => s + r.grandTotal, 0) - returnsTotal),
           totalPaid: money(mapped.reduce((s, r) => s + r.paidAmount, 0)),
           byPaymentMode: [...byMode.entries()].map(([mode, v]) => ({ mode, ...v })),
           byDay: [...byDay.entries()].map(([date, v]) => ({ date, ...v })).sort((a, b) => a.date.localeCompare(b.date)),
@@ -415,16 +441,19 @@ export function registerDashboardHandlers(): void {
       if (query?.fromDate) saleCond.push(gte(sales.invoiceDate, query.fromDate));
       if (query?.toDate) saleCond.push(lte(sales.invoiceDate, query.toDate));
 
-      const salesRevenue = Number(
+      const salesRevenueGross = Number(
         db
           .select({ t: sql<number>`coalesce(sum(${sales.grandTotal} - ${sales.taxAmount}), 0)` })
           .from(sales)
           .where(and(...saleCond))
           .get()?.t ?? 0
       );
+      const saleReturnsGross = sumSaleReturnsInRange(db, query?.fromDate, query?.toDate);
+      const saleReturnsTax = sumSaleReturnTaxInRange(db, query?.fromDate, query?.toDate);
+      const salesRevenue = money(salesRevenueGross - (saleReturnsGross - saleReturnsTax));
 
-      // Approximate COGS from sale items
-      const cogs = Number(
+      // Approximate COGS from sale items, net of returned COGS
+      const cogsGross = Number(
         db
           .select({
             t: sql<number>`coalesce(sum(${saleItems.costPrice} * ${saleItems.quantity}), 0)`,
@@ -434,19 +463,20 @@ export function registerDashboardHandlers(): void {
           .where(and(...saleCond))
           .get()?.t ?? 0
       );
+      const cogs = money(cogsGross - sumSaleReturnCogsInRange(db, query?.fromDate, query?.toDate));
 
       const grossProfit = money(salesRevenue - cogs);
       return ok({
         fromDate: query?.fromDate ?? null,
         toDate: query?.toDate ?? null,
-        salesRevenue: money(salesRevenue),
-        cogs: money(cogs),
+        salesRevenue,
+        cogs,
         grossProfit,
         otherIncome: 0,
         operatingExpenses: 0,
         netProfit: grossProfit,
-        incomeLines: [{ accountCode: "4100", accountName: "Sales Revenue", amount: money(salesRevenue) }],
-        expenseLines: [{ accountCode: "5100", accountName: "Cost of Goods Sold", amount: money(cogs) }],
+        incomeLines: [{ accountCode: "4100", accountName: "Sales Revenue (net of returns)", amount: salesRevenue }],
+        expenseLines: [{ accountCode: "5100", accountName: "Cost of Goods Sold (net)", amount: cogs }],
       });
     })
   );
@@ -531,13 +561,17 @@ export function registerDashboardHandlers(): void {
         .from(purchases)
         .where(and(...pCond))
         .get();
-      const salesTax = Number(s?.tax ?? 0);
-      const purchaseTax = Number(p?.tax ?? 0);
+      const salesTax = money(
+        Number(s?.tax ?? 0) - sumSaleReturnTaxInRange(db, query?.fromDate, query?.toDate)
+      );
+      const purchaseTax = money(
+        Number(p?.tax ?? 0) - sumPurchaseReturnTaxInRange(db, query?.fromDate, query?.toDate)
+      );
       return ok({
         fromDate: query?.fromDate ?? null,
         toDate: query?.toDate ?? null,
-        salesTax: money(salesTax),
-        purchaseTax: money(purchaseTax),
+        salesTax,
+        purchaseTax,
         netTax: money(salesTax - purchaseTax),
         salesCount: Number(s?.cnt ?? 0),
         purchaseCount: Number(p?.cnt ?? 0),

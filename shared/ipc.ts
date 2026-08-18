@@ -733,6 +733,10 @@ export type Purchase = {
   additionAmount: number;
   taxAmount: number;
   grandTotal: number;
+  /** Sum of linked sale returns (0 if none) */
+  returnedTotal?: number;
+  /** grandTotal − returnedTotal (never below 0) */
+  netTotal?: number;
   paidAmount: number;
   notes: string | null;
   status: string;
@@ -846,6 +850,10 @@ export type Sale = {
   additionAmount: number;
   taxAmount: number;
   grandTotal: number;
+  /** Sum of linked sale returns (0 if none) */
+  returnedTotal?: number;
+  /** grandTotal − returnedTotal (never below 0) */
+  netTotal?: number;
   paidAmount: number;
   notes: string | null;
   status: string;
@@ -984,6 +992,10 @@ export type SalesReportRow = {
   discountAmount: number;
   taxAmount: number;
   grandTotal: number;
+  /** Sum of linked sale returns (0 if none) */
+  returnedTotal?: number;
+  /** grandTotal − returnedTotal (never below 0) */
+  netTotal?: number;
   paidAmount: number;
 };
 
@@ -1010,6 +1022,10 @@ export type PurchasesReportRow = {
   discountAmount: number;
   taxAmount: number;
   grandTotal: number;
+  /** Sum of linked sale returns (0 if none) */
+  returnedTotal?: number;
+  /** grandTotal − returnedTotal (never below 0) */
+  netTotal?: number;
   paidAmount: number;
 };
 

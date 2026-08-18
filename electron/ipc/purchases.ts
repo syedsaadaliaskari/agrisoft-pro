@@ -19,6 +19,7 @@ import { writeAuditLog } from "../db/audit";
 import { insertVoucherEntry, money } from "../db/ledger";
 import { getSettingsMap } from "../db/settings";
 import { readShopLogoDataUrl } from "../db/branding";
+import { netAmount, returnedTotalForPurchase } from "../db/returnsNet";
 import {
   purchases,
   purchaseItems,
@@ -94,6 +95,7 @@ function enrichPurchase(id: string, withItems = true): Purchase | null {
     ? db.select().from(vendors).where(eq(vendors.id, row.vendorId)).get()
     : null;
   const settings = getSettingsMap(db);
+  const returnedTotal = returnedTotalForPurchase(db, id);
   const base: Purchase = {
     id: row.id,
     voucherId: row.voucherId,
@@ -107,6 +109,8 @@ function enrichPurchase(id: string, withItems = true): Purchase | null {
     additionAmount: row.additionAmount,
     taxAmount: row.taxAmount,
     grandTotal: row.grandTotal,
+    returnedTotal,
+    netTotal: netAmount(row.grandTotal, returnedTotal),
     paidAmount: row.paidAmount,
     notes: row.notes,
     status: row.status,

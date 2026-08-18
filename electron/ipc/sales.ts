@@ -16,6 +16,7 @@ import { getDb } from "../db";
 import { nextDocumentNumber } from "../db/counters";
 import { requireAccountByCode } from "../db/accounts";
 import { getSettingsMap } from "../db/settings";
+import { netAmount, returnedTotalForSale } from "../db/returnsNet";
 import { readShopLogoDataUrl } from "../db/branding";
 import { writeAuditLog } from "../db/audit";
 import {
@@ -104,6 +105,7 @@ function enrichSale(id: string, withItems = true): Sale | null {
     ? db.select().from(customers).where(eq(customers.id, row.customerId)).get()
     : null;
   const settings = getSettingsMap(db);
+  const returnedTotal = returnedTotalForSale(db, id);
 
   const base: Sale = {
     id: row.id,
@@ -118,6 +120,8 @@ function enrichSale(id: string, withItems = true): Sale | null {
     additionAmount: row.additionAmount,
     taxAmount: row.taxAmount,
     grandTotal: row.grandTotal,
+    returnedTotal,
+    netTotal: netAmount(row.grandTotal, returnedTotal),
     paidAmount: row.paidAmount,
     notes: row.notes,
     status: row.status,
