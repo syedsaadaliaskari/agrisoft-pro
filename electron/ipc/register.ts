@@ -17,6 +17,8 @@ export const LOCAL_ONLY_CHANNELS = new Set<string>([
   IPC.APP_SAVE_FILE,
   IPC.BACKUP_PICK_FILE,
   IPC.BACKUP_OPEN_FOLDER,
+  IPC.CLOUD_SYNC_STATUS,
+  IPC.CLOUD_SYNC_NOW,
 ]);
 
 export function isLocalOnlyChannel(channel: string): boolean {

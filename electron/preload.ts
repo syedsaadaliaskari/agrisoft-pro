@@ -154,6 +154,9 @@ const api: ElectronAPI = {
   flushN8nQueue: () => ipcRenderer.invoke(IPC.N8N_FLUSH),
   testN8nWebhook: (to) => ipcRenderer.invoke(IPC.N8N_TEST, to),
 
+  getCloudSyncStatus: () => ipcRenderer.invoke(IPC.CLOUD_SYNC_STATUS),
+  runCloudSyncNow: () => ipcRenderer.invoke(IPC.CLOUD_SYNC_NOW),
+
   getLanStatus: () => ipcRenderer.invoke(IPC.LAN_STATUS),
   updateLanConfig: (input) => ipcRenderer.invoke(IPC.LAN_UPDATE, input),
   testLanConnection: (input) => ipcRenderer.invoke(IPC.LAN_TEST, input),

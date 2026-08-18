@@ -176,6 +176,9 @@ export const IPC = {
   N8N_FLUSH: "n8n:flush",
   N8N_TEST: "n8n:test",
 
+  CLOUD_SYNC_STATUS: "cloud:syncStatus",
+  CLOUD_SYNC_NOW: "cloud:syncNow",
+
   // LAN multi-PC (local to this install — not proxied)
   LAN_STATUS: "lan:status",
   LAN_UPDATE: "lan:update",
@@ -1445,6 +1448,20 @@ export type ElectronAPI = {
   >;
   testN8nWebhook: (to?: string | null) => Promise<
     ActionResult<{ sent: number; remaining: number; error?: string }>
+  >;
+
+  getCloudSyncStatus: () => Promise<
+    ActionResult<{
+      configured: boolean;
+      url: string;
+      tenantId: string;
+      lastSyncAt: string | null;
+      lastError: string | null;
+      localCustomerCount: number;
+    }>
+  >;
+  runCloudSyncNow: () => Promise<
+    ActionResult<{ pushedCustomers: number; pulledCustomers: number; lastSyncAt: string }>
   >;
 
   getLanStatus: () => Promise<ActionResult<LanRuntimeStatus>>;

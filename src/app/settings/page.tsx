@@ -30,6 +30,15 @@ export default function SettingsPage() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
   const [n8nBusy, setN8nBusy] = useState(false);
+  const [syncBusy, setSyncBusy] = useState(false);
+  const [syncInfo, setSyncInfo] = useState<{
+    configured: boolean;
+    url: string;
+    tenantId: string;
+    lastSyncAt: string | null;
+    lastError: string | null;
+    localCustomerCount: number;
+  } | null>(null);
   const [vendorCode, setVendorCode] = useState("");
   const [vendorBusy, setVendorBusy] = useState(false);
   const [error, setError] = useState("");
@@ -71,6 +80,11 @@ export default function SettingsPage() {
     if (res.ok) setAudit(res.data.rows);
   }, []);
 
+  const loadSync = useCallback(async () => {
+    const res = await getApi().getCloudSyncStatus();
+    if (res.ok) setSyncInfo(res.data);
+  }, []);
+
   useEffect(() => {
     void load();
   }, [load]);
@@ -78,6 +92,10 @@ export default function SettingsPage() {
   useEffect(() => {
     void loadAudit();
   }, [loadAudit]);
+
+  useEffect(() => {
+    void loadSync();
+  }, [loadSync]);
 
   const onSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -176,6 +194,22 @@ export default function SettingsPage() {
       `Test webhook: sent ${res.data.sent}, remaining ${res.data.remaining}${
         res.data.error ? ` — ${res.data.error}` : ""
       }`
+    );
+  };
+
+  const onCloudSync = async () => {
+    setSyncBusy(true);
+    setError("");
+    setSuccess("");
+    const res = await getApi().runCloudSyncNow();
+    setSyncBusy(false);
+    void loadSync();
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    setSuccess(
+      `Cloud sync: pushed ${res.data.pushedCustomers} customers, updated ${res.data.pulledCustomers} from cloud`
     );
   };
 
@@ -368,6 +402,46 @@ export default function SettingsPage() {
               value={form.receipt_footer}
               onChange={(e) => setForm((f) => ({ ...f, receipt_footer: e.target.value }))}
             />
+          </div>
+
+          <div className="sm:col-span-2 border-t border-[var(--border)] pt-4 text-sm font-semibold">
+            Cloud sync (Supabase)
+          </div>
+          <p className="sm:col-span-2 -mt-2 text-xs text-[var(--text-muted)]">
+            Shop data stays in SQLite offline. Sync pushes/pulls customers to Supabase when you have
+            internet. More tables will be added later.
+          </p>
+          <div className="sm:col-span-2 rounded-xl border border-[var(--border)] bg-[var(--bg-soft)]/40 px-3 py-3 text-xs text-[var(--text-muted)]">
+            {syncInfo?.configured ? (
+              <>
+                <div>
+                  Status: <span className="font-medium text-[var(--success)]">Configured</span>
+                </div>
+                <div className="mt-1 truncate">Tenant: {syncInfo.tenantId}</div>
+                <div className="mt-1">Local customers: {syncInfo.localCustomerCount}</div>
+                <div className="mt-1">
+                  Last sync: {syncInfo.lastSyncAt ? new Date(syncInfo.lastSyncAt).toLocaleString() : "Never"}
+                </div>
+                {syncInfo.lastError ? (
+                  <div className="mt-1 text-[var(--danger)]">Last error: {syncInfo.lastError}</div>
+                ) : null}
+              </>
+            ) : (
+              <div>
+                Not configured — add Supabase keys to <code className="text-[var(--text)]">.env</code> and
+                restart the app.
+              </div>
+            )}
+          </div>
+          <div className="flex flex-wrap items-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={syncBusy || !syncInfo?.configured}
+              onClick={() => void onCloudSync()}
+            >
+              {syncBusy ? "Syncing…" : "Sync customers now"}
+            </Button>
           </div>
 
           <div className="sm:col-span-2 border-t border-[var(--border)] pt-4 text-sm font-semibold">
