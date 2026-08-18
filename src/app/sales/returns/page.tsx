@@ -129,10 +129,10 @@ export default function SaleReturnsPage() {
 
   const productOptions = useMemo(
     () => [
-      { value: "", label: "— Select pack —" },
+      { value: "", label: "Select product" },
       ...inventory.map((r) => ({
         value: r.variantId,
-        label: `${r.productName} · ${r.size}/${r.color} · ${money(r.salePrice)}`,
+        label: `${r.productName} (${r.size}/${r.color})`,
       })),
     ],
     [inventory]
@@ -391,23 +391,23 @@ export default function SaleReturnsPage() {
         {error ? <Alert>{error}</Alert> : null}
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
           <div className="space-y-4">
-            <ComposerSection title="Return header" hint="Optionally pull lines from an original sale">
+            <ComposerSection title="Return">
               <div className="grid gap-3 sm:grid-cols-2">
                 <Input
-                  label="Return date"
+                  label="Date"
                   type="date"
                   value={returnDate}
                   onChange={(e) => setReturnDate(e.target.value)}
                 />
                 <Select
-                  label="Link original sale"
+                  label="Original sale"
                   value={saleId}
                   onChange={(e) => void onSaleLink(e.target.value)}
                   options={[
-                    { value: "", label: "— None (manual) —" },
+                    { value: "", label: "None" },
                     ...sales.map((s) => ({
                       value: s.id,
-                      label: `${s.invoiceNo} · ${s.customerName || "Walk-in"} · ${money(s.grandTotal)}`,
+                      label: `${s.invoiceNo} · ${s.customerName || "Walk-in"}`,
                     })),
                   ]}
                 />
@@ -416,8 +416,8 @@ export default function SaleReturnsPage() {
                   value={customerId}
                   onChange={(e) => setCustomerId(e.target.value)}
                   options={[
-                    { value: "", label: "— None —" },
-                    ...customers.map((c) => ({ value: c.id, label: `${c.name}` })),
+                    { value: "", label: "None" },
+                    ...customers.map((c) => ({ value: c.id, label: c.name })),
                   ]}
                 />
                 <Input
@@ -431,50 +431,37 @@ export default function SaleReturnsPage() {
               </div>
             </ComposerSection>
 
-            <ComposerSection title="Refund settlement" hint="Where the money goes back">
-              <PaymentModePicker
-                value={refundMode}
-                onChange={setRefundMode}
-                options={[
-                  { value: "cash", label: "Cash", hint: "Till refund" },
-                  { value: "bank", label: "Bank", hint: "Transfer" },
-                  { value: "credit", label: "Credit", hint: "AR credit" },
-                ]}
-              />
+            <ComposerSection title="Refund">
+              <PaymentModePicker value={refundMode} onChange={setRefundMode} />
               {refundMode !== "credit" ? (
                 <div className="mt-3">
                   <Select
-                    label="Refund account"
+                    label="Account"
                     value={accountId}
                     onChange={(e) => setAccountId(e.target.value)}
-                    options={accounts.map((a) => ({ value: a.id, label: `${a.name}` }))}
+                    options={accounts.map((a) => ({ value: a.id, label: a.name }))}
                   />
                 </div>
-              ) : (
-                <p className="mt-3 rounded-xl border border-dashed border-[var(--border)] bg-[var(--bg-soft)]/50 px-3 py-2 text-xs text-[var(--text-muted)]">
-                  Credit refund reduces customer receivable without moving cash.
-                </p>
-              )}
+              ) : null}
             </ComposerSection>
 
-            <ComposerSection title="Returned packs" hint="Stock will increase for each line">
+            <ComposerSection title="Products">
               <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end">
                 <div className="flex-1">
                   <Select
-                    label="Add pack"
+                    label="Product"
                     value={pickVariantId}
                     onChange={(e) => setPickVariantId(e.target.value)}
                     options={productOptions}
                   />
                 </div>
                 <Button size="sm" onClick={addLine} disabled={!pickVariantId}>
-                  <Plus size={14} /> Add line
+                  <Plus size={14} /> Add
                 </Button>
               </div>
               <LineItemsTable
-                headers={["Product", "Qty", "Price", "Line total", ""]}
+                headers={["Product", "Qty", "Price", "Total", ""]}
                 empty={lines.length === 0}
-                emptyHint="Link a sale above to auto-fill, or add packs manually."
               >
                 {lines.map((line) => {
                   const lineTotal = Number(line.quantity || 0) * Number(line.unitPrice || 0);

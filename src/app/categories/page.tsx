@@ -64,7 +64,7 @@ export default function CategoriesPage() {
 
   const parentOptions = useMemo(
     () => [
-      { value: "", label: "— None —" },
+      { value: "", label: "None" },
       ...rows
         .filter((r) => !editing || r.id !== editing.id)
         .map((r) => ({ value: r.id, label: r.name })),

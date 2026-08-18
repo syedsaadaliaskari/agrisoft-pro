@@ -32,6 +32,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+/** shop = ERP menus; platform = vendor Super Admin console; both = either audience */
+export type NavAudience = "shop" | "platform" | "both";
+
 export type NavItem = {
   labelKey: string;
   href: string;
@@ -40,28 +43,40 @@ export type NavItem = {
   permission?: string;
   /** Show if user has any of these permissions */
   anyOfPermissions?: string[];
+  /** Who should see this link. Default: shop */
+  audience?: NavAudience;
 };
 
 export type NavGroup = {
   titleKey: string;
+  icon: LucideIcon;
   items: NavItem[];
 };
 
 export const navigation: NavGroup[] = [
   {
     titleKey: "nav.overview",
+    icon: LayoutDashboard,
     items: [
-      { labelKey: "nav.dashboard", href: "/dashboard", icon: LayoutDashboard, permission: "dashboard.view" },
+      {
+        labelKey: "nav.dashboard",
+        href: "/dashboard",
+        icon: LayoutDashboard,
+        permission: "dashboard.view",
+        audience: "both",
+      },
       {
         labelKey: "nav.licenses",
         href: "/platform/licenses",
         icon: KeyRound,
         anyOfPermissions: ["license.view", "platform.view", "license.manage"],
+        audience: "platform",
       },
     ],
   },
   {
     titleKey: "nav.sales",
+    icon: ShoppingCart,
     items: [
       { labelKey: "nav.sale", href: "/sales", icon: ShoppingCart, permission: "sales.view" },
       { labelKey: "nav.saleReturn", href: "/sales/returns", icon: Undo2, permission: "sales.return" },
@@ -69,6 +84,7 @@ export const navigation: NavGroup[] = [
   },
   {
     titleKey: "nav.purchases",
+    icon: PackagePlus,
     items: [
       { labelKey: "nav.purchase", href: "/purchases", icon: PackagePlus, permission: "purchases.view" },
       {
@@ -81,6 +97,7 @@ export const navigation: NavGroup[] = [
   },
   {
     titleKey: "nav.catalog",
+    icon: Package,
     items: [
       { labelKey: "nav.units", href: "/units", icon: Ruler, permission: "products.view" },
       { labelKey: "nav.categories", href: "/categories", icon: Tags, permission: "products.view" },
@@ -90,6 +107,7 @@ export const navigation: NavGroup[] = [
   },
   {
     titleKey: "nav.parties",
+    icon: Users,
     items: [
       { labelKey: "nav.customers", href: "/customers", icon: Users, permission: "customers.view" },
       { labelKey: "nav.vendors", href: "/vendors", icon: Truck, permission: "vendors.view" },
@@ -97,6 +115,7 @@ export const navigation: NavGroup[] = [
   },
   {
     titleKey: "nav.transactions",
+    icon: ArrowDownLeft,
     items: [
       { labelKey: "nav.journal", href: "/transactions/journal", icon: BookOpen, permission: "transactions.view" },
       {
@@ -117,6 +136,7 @@ export const navigation: NavGroup[] = [
   },
   {
     titleKey: "nav.ledgers",
+    icon: BookOpen,
     items: [
       { labelKey: "nav.accountsLedger", href: "/ledgers/accounts", icon: BookOpen, permission: "ledgers.view" },
       {
@@ -137,6 +157,7 @@ export const navigation: NavGroup[] = [
   },
   {
     titleKey: "nav.reports",
+    icon: BarChart3,
     items: [
       { labelKey: "nav.salesReport", href: "/reports/sales", icon: BarChart3, permission: "reports.view" },
       {
@@ -153,17 +174,76 @@ export const navigation: NavGroup[] = [
   },
   {
     titleKey: "nav.setup",
+    icon: Settings,
     items: [
       { labelKey: "nav.taxes", href: "/setup/taxes", icon: Percent, permission: "settings.manage" },
       { labelKey: "nav.discounts", href: "/setup/discounts", icon: Percent, permission: "settings.manage" },
       { labelKey: "nav.additions", href: "/setup/additions", icon: PlusCircle, permission: "settings.manage" },
-      { labelKey: "nav.users", href: "/settings/users", icon: Shield, permission: "users.manage" },
-      { labelKey: "nav.changePassword", href: "/settings/password", icon: Lock },
-      { labelKey: "nav.licenseInfo", href: "/settings/license", icon: KeyRound, anyOfPermissions: ["license.manage", "platform.view", "license.view"] },
-      { labelKey: "nav.backup", href: "/settings/backup", icon: HardDrive, permission: "settings.manage" },
+      {
+        labelKey: "nav.users",
+        href: "/settings/users",
+        icon: Shield,
+        permission: "users.manage",
+        audience: "both",
+      },
+      { labelKey: "nav.changePassword", href: "/settings/password", icon: Lock, audience: "both" },
+      {
+        labelKey: "nav.licenseInfo",
+        href: "/settings/license",
+        icon: KeyRound,
+        anyOfPermissions: ["license.manage", "platform.view", "license.view"],
+        audience: "platform",
+      },
+      {
+        labelKey: "nav.backup",
+        href: "/settings/backup",
+        icon: HardDrive,
+        permission: "settings.manage",
+        audience: "both",
+      },
       { labelKey: "nav.lan", href: "/settings/lan", icon: Network, permission: "settings.manage" },
-      { labelKey: "nav.audit", href: "/settings/audit", icon: ClipboardList, permission: "settings.manage" },
-      { labelKey: "nav.settings", href: "/settings", icon: Settings, permission: "settings.manage" },
+      {
+        labelKey: "nav.audit",
+        href: "/settings/audit",
+        icon: ClipboardList,
+        permission: "settings.manage",
+        audience: "both",
+      },
+      {
+        labelKey: "nav.settings",
+        href: "/settings",
+        icon: Settings,
+        permission: "settings.manage",
+        audience: "both",
+      },
     ],
   },
 ];
+
+/** True when pathname belongs to this nav href (handles trailing slash + nested routes). */
+export function isNavHrefActive(pathname: string, href: string): boolean {
+  if (pathname === href || pathname === href + "/") return true;
+  if (href === "/dashboard") return false;
+  if (href === "/settings") {
+    return pathname === "/settings" || pathname === "/settings/";
+  }
+  if (href === "/sales") {
+    return (
+      pathname === "/sales" ||
+      pathname === "/sales/" ||
+      (pathname.startsWith("/sales/") && !pathname.startsWith("/sales/returns"))
+    );
+  }
+  if (href === "/purchases") {
+    return (
+      pathname === "/purchases" ||
+      pathname === "/purchases/" ||
+      (pathname.startsWith("/purchases/") && !pathname.startsWith("/purchases/returns"))
+    );
+  }
+  return pathname.startsWith(href + "/");
+}
+
+export function isNavGroupActive(pathname: string, group: NavGroup): boolean {
+  return group.items.some((item) => isNavHrefActive(pathname, item.href));
+}

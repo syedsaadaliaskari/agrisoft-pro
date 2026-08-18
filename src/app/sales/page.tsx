@@ -161,10 +161,10 @@ export default function SalesPage() {
 
   const productOptions = useMemo(
     () => [
-      { value: "", label: "— Search & select pack —" },
+      { value: "", label: "Select product" },
       ...inventory.map((r) => ({
         value: r.variantId,
-        label: `${r.productName} — ${r.size}/${r.color} — stock ${r.stockQty} — ${money(r.salePrice)}`,
+        label: `${r.productName} (${r.size}/${r.color})`,
       })),
     ],
     [inventory]
@@ -514,8 +514,7 @@ export default function SalesPage() {
       <Modal
         open={composer}
         size="full"
-        title={editingId ? "Edit sale invoice" : "New sale invoice"}
-        subtitle="Build lines, settle payment, and post stock + ledger in one step"
+        title={editingId ? "Edit sale" : "New sale"}
         onClose={() => {
           setComposer(false);
           setEditingId(null);
@@ -524,7 +523,7 @@ export default function SalesPage() {
           <>
             <div className="mr-auto hidden items-center gap-2 text-xs text-[var(--text-muted)] sm:flex">
               <Banknote size={14} />
-              {lines.length} line{lines.length === 1 ? "" : "s"} — {money(grand)}
+              {lines.length} item{lines.length === 1 ? "" : "s"} · {money(grand)}
             </div>
             <Button
               variant="secondary"
@@ -545,7 +544,7 @@ export default function SalesPage() {
               </Button>
             ) : null}
             <Button onClick={() => void onSave(false)} disabled={saving || lines.length === 0}>
-              {saving ? "Saving..." : editingId ? "Update sale" : "Post sale"}
+              {saving ? "Saving..." : editingId ? "Update" : "Save"}
             </Button>
           </>
         }
@@ -554,10 +553,10 @@ export default function SalesPage() {
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
           <div className="space-y-4">
-            <ComposerSection title="Invoice header" hint="Who is buying and when">
+            <ComposerSection title="Invoice">
               <div className="grid gap-3 sm:grid-cols-2">
                 <Input
-                  label="Invoice date"
+                  label="Date"
                   type="date"
                   value={invoiceDate}
                   onChange={(e) => setInvoiceDate(e.target.value)}
@@ -567,26 +566,26 @@ export default function SalesPage() {
                   value={customerId}
                   onChange={(e) => setCustomerId(e.target.value)}
                   options={[
-                    { value: "", label: "Walk-in customer" },
-                    ...customers.map((c) => ({ value: c.id, label: `${c.name}` })),
+                    { value: "", label: "Walk-in" },
+                    ...customers.map((c) => ({ value: c.id, label: c.name })),
                   ]}
                 />
               </div>
             </ComposerSection>
 
-            <ComposerSection title="Settlement" hint="How this invoice will be paid">
+            <ComposerSection title="Payment">
               <PaymentModePicker value={paymentMode} onChange={setPaymentMode} />
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 {paymentMode !== "credit" ? (
                   <Select
-                    label="Cash / Bank account"
+                    label="Account"
                     value={accountId}
                     onChange={(e) => setAccountId(e.target.value)}
-                    options={accounts.map((a) => ({ value: a.id, label: `${a.name}` }))}
+                    options={accounts.map((a) => ({ value: a.id, label: a.name }))}
                   />
                 ) : (
-                  <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--bg-soft)]/50 px-3 py-2 text-xs text-[var(--text-muted)]">
-                    Credit sale — amount posts to customer receivable. Optional partial payment below.
+                  <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-soft)]/50 px-3 py-2 text-xs text-[var(--text-muted)]">
+                    Credit — customer will owe the balance
                   </div>
                 )}
                 <Input
@@ -601,8 +600,7 @@ export default function SalesPage() {
             </ComposerSection>
 
             <ComposerSection
-              title="Line items"
-              hint="Product packs leaving inventory"
+              title="Products"
               action={
                 <span className="rounded-lg bg-[var(--bg-soft)] px-2 py-1 text-[11px] tabular-nums text-[var(--text-muted)]">
                   {lines.length} item{lines.length === 1 ? "" : "s"}
@@ -612,19 +610,19 @@ export default function SalesPage() {
               <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end">
                 <div className="flex-1">
                   <Select
-                    label="Add product pack"
+                    label="Product"
                     value={pickVariantId}
                     onChange={(e) => setPickVariantId(e.target.value)}
                     options={productOptions}
                   />
                 </div>
                 <Button size="sm" onClick={addLine} disabled={!pickVariantId}>
-                  <Plus size={14} /> Add line
+                  <Plus size={14} /> Add
                 </Button>
               </div>
 
               <LineItemsTable
-                headers={["Product", "Stock", "Qty", "Price", "Line total", ""]}
+                headers={["Product", "Stock", "Qty", "Price", "Total", ""]}
                 empty={lines.length === 0}
               >
                 {lines.map((line) => {
@@ -686,7 +684,7 @@ export default function SalesPage() {
               </LineItemsTable>
             </ComposerSection>
 
-            <ComposerSection title="Adjustments & notes">
+            <ComposerSection title="Discount, tax & notes">
               <div className="grid gap-3 sm:grid-cols-3">
                 <Input
                   label="Discount"

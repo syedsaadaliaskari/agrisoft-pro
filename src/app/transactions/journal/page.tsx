@@ -236,7 +236,7 @@ export default function JournalPage() {
                     )
                   }
                   options={[
-                    { value: "", label: "— Select —" },
+                    { value: "", label: "Select" },
                     ...accounts.map((a) => ({ value: a.id, label: `${a.name}` })),
                   ]}
                 />

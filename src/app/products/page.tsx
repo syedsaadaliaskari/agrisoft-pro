@@ -367,7 +367,7 @@ export default function ProductsPage() {
             value={form.categoryId}
             onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}
             options={[
-              { value: "", label: "— None —" },
+              { value: "", label: "None" },
               ...categories.map((c) => ({ value: c.id, label: c.name })),
             ]}
           />
@@ -376,7 +376,7 @@ export default function ProductsPage() {
             value={form.unitId}
             onChange={(e) => setForm((f) => ({ ...f, unitId: e.target.value }))}
             options={[
-              { value: "", label: "— None —" },
+              { value: "", label: "None" },
               ...units.map((u) => ({ value: u.id, label: `${u.name} (${u.shortName})` })),
             ]}
           />
@@ -385,7 +385,7 @@ export default function ProductsPage() {
             value={form.taxId}
             onChange={(e) => setForm((f) => ({ ...f, taxId: e.target.value }))}
             options={[
-              { value: "", label: "— None —" },
+              { value: "", label: "None" },
               ...taxes.map((t) => ({ value: t.id, label: `${t.name} (${t.rate}%)` })),
             ]}
           />

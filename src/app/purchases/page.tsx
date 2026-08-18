@@ -158,10 +158,10 @@ export default function PurchasesPage() {
 
   const productOptions = useMemo(
     () => [
-      { value: "", label: "— Search & select pack —" },
+      { value: "", label: "Select product" },
       ...inventory.map((r) => ({
         value: r.variantId,
-        label: `${r.productName} — ${r.size}/${r.color} — cost ${money(r.costPrice)}`,
+        label: `${r.productName} (${r.size}/${r.color})`,
       })),
     ],
     [inventory]
@@ -494,8 +494,7 @@ export default function PurchasesPage() {
       <Modal
         open={composer}
         size="full"
-        title={editingId ? "Edit purchase bill" : "New purchase bill"}
-        subtitle="Receive stock from a vendor and post payables"
+        title={editingId ? "Edit purchase" : "New purchase"}
         onClose={() => {
           setComposer(false);
           setEditingId(null);
@@ -503,7 +502,7 @@ export default function PurchasesPage() {
         footer={
           <>
             <div className="mr-auto hidden text-xs text-[var(--text-muted)] sm:block">
-              {lines.length} line{lines.length === 1 ? "" : "s"} — {money(grand)}
+              {lines.length} item{lines.length === 1 ? "" : "s"} · {money(grand)}
             </div>
             <Button
               variant="secondary"
@@ -518,7 +517,7 @@ export default function PurchasesPage() {
               onClick={() => void onSave()}
               disabled={saving || lines.length === 0 || !vendorId}
             >
-              {saving ? "Saving..." : editingId ? "Update purchase" : "Post purchase"}
+              {saving ? "Saving..." : editingId ? "Update" : "Save"}
             </Button>
           </>
         }
@@ -526,10 +525,10 @@ export default function PurchasesPage() {
         {error ? <Alert>{error}</Alert> : null}
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
           <div className="space-y-4">
-            <ComposerSection title="Bill header" hint="Vendor and document date">
+            <ComposerSection title="Bill">
               <div className="grid gap-3 sm:grid-cols-2">
                 <Input
-                  label="Invoice date"
+                  label="Date"
                   type="date"
                   value={invoiceDate}
                   onChange={(e) => setInvoiceDate(e.target.value)}
@@ -539,29 +538,21 @@ export default function PurchasesPage() {
                   value={vendorId}
                   onChange={(e) => setVendorId(e.target.value)}
                   options={[
-                    { value: "", label: "— Select vendor —" },
-                    ...vendors.map((v) => ({ value: v.id, label: `${v.name}` })),
+                    { value: "", label: "Select vendor" },
+                    ...vendors.map((v) => ({ value: v.id, label: v.name })),
                   ]}
                 />
               </div>
             </ComposerSection>
 
-            <ComposerSection title="Settlement" hint="How this bill will be paid">
-              <PaymentModePicker
-                value={paymentMode}
-                onChange={setPaymentMode}
-                options={[
-                  { value: "credit", label: "Credit", hint: "Payable" },
-                  { value: "cash", label: "Cash", hint: "Till" },
-                  { value: "bank", label: "Bank", hint: "Transfer" },
-                ]}
-              />
+            <ComposerSection title="Payment">
+              <PaymentModePicker value={paymentMode} onChange={setPaymentMode} />
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <Select
-                  label="Cash / Bank account"
+                  label="Account"
                   value={accountId}
                   onChange={(e) => setAccountId(e.target.value)}
-                  options={accounts.map((a) => ({ value: a.id, label: `${a.name}` }))}
+                  options={accounts.map((a) => ({ value: a.id, label: a.name }))}
                 />
                 <Input
                   label="Paid now"
@@ -575,8 +566,7 @@ export default function PurchasesPage() {
             </ComposerSection>
 
             <ComposerSection
-              title="Line items"
-              hint="Packs entering inventory at cost"
+              title="Products"
               action={
                 <span className="rounded-lg bg-[var(--bg-soft)] px-2 py-1 text-[11px] text-[var(--text-muted)]">
                   {lines.length} item{lines.length === 1 ? "" : "s"}
@@ -586,14 +576,14 @@ export default function PurchasesPage() {
               <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end">
                 <div className="flex-1">
                   <Select
-                    label="Add product pack"
+                    label="Product"
                     value={pickVariantId}
                     onChange={(e) => setPickVariantId(e.target.value)}
                     options={productOptions}
                   />
                 </div>
                 <Button size="sm" onClick={addLine} disabled={!pickVariantId}>
-                  <Plus size={14} /> Add line
+                  <Plus size={14} /> Add
                 </Button>
               </div>
               <LineItemsTable
@@ -654,7 +644,7 @@ export default function PurchasesPage() {
               </LineItemsTable>
             </ComposerSection>
 
-            <ComposerSection title="Adjustments & notes">
+            <ComposerSection title="Discount, tax & notes">
               <div className="grid gap-3 sm:grid-cols-3">
                 <Input
                   label="Discount"

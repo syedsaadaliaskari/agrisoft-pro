@@ -1,7 +1,6 @@
 "use client";
 
 import type { LucideIcon } from "lucide-react";
-import { Package } from "lucide-react";
 import { cn, formatMoney } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useI18n } from "@/lib/i18n";
@@ -157,15 +156,15 @@ export function PaymentModePicker({
 }: {
   value: PaymentMode;
   onChange: (v: PaymentMode) => void;
-  options?: { value: PaymentMode; label: string; hint: string }[];
+  options?: { value: PaymentMode; label: string; hint?: string }[];
 }) {
   const { t } = useI18n();
   const resolved =
     options ??
     ([
-      { value: "cash", label: t("payment.cash"), hint: "" },
-      { value: "bank", label: t("payment.bank"), hint: "" },
-      { value: "credit", label: t("payment.credit"), hint: "" },
+      { value: "cash", label: t("payment.cash") },
+      { value: "bank", label: t("payment.bank") },
+      { value: "credit", label: t("payment.credit") },
     ] as const);
   return (
     <div className="space-y-1.5">
@@ -179,14 +178,14 @@ export function PaymentModePicker({
               type="button"
               onClick={() => onChange(o.value)}
               className={cn(
-                "rounded-xl border px-3 py-2.5 text-start transition",
+                "rounded-xl border px-3 py-2.5 text-center transition",
                 active
                   ? "border-[var(--accent)] bg-[var(--accent-soft)] shadow-[0_0_0_1px_var(--accent)]"
                   : "border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)]"
               )}
             >
               <div className={cn("text-sm font-semibold", active && "text-[var(--accent)]")}>{o.label}</div>
-              <div className="text-[10px] text-[var(--text-muted)]">{o.hint}</div>
+              {o.hint ? <div className="mt-0.5 text-[10px] text-[var(--text-muted)]">{o.hint}</div> : null}
             </button>
           );
         })}
@@ -293,8 +292,8 @@ export function TotalsPanel({
 export function LineItemsTable({
   headers,
   empty,
-  emptyTitle = "No line items yet",
-  emptyHint = "Pick a product pack above to start building this document.",
+  emptyTitle = "No items yet",
+  emptyHint,
   children,
 }: {
   headers: string[];
@@ -305,12 +304,9 @@ export function LineItemsTable({
 }) {
   if (empty) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[var(--border-strong)] bg-[var(--bg-soft)]/40 px-4 py-10 text-center">
-        <div className="mb-3 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-3 text-[var(--text-muted)]">
-          <Package size={20} />
-        </div>
-        <div className="text-sm font-medium">{emptyTitle}</div>
-        <p className="mt-1 max-w-sm text-xs text-[var(--text-muted)]">{emptyHint}</p>
+      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[var(--border)] bg-[var(--bg-soft)]/40 px-4 py-8 text-center">
+        <div className="text-sm text-[var(--text-muted)]">{emptyTitle}</div>
+        {emptyHint ? <p className="mt-1 max-w-sm text-xs text-[var(--text-muted)]">{emptyHint}</p> : null}
       </div>
     );
   }

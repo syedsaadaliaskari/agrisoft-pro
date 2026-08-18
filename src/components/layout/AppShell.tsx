@@ -6,7 +6,7 @@ import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { AppShellSkeleton } from "@/components/ui/Skeleton";
 import { useAuthStore } from "@/store/auth";
-import { hasAnyPermission, hasPermission } from "@/lib/permissions";
+import { canAccessScreen, isSuperAdminUser } from "@/lib/permissions";
 import { normalizePath, PAGE_META, useI18n } from "@/lib/i18n";
 import { getApi } from "@/lib/api";
 
@@ -28,7 +28,6 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
   const meta = PAGE_META[path];
   const displayTitle = meta ? t(meta.title) : title;
   const displaySubtitle = meta?.subtitle ? t(meta.subtitle) : subtitle;
-  const isSuperAdmin = user?.roleName === "Super Admin";
 
   useEffect(() => {
     void hydrate();
@@ -66,7 +65,7 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
   }, [user, path, router, logout]);
 
   useEffect(() => {
-    const routes = [
+    const shopRoutes = [
       "/dashboard",
       "/sales",
       "/purchases",
@@ -74,9 +73,9 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
       "/products",
       "/customers",
       "/reports/sales",
-      "/platform/licenses",
-      "/settings/license",
     ];
+    const vendorRoutes = ["/dashboard", "/platform/licenses", "/settings/license", "/settings"];
+    const routes = isSuperAdminUser(user) ? vendorRoutes : shopRoutes;
     for (const href of routes) {
       try {
         router.prefetch(href);
@@ -84,7 +83,7 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
         /* ignore */
       }
     }
-  }, [router, user?.id]);
+  }, [router, user?.id, user?.roleName]);
 
   if (!hydrated && !user) {
     return <AppShellSkeleton />;
@@ -100,14 +99,7 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
     return <AppShellSkeleton />;
   }
 
-  const allowed =
-    isSuperAdmin ||
-    !permission ||
-    hasPermission(user, permission) ||
-    (permission === "license.manage" &&
-      hasAnyPermission(user, ["license.manage", "platform.view"])) ||
-    (permission === "license.view" &&
-      hasAnyPermission(user, ["license.view", "platform.view", "license.manage"]));
+  const allowed = canAccessScreen(user, permission);
 
   if (!allowed) {
     return (

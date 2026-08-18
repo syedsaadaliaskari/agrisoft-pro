@@ -377,23 +377,23 @@ export default function PurchaseReturnsPage() {
         {error ? <Alert>{error}</Alert> : null}
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
           <div className="space-y-4">
-            <ComposerSection title="Return header" hint="Optionally pull lines from a purchase bill">
+            <ComposerSection title="Return">
               <div className="grid gap-3 sm:grid-cols-2">
                 <Input
-                  label="Return date"
+                  label="Date"
                   type="date"
                   value={returnDate}
                   onChange={(e) => setReturnDate(e.target.value)}
                 />
                 <Select
-                  label="Link purchase"
+                  label="Original purchase"
                   value={purchaseId}
                   onChange={(e) => void onPurchaseLink(e.target.value)}
                   options={[
-                    { value: "", label: "— None (manual) —" },
+                    { value: "", label: "None" },
                     ...purchases.map((p) => ({
                       value: p.id,
-                      label: `${p.invoiceNo} · ${p.vendorName || "—"} · ${money(p.grandTotal)}`,
+                      label: `${p.invoiceNo} · ${p.vendorName || "Vendor"}`,
                     })),
                   ]}
                 />
@@ -402,8 +402,8 @@ export default function PurchaseReturnsPage() {
                   value={vendorId}
                   onChange={(e) => setVendorId(e.target.value)}
                   options={[
-                    { value: "", label: "— Select vendor —" },
-                    ...vendors.map((v) => ({ value: v.id, label: `${v.name}` })),
+                    { value: "", label: "Select vendor" },
+                    ...vendors.map((v) => ({ value: v.id, label: v.name })),
                   ]}
                 />
                 <Input
@@ -417,56 +417,43 @@ export default function PurchaseReturnsPage() {
               </div>
             </ComposerSection>
 
-            <ComposerSection title="Refund settlement" hint="How the vendor is compensated">
-              <PaymentModePicker
-                value={refundMode}
-                onChange={setRefundMode}
-                options={[
-                  { value: "cash", label: "Cash", hint: "Till out" },
-                  { value: "bank", label: "Bank", hint: "Transfer" },
-                  { value: "credit", label: "Credit", hint: "AP credit" },
-                ]}
-              />
+            <ComposerSection title="Refund">
+              <PaymentModePicker value={refundMode} onChange={setRefundMode} />
               {refundMode !== "credit" ? (
                 <div className="mt-3">
                   <Select
-                    label="Refund account"
+                    label="Account"
                     value={accountId}
                     onChange={(e) => setAccountId(e.target.value)}
-                    options={accounts.map((a) => ({ value: a.id, label: `${a.name}` }))}
+                    options={accounts.map((a) => ({ value: a.id, label: a.name }))}
                   />
                 </div>
-              ) : (
-                <p className="mt-3 rounded-xl border border-dashed border-[var(--border)] bg-[var(--bg-soft)]/50 px-3 py-2 text-xs text-[var(--text-muted)]">
-                  Credit mode reduces vendor payable without moving cash.
-                </p>
-              )}
+              ) : null}
             </ComposerSection>
 
-            <ComposerSection title="Returned packs" hint="Stock will decrease for each line">
+            <ComposerSection title="Products">
               <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end">
                 <div className="flex-1">
                   <Select
-                    label="Add pack"
+                    label="Product"
                     value={pickVariantId}
                     onChange={(e) => setPickVariantId(e.target.value)}
                     options={[
-                      { value: "", label: "— Select —" },
+                      { value: "", label: "Select product" },
                       ...inventory.map((r) => ({
                         value: r.variantId,
-                        label: `${r.productName} · ${r.size}/${r.color} · cost ${money(r.costPrice)}`,
+                        label: `${r.productName} (${r.size}/${r.color})`,
                       })),
                     ]}
                   />
                 </div>
                 <Button size="sm" onClick={addLine} disabled={!pickVariantId}>
-                  <Plus size={14} /> Add line
+                  <Plus size={14} /> Add
                 </Button>
               </div>
               <LineItemsTable
-                headers={["Product", "Qty", "Cost", "Line total", ""]}
+                headers={["Product", "Qty", "Cost", "Total", ""]}
                 empty={lines.length === 0}
-                emptyHint="Link a purchase above to auto-fill, or add packs manually."
               >
                 {lines.map((line) => {
                   const lineTotal = Number(line.quantity || 0) * Number(line.unitCost || 0);

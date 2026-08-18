@@ -37,7 +37,7 @@ import { ExportMenu } from "@/components/ExportMenu";
 import { DashboardSkeleton } from "@/components/ui/Skeleton";
 import { Alert, Button, DataTable, Input, Modal, Select, Textarea } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
-import { hasAnyPermission } from "@/lib/permissions";
+import { isSuperAdminUser } from "@/lib/permissions";
 import { useAuthStore } from "@/store/auth";
 import type {
   ClientCompany,
@@ -70,10 +70,8 @@ const emptyCompany = {
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
-  /** Vendor Super Admin dashboard: client companies list + demand-by-area chart */
-  const isPlatform =
-    user?.roleName === "Super Admin" ||
-    hasAnyPermission(user, ["platform.view", "license.manage", "license.view"]);
+  /** Vendor Super Admin: client companies + area demand only (not shop sales). */
+  const isVendor = isSuperAdminUser(user);
 
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [companies, setCompanies] = useState<ClientCompany[]>([]);
@@ -91,14 +89,12 @@ export default function DashboardPage() {
     setLoading(true);
     setError("");
     const api = getApi();
-    const dash = await api.getDashboardSummary();
-    if (!dash.ok) setError(dash.error);
-    else setSummary(dash.data);
 
-    if (isPlatform) {
+    if (isVendor) {
+      setSummary(null);
       const [list, dem] = await Promise.all([api.listClientCompanies(), api.getCompaniesDemand()]);
       if (!list.ok) {
-        setError((prev) => prev || list.error);
+        setError(list.error);
         setCompanies([]);
       } else {
         setCompanies(list.data);
@@ -112,9 +108,12 @@ export default function DashboardPage() {
     } else {
       setCompanies([]);
       setDemand(null);
+      const dash = await api.getDashboardSummary();
+      if (!dash.ok) setError(dash.error);
+      else setSummary(dash.data);
     }
     setLoading(false);
-  }, [isPlatform]);
+  }, [isVendor]);
 
   useEffect(() => {
     void load();
@@ -146,7 +145,7 @@ export default function DashboardPage() {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
-  const kpis = [
+  const shopKpis = [
     {
       label: "Today's sales",
       value: summary ? fmt(cur, summary.todaySalesTotal) : "…",
@@ -204,6 +203,43 @@ export default function DashboardPage() {
       color: "var(--danger)",
     },
   ];
+
+  const vendorKpis = [
+    {
+      label: "Total companies",
+      value: demand ? String(demand.totalCompanies) : "…",
+      sub: "Registered clients",
+      icon: Building2,
+      color: "var(--accent)",
+    },
+    {
+      label: "Active companies",
+      value: demand ? String(demand.activeCompanies) : "…",
+      sub: demand
+        ? `${Math.max(0, demand.totalCompanies - demand.activeCompanies)} inactive`
+        : "",
+      icon: Users,
+      color: "var(--success)",
+    },
+    {
+      label: "Areas covered",
+      value: demand ? String(demand.areaDemand.length) : "…",
+      sub: "Cities / regions",
+      icon: MapPinned,
+      color: "var(--info)",
+    },
+    {
+      label: "Top area",
+      value: demand?.areaDemand[0]?.area ?? "—",
+      sub: demand?.areaDemand[0]
+        ? `${demand.areaDemand[0].companyCount} companies`
+        : "Add companies",
+      icon: TrendingUp,
+      color: "var(--accent)",
+    },
+  ];
+
+  const kpis = isVendor ? vendorKpis : shopKpis;
 
   const openCreate = () => {
     setEditingId(null);
@@ -268,7 +304,7 @@ export default function DashboardPage() {
   return (
     <AppShell
       title="Dashboard"
-      subtitle={isPlatform ? "Operations + client network overview" : "Live books overview"}
+      subtitle={isVendor ? "Client network overview" : "Live books overview"}
       permission="dashboard.view"
     >
       {error ? (
@@ -277,8 +313,8 @@ export default function DashboardPage() {
         </div>
       ) : null}
 
-      {loading && !summary ? (
-        <DashboardSkeleton platform={isPlatform} />
+      {loading && !(isVendor ? demand : summary) ? (
+        <DashboardSkeleton platform={isVendor} />
       ) : (
         <>
           <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
@@ -288,29 +324,14 @@ export default function DashboardPage() {
                 {user?.fullName ? ` · ${user.fullName.split(" ")[0]}` : ""}
               </p>
               <h2 className="mt-1 text-xl font-semibold tracking-tight">
-                {isPlatform ? "Command center" : "Today at a glance"}
+                {isVendor ? "Vendor command center" : "Today at a glance"}
               </h2>
               <p className="mt-1 text-sm text-[var(--text-muted)]">
-                {isPlatform
-                  ? "Shop performance plus companies using Agri Soft Pro by area."
+                {isVendor
+                  ? "Companies using Agri Soft Pro — totals and demand by area."
                   : "Sales, stock, cash, and recent activity."}
               </p>
             </div>
-            {isPlatform && demand ? (
-              <div className="flex flex-wrap gap-2 text-xs">
-                <span className="rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-2">
-                  <span className="text-[var(--text-muted)]">Clients </span>
-                  <strong>{demand.totalCompanies}</strong>
-                </span>
-                <span className="rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-2">
-                  <span className="text-[var(--text-muted)]">Active </span>
-                  <strong>{demand.activeCompanies}</strong>
-                </span>
-                <span className="rounded-lg border border-[var(--accent)]/40 bg-[var(--accent-soft)] px-3 py-2 text-[var(--accent)]">
-                  Top: {demand.areaDemand[0]?.area ?? "—"}
-                </span>
-              </div>
-            ) : null}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -344,7 +365,7 @@ export default function DashboardPage() {
             })}
           </div>
 
-          {isPlatform ? (
+          {isVendor ? (
             <div className="mt-5 overflow-visible rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)]">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-5 py-4">
                 <div className="flex items-center gap-2">
@@ -445,177 +466,179 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
-          ) : null}
-
-          <div className="mt-5 grid gap-4 xl:grid-cols-3">
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5 xl:col-span-2">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <Package size={16} className="text-[var(--accent)]" />
-                  <p className="text-sm font-medium">Sales vs purchases</p>
-                </div>
-                <div className="flex rounded-lg border border-[var(--border)] p-0.5 text-xs">
-                  <button
-                    type="button"
-                    className={`rounded-md px-2.5 py-1 ${range === "7" ? "bg-[var(--accent)] text-[var(--logo-ink)]" : "text-[var(--text-muted)]"}`}
-                    onClick={() => setRange("7")}
-                  >
-                    7 days
-                  </button>
-                  <button
-                    type="button"
-                    className={`rounded-md px-2.5 py-1 ${range === "30" ? "bg-[var(--accent)] text-[var(--logo-ink)]" : "text-[var(--text-muted)]"}`}
-                    onClick={() => setRange("30")}
-                  >
-                    30 days
-                  </button>
-                </div>
-              </div>
-              <div className="h-72">
-                {trend.length ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={trend}>
-                      <defs>
-                        <linearGradient id="salesFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#22d3ee" stopOpacity={0.35} />
-                          <stop offset="100%" stopColor="#22d3ee" stopOpacity={0} />
-                        </linearGradient>
-                        <linearGradient id="purchaseFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#34d399" stopOpacity={0.3} />
-                          <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="label" tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
-                      <YAxis tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
-                      <Tooltip contentStyle={tooltipStyle} />
-                      <Legend />
-                      <Area
-                        type="monotone"
-                        dataKey="salesTotal"
-                        name="Sales"
-                        stroke="#22d3ee"
-                        fill="url(#salesFill)"
-                        strokeWidth={2}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="purchasesTotal"
-                        name="Purchases"
-                        stroke="#34d399"
-                        fill="url(#purchaseFill)"
-                        strokeWidth={2}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="margin"
-                        name="Net flow"
-                        stroke="#fbbf24"
-                        strokeWidth={1.5}
-                        dot={false}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <p className="pt-24 text-center text-sm text-[var(--text-muted)]">No trend data yet</p>
-                )}
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5">
-              <p className="mb-3 text-sm font-medium">Sales by payment mode</p>
-              <div className="h-72">
-                {mix.length ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={mix}
-                        dataKey="value"
-                        nameKey="name"
-                        innerRadius={55}
-                        outerRadius={90}
-                        paddingAngle={3}
-                        label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+          ) : (
+            <>
+              <div className="mt-5 grid gap-4 xl:grid-cols-3">
+                <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5 xl:col-span-2">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Package size={16} className="text-[var(--accent)]" />
+                      <p className="text-sm font-medium">Sales vs purchases</p>
+                    </div>
+                    <div className="flex rounded-lg border border-[var(--border)] p-0.5 text-xs">
+                      <button
+                        type="button"
+                        className={`rounded-md px-2.5 py-1 ${range === "7" ? "bg-[var(--accent)] text-[var(--logo-ink)]" : "text-[var(--text-muted)]"}`}
+                        onClick={() => setRange("7")}
                       >
-                        {mix.map((_, i) => (
-                          <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip contentStyle={tooltipStyle} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <p className="pt-24 text-center text-sm text-[var(--text-muted)]">No sales yet</p>
-                )}
-              </div>
-            </div>
-          </div>
+                        7 days
+                      </button>
+                      <button
+                        type="button"
+                        className={`rounded-md px-2.5 py-1 ${range === "30" ? "bg-[var(--accent)] text-[var(--logo-ink)]" : "text-[var(--text-muted)]"}`}
+                        onClick={() => setRange("30")}
+                      >
+                        30 days
+                      </button>
+                    </div>
+                  </div>
+                  <div className="h-72">
+                    {trend.length ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={trend}>
+                          <defs>
+                            <linearGradient id="salesFill" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#22d3ee" stopOpacity={0.35} />
+                              <stop offset="100%" stopColor="#22d3ee" stopOpacity={0} />
+                            </linearGradient>
+                            <linearGradient id="purchaseFill" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#34d399" stopOpacity={0.3} />
+                              <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                          <XAxis dataKey="label" tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
+                          <YAxis tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
+                          <Tooltip contentStyle={tooltipStyle} />
+                          <Legend />
+                          <Area
+                            type="monotone"
+                            dataKey="salesTotal"
+                            name="Sales"
+                            stroke="#22d3ee"
+                            fill="url(#salesFill)"
+                            strokeWidth={2}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="purchasesTotal"
+                            name="Purchases"
+                            stroke="#34d399"
+                            fill="url(#purchaseFill)"
+                            strokeWidth={2}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="margin"
+                            name="Net flow"
+                            stroke="#fbbf24"
+                            strokeWidth={1.5}
+                            dot={false}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="pt-24 text-center text-sm text-[var(--text-muted)]">No trend data yet</p>
+                    )}
+                  </div>
+                </div>
 
-          <div className="mt-5 grid gap-4 xl:grid-cols-2">
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5">
-              <p className="mb-3 text-sm font-medium">Top products by revenue</p>
-              <div className="h-64">
-                {topProducts.length ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={topProducts} layout="vertical" margin={{ left: 8, right: 8 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
-                      <XAxis type="number" tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
-                      <YAxis
-                        type="category"
-                        dataKey="name"
-                        width={100}
-                        tick={{ fill: "var(--text-muted)", fontSize: 11 }}
-                      />
-                      <Tooltip contentStyle={tooltipStyle} />
-                      <Bar dataKey="revenue" name="Revenue" fill="#22d3ee" radius={[0, 4, 4, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <p className="pt-20 text-center text-sm text-[var(--text-muted)]">No product sales yet</p>
-                )}
+                <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5">
+                  <p className="mb-3 text-sm font-medium">Sales by payment mode</p>
+                  <div className="h-72">
+                    {mix.length ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={mix}
+                            dataKey="value"
+                            nameKey="name"
+                            innerRadius={55}
+                            outerRadius={90}
+                            paddingAngle={3}
+                            label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+                          >
+                            {mix.map((_, i) => (
+                              <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip contentStyle={tooltipStyle} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="pt-24 text-center text-sm text-[var(--text-muted)]">No sales yet</p>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5">
-              <div className="mb-3 flex items-center gap-2">
-                <AlertTriangle size={16} className="text-[var(--danger)]" />
-                <p className="text-sm font-medium">Low stock watch</p>
+              <div className="mt-5 grid gap-4 xl:grid-cols-2">
+                <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5">
+                  <p className="mb-3 text-sm font-medium">Top products by revenue</p>
+                  <div className="h-64">
+                    {topProducts.length ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={topProducts} layout="vertical" margin={{ left: 8, right: 8 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+                          <XAxis type="number" tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
+                          <YAxis
+                            type="category"
+                            dataKey="name"
+                            width={100}
+                            tick={{ fill: "var(--text-muted)", fontSize: 11 }}
+                          />
+                          <Tooltip contentStyle={tooltipStyle} />
+                          <Bar dataKey="revenue" name="Revenue" fill="#22d3ee" radius={[0, 4, 4, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="pt-20 text-center text-sm text-[var(--text-muted)]">No product sales yet</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5">
+                  <div className="mb-3 flex items-center gap-2">
+                    <AlertTriangle size={16} className="text-[var(--danger)]" />
+                    <p className="text-sm font-medium">Low stock watch</p>
+                  </div>
+                  <DataTable
+                    headers={["Product", "Pack", "Stock", "Reorder"]}
+                    empty={!summary?.lowStockItems?.length}
+                  >
+                    {(summary?.lowStockItems ?? []).map((row, i) => (
+                      <tr key={`${row.productName}-${i}`} className="border-b border-[var(--border)] last:border-0">
+                        <td className="px-4 py-2.5">{row.productName}</td>
+                        <td className="px-4 py-2.5 text-[var(--text-muted)]">
+                          {[row.size, row.color].filter(Boolean).join(" / ") || "-"}
+                        </td>
+                        <td className="px-4 py-2.5 font-medium text-[var(--danger)]">{row.stockQty}</td>
+                        <td className="px-4 py-2.5 text-[var(--text-muted)]">{row.reorderLevel}</td>
+                      </tr>
+                    ))}
+                  </DataTable>
+                </div>
               </div>
-              <DataTable
-                headers={["Product", "Pack", "Stock", "Reorder"]}
-                empty={!summary?.lowStockItems?.length}
-              >
-                {(summary?.lowStockItems ?? []).map((row, i) => (
-                  <tr key={`${row.productName}-${i}`} className="border-b border-[var(--border)] last:border-0">
-                    <td className="px-4 py-2.5">{row.productName}</td>
-                    <td className="px-4 py-2.5 text-[var(--text-muted)]">
-                      {[row.size, row.color].filter(Boolean).join(" / ") || "-"}
-                    </td>
-                    <td className="px-4 py-2.5 font-medium text-[var(--danger)]">{row.stockQty}</td>
-                    <td className="px-4 py-2.5 text-[var(--text-muted)]">{row.reorderLevel}</td>
-                  </tr>
-                ))}
-              </DataTable>
-            </div>
-          </div>
 
-          <div className="mt-5 rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5">
-            <p className="mb-3 text-sm font-medium">Recent sales</p>
-            <DataTable
-              headers={["Invoice", "Date", "Customer", "Mode", "Total"]}
-              empty={!summary?.recentSales?.length}
-            >
-              {(summary?.recentSales ?? []).map((row) => (
-                <tr key={row.id} className="border-b border-[var(--border)] last:border-0">
-                  <td className="px-4 py-2.5 font-mono text-xs">{row.invoiceNo}</td>
-                  <td className="px-4 py-2.5">{row.invoiceDate}</td>
-                  <td className="px-4 py-2.5">{row.customerName || "Walk-in"}</td>
-                  <td className="px-4 py-2.5 capitalize text-[var(--text-muted)]">{row.paymentMode}</td>
-                  <td className="px-4 py-2.5">{fmt(cur, row.grandTotal)}</td>
-                </tr>
-              ))}
-            </DataTable>
-          </div>
+              <div className="mt-5 rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5">
+                <p className="mb-3 text-sm font-medium">Recent sales</p>
+                <DataTable
+                  headers={["Invoice", "Date", "Customer", "Mode", "Total"]}
+                  empty={!summary?.recentSales?.length}
+                >
+                  {(summary?.recentSales ?? []).map((row) => (
+                    <tr key={row.id} className="border-b border-[var(--border)] last:border-0">
+                      <td className="px-4 py-2.5 font-mono text-xs">{row.invoiceNo}</td>
+                      <td className="px-4 py-2.5">{row.invoiceDate}</td>
+                      <td className="px-4 py-2.5">{row.customerName || "Walk-in"}</td>
+                      <td className="px-4 py-2.5 capitalize text-[var(--text-muted)]">{row.paymentMode}</td>
+                      <td className="px-4 py-2.5">{fmt(cur, row.grandTotal)}</td>
+                    </tr>
+                  ))}
+                </DataTable>
+              </div>
+            </>
+          )}
         </>
       )}
 
