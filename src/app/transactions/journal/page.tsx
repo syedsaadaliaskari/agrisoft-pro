@@ -327,10 +327,6 @@ export default function JournalPage() {
             grand={money(Math.max(debitTotal, creditTotal))}
             grandLabel="Voucher amount"
           />
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] p-4 text-xs leading-relaxed text-[var(--text-muted)]">
-            Each journal must balance. Use this for adjustments, opening balances, and non-standard
-            postings that sales/purchase vouchers do not cover.
-          </div>
         </div>
       </div>
 

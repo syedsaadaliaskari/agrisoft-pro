@@ -210,7 +210,7 @@ export default function SettingsPage() {
       return;
     }
     setSuccess(
-      `Cloud sync: pushed ${res.data.pushedCustomers} customers, updated ${res.data.pulledCustomers} from cloud`
+      `Synced: ${res.data.pushedCustomers} sent, ${res.data.pulledCustomers} updated`
     );
   };
 
@@ -406,45 +406,23 @@ export default function SettingsPage() {
           </div>
 
           <div className="sm:col-span-2 border-t border-[var(--border)] pt-4 text-sm font-semibold">
-            Cloud sync (Supabase)
+            Cloud sync
           </div>
-          <p className="sm:col-span-2 -mt-2 text-xs text-[var(--text-muted)]">
-            Shop data stays in SQLite offline. Customers auto-sync when online (app start, every 15
-            minutes, and when the connection returns). Each activated company gets its own cloud shop
-            ID from the Pro activation code. More tables will be added later.
-          </p>
           <div className="sm:col-span-2 rounded-xl border border-[var(--border)] bg-[var(--bg-soft)]/40 px-3 py-3 text-xs text-[var(--text-muted)]">
             {syncInfo?.configured ? (
               <>
                 <div>
-                  Status: <span className="font-medium text-[var(--success)]">Configured</span>
-                </div>
-                <div className="mt-1 break-all">
-                  Cloud shop ID:{" "}
-                  <span className="font-mono text-[var(--text)]">{syncInfo.tenantId}</span>
-                </div>
-                <div className="mt-1">
-                  Source:{" "}
-                  {syncInfo.tenantSource === "activation"
-                    ? "Pro activation (this company)"
-                    : syncInfo.tenantSource === "env"
-                      ? "Dev .env fallback"
-                      : "—"}
-                </div>
-                <div className="mt-1">Local customers: {syncInfo.localCustomerCount}</div>
-                <div className="mt-1">
-                  Last sync: {syncInfo.lastSyncAt ? new Date(syncInfo.lastSyncAt).toLocaleString() : "Never"}
+                  Last sync:{" "}
+                  <span className="text-[var(--text)]">
+                    {syncInfo.lastSyncAt ? new Date(syncInfo.lastSyncAt).toLocaleString() : "Never"}
+                  </span>
                 </div>
                 {syncInfo.lastError ? (
-                  <div className="mt-1 text-[var(--danger)]">Last error: {syncInfo.lastError}</div>
+                  <div className="mt-1 text-[var(--danger)]">{syncInfo.lastError}</div>
                 ) : null}
               </>
             ) : (
-              <div>
-                Not ready — add Supabase URL + service role to <code className="text-[var(--text)]">.env</code>
-                , then activate Pro (or set <code className="text-[var(--text)]">SUPABASE_TENANT_ID</code> for
-                development) and restart.
-              </div>
+              <div>Cloud sync is not set up on this PC.</div>
             )}
           </div>
           <div className="flex flex-wrap items-end gap-2">
@@ -454,19 +432,15 @@ export default function SettingsPage() {
               disabled={syncBusy || !syncInfo?.configured}
               onClick={() => void onCloudSync()}
             >
-              {syncBusy ? "Syncing…" : "Sync customers now"}
+              {syncBusy ? "Syncing…" : "Sync now"}
             </Button>
           </div>
 
           <div className="sm:col-span-2 border-t border-[var(--border)] pt-4 text-sm font-semibold">
-            n8n WhatsApp automation
+            WhatsApp (n8n)
           </div>
-          <p className="sm:col-span-2 -mt-2 text-xs text-[var(--text-muted)]">
-            App + activation codes work offline. WhatsApp sends need internet. If offline, messages
-            queue and send when you are online (app start + every 6 hours, or tap Flush now).
-          </p>
           <Select
-            label="n8n enabled"
+            label="Enabled"
             value={form.n8n_enabled}
             onChange={(e) => setForm((f) => ({ ...f, n8n_enabled: e.target.value }))}
             options={[
@@ -481,14 +455,13 @@ export default function SettingsPage() {
           />
           <div className="sm:col-span-2">
             <Input
-              label="n8n webhook URL"
+              label="Webhook URL"
               value={form.n8n_webhook_url}
               onChange={(e) => setForm((f) => ({ ...f, n8n_webhook_url: e.target.value }))}
-              placeholder="https://your-n8n…/webhook/…"
             />
           </div>
           <Input
-            label="Min customer due (Rs) to remind"
+            label="Min customer due to remind"
             value={form.n8n_min_due_amount}
             onChange={(e) => setForm((f) => ({ ...f, n8n_min_due_amount: e.target.value }))}
           />
@@ -497,7 +470,7 @@ export default function SettingsPage() {
               {n8nBusy ? "…" : "Send test"}
             </Button>
             <Button type="button" variant="ghost" disabled={n8nBusy} onClick={() => void onN8nFlush()}>
-              Flush / scan now
+              Flush now
             </Button>
           </div>
 

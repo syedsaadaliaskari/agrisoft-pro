@@ -748,10 +748,6 @@ export default function SalesPage() {
               grand={money(grand)}
               due={money(balanceDue)}
             />
-            <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)]/50 p-4 text-xs leading-relaxed text-[var(--text-muted)]">
-              Posting will reduce stock for each pack, write ledger entries for cash/bank or receivables, and
-              assign the next invoice number automatically.
-            </div>
           </div>
         </div>
       </Modal>

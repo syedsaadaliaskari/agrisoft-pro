@@ -709,10 +709,6 @@ export default function PurchasesPage() {
               due={money(balanceDue)}
               dueLabel="Payable balance"
             />
-            <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)]/50 p-4 text-xs leading-relaxed text-[var(--text-muted)]">
-              Posting increases stock at cost, creates a purchase voucher, and updates vendor payables when
-              unpaid.
-            </div>
           </div>
         </div>
       </Modal>

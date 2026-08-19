@@ -535,10 +535,6 @@ export default function SaleReturnsPage() {
               grand={money(grand)}
               grandLabel="Credit note total"
             />
-            <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)]/50 p-4 text-xs leading-relaxed text-[var(--text-muted)]">
-              Stock is restored for every pack. Cash/bank refunds leave the till; credit mode reduces the
-              customer balance.
-            </div>
           </div>
         </div>
       </Modal>

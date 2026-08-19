@@ -527,10 +527,6 @@ export default function PurchaseReturnsPage() {
               grand={money(grand)}
               grandLabel="Debit note total"
             />
-            <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)]/50 p-4 text-xs leading-relaxed text-[var(--text-muted)]">
-              Stock leaves inventory at cost. Cash/bank refunds leave the till; credit mode reduces the
-              vendor payable.
-            </div>
           </div>
         </div>
       </Modal>
