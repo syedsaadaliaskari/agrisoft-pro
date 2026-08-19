@@ -1,4 +1,7 @@
 import { loadSupabaseEnv, type SupabaseEnv } from "./env";
+import { getDb } from "../db";
+import { settings } from "../db/schema";
+import { eq } from "drizzle-orm";
 
 export class SyncError extends Error {
   constructor(message: string) {
@@ -7,22 +10,47 @@ export class SyncError extends Error {
   }
 }
 
-function requireEnv(): SupabaseEnv {
+export type TenantSource = "activation" | "env" | "";
+
+function readLocalTenantId(): string {
+  try {
+    const db = getDb();
+    return (
+      db.select().from(settings).where(eq(settings.key, "supabase_tenant_id")).get()?.value?.trim() ||
+      ""
+    );
+  } catch {
+    return "";
+  }
+}
+
+function requireCredentials(): SupabaseEnv {
   const env = loadSupabaseEnv();
   if (!env) {
     throw new SyncError(
-      "Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, and SUPABASE_TENANT_ID to .env"
+      "Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to .env"
     );
   }
   return env;
 }
 
+/** Shop tenant: activation setting first, then .env fallback (vendor/dev). */
+export function resolveTenant(): { tenantId: string; source: TenantSource } {
+  const fromActivation = readLocalTenantId();
+  if (fromActivation) return { tenantId: fromActivation, source: "activation" };
+  const env = loadSupabaseEnv();
+  if (env?.envTenantId) return { tenantId: env.envTenantId, source: "env" };
+  return { tenantId: "", source: "" };
+}
+
 export function getSyncConfig() {
   const env = loadSupabaseEnv();
+  const { tenantId, source } = resolveTenant();
   return {
-    configured: Boolean(env),
+    configured: Boolean(env?.url && env?.serviceRoleKey && tenantId),
     url: env?.url ?? "",
-    tenantId: env?.tenantId ?? "",
+    tenantId,
+    tenantSource: source,
     hasServiceKey: Boolean(env?.serviceRoleKey),
   };
 }
@@ -37,7 +65,7 @@ export async function supabaseRest<T = unknown>(
     prefer?: string;
   } = {}
 ): Promise<T> {
-  const env = requireEnv();
+  const env = requireCredentials();
   const method = options.method ?? "GET";
   const qs = options.query ? `?${options.query}` : "";
   const url = `${env.url}/rest/v1/${table}${qs}`;
@@ -68,5 +96,40 @@ export async function supabaseRest<T = unknown>(
 }
 
 export function tenantId(): string {
-  return requireEnv().tenantId;
+  const { tenantId: id } = resolveTenant();
+  if (!id) {
+    throw new SyncError(
+      "No shop cloud ID yet. Activate Pro with a new code, or set SUPABASE_TENANT_ID in .env for development."
+    );
+  }
+  return id;
+}
+
+function slugify(name: string): string {
+  const base = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 40);
+  return base || "shop";
+}
+
+/** Ensure this shop exists in public.tenants (idempotent upsert). */
+export async function ensureCloudTenant(id: string, name: string): Promise<void> {
+  const now = new Date().toISOString();
+  await supabaseRest("tenants", {
+    method: "POST",
+    query: "on_conflict=id",
+    prefer: "resolution=merge-duplicates,return=minimal",
+    body: [
+      {
+        id,
+        name: name.trim() || "Shop",
+        slug: `${slugify(name)}-${id.slice(0, 8)}`,
+        is_active: true,
+        updated_at: now,
+        deleted_at: null,
+      },
+    ],
+  });
 }

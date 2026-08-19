@@ -218,6 +218,7 @@ export function enqueueLicenseActivated(
       name: row.name,
       installId: row.installId,
       plan: row.plan,
+      tenantId: row.tenantId,
       expiresAt: row.expiresAt,
       activationCode: row.activationCode,
       phone: to,

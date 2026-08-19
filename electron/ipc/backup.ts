@@ -19,8 +19,6 @@ import { resetShopDatabase } from "../db/reset";
 import { writeAuditLog } from "../db/audit";
 import { getDb } from "../db";
 import { PermissionError, requirePermission } from "./session";
-import { getLanMode } from "../lan/client-bridge";
-
 function ok<T>(data: T): ActionResult<T> {
   return { ok: true, data };
 }
@@ -195,9 +193,6 @@ export function registerBackupHandlers(): void {
     async (_e, confirmText: string): Promise<ActionResult<{ relaunching: true }>> => {
       try {
         const session = requirePermission("settings.manage");
-        if (getLanMode() === "client") {
-          return fail("Reset shop data only on the main PC (or This PC alone)");
-        }
         if (String(confirmText ?? "").trim().toUpperCase() !== "RESET") {
           return fail('Type RESET in capital letters to confirm');
         }

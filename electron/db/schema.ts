@@ -498,6 +498,8 @@ export const licenses = sqliteTable(
     expiresAt: text("expires_at"), // null = forever
     notes: text("notes"),
     phone: text("phone"),
+    /** Supabase tenants.id for this shop (cloud namespace). */
+    tenantId: text("tenant_id"),
     ...timestamps,
   },
   (t) => [index("licenses_install_idx").on(t.installId)]

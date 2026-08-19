@@ -156,12 +156,6 @@ const api: ElectronAPI = {
 
   getCloudSyncStatus: () => ipcRenderer.invoke(IPC.CLOUD_SYNC_STATUS),
   runCloudSyncNow: () => ipcRenderer.invoke(IPC.CLOUD_SYNC_NOW),
-
-  getLanStatus: () => ipcRenderer.invoke(IPC.LAN_STATUS),
-  updateLanConfig: (input) => ipcRenderer.invoke(IPC.LAN_UPDATE, input),
-  testLanConnection: (input) => ipcRenderer.invoke(IPC.LAN_TEST, input),
-  discoverLanServers: () => ipcRenderer.invoke(IPC.LAN_DISCOVER),
-  getLanLocalAddresses: () => ipcRenderer.invoke(IPC.LAN_LOCAL_ADDRESSES),
 };
 
 contextBridge.exposeInMainWorld("api", api);

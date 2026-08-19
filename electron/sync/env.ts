@@ -6,7 +6,8 @@ export type SupabaseEnv = {
   url: string;
   anonKey: string;
   serviceRoleKey: string;
-  tenantId: string;
+  /** Optional .env fallback tenant (vendor/dev only). Shops get id via activation. */
+  envTenantId: string;
 };
 
 let cached: SupabaseEnv | null | undefined;
@@ -58,14 +59,14 @@ export function loadSupabaseEnv(): SupabaseEnv | null {
     fileVars.SUPABASE_SERVICE_ROLE_KEY ||
     ""
   ).trim();
-  const tenantId = (process.env.SUPABASE_TENANT_ID || fileVars.SUPABASE_TENANT_ID || "").trim();
+  const envTenantId = (process.env.SUPABASE_TENANT_ID || fileVars.SUPABASE_TENANT_ID || "").trim();
 
-  if (!url || !serviceRoleKey || !tenantId) {
+  if (!url || !serviceRoleKey) {
     cached = null;
     return cached;
   }
 
-  cached = { url: url.replace(/\/$/, ""), anonKey, serviceRoleKey, tenantId };
+  cached = { url: url.replace(/\/$/, ""), anonKey, serviceRoleKey, envTenantId };
   return cached;
 }
 

@@ -1,6 +1,5 @@
 import { registerHandler } from "./register";
 import { IPC, type ActionResult } from "../../shared/ipc";
-import { loadLanConfig } from "../lan/config";
 import {
   getCloudSyncStatus,
   recordSyncError,
@@ -17,17 +16,6 @@ function fail(error: string): ActionResult<never> {
   return { ok: false, error };
 }
 
-function guardNotLanClient(): string | null {
-  try {
-    if (loadLanConfig().mode === "client") {
-      return "Cloud sync runs on the main / standalone PC only";
-    }
-  } catch {
-    /* ignore */
-  }
-  return null;
-}
-
 export function registerSyncHandlers() {
   registerHandler(IPC.CLOUD_SYNC_STATUS, async (): Promise<ActionResult<CloudSyncStatus>> => {
     try {
@@ -38,8 +26,6 @@ export function registerSyncHandlers() {
   });
 
   registerHandler(IPC.CLOUD_SYNC_NOW, async (): Promise<ActionResult<CloudSyncResult>> => {
-    const blocked = guardNotLanClient();
-    if (blocked) return fail(blocked);
     try {
       const result = await runCustomerCloudSync();
       return ok(result);

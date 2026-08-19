@@ -86,7 +86,6 @@ export const en: Dict = {
   "nav.changePassword": "Change password",
   "nav.licenseInfo": "License",
   "nav.backup": "Backup & Restore",
-  "nav.lan": "Multi-PC (LAN)",
   "nav.audit": "Audit log",
   "nav.settings": "Settings",
 
@@ -160,8 +159,6 @@ export const en: Dict = {
   "pages.licenseInfo.subtitle": "Your Install ID and activate companies",
   "pages.backup.title": "Backup & Restore",
   "pages.backup.subtitle": "Local database snapshots — free, on this PC only",
-  "pages.lan.title": "Multi-PC (LAN)",
-  "pages.lan.subtitle": "Main PC shares users, stock, and sales with cashiers",
   "pages.audit.title": "Audit log",
   "pages.audit.subtitle": "Who did what in the shop — search, filter, and export",
   "pages.settings.title": "Settings",

@@ -35,6 +35,7 @@ export default function SettingsPage() {
     configured: boolean;
     url: string;
     tenantId: string;
+    tenantSource: "activation" | "env" | "";
     lastSyncAt: string | null;
     lastError: string | null;
     localCustomerCount: number;
@@ -408,8 +409,9 @@ export default function SettingsPage() {
             Cloud sync (Supabase)
           </div>
           <p className="sm:col-span-2 -mt-2 text-xs text-[var(--text-muted)]">
-            Shop data stays in SQLite offline. Sync pushes/pulls customers to Supabase when you have
-            internet. More tables will be added later.
+            Shop data stays in SQLite offline. Customers auto-sync when online (app start, every 15
+            minutes, and when the connection returns). Each activated company gets its own cloud shop
+            ID from the Pro activation code. More tables will be added later.
           </p>
           <div className="sm:col-span-2 rounded-xl border border-[var(--border)] bg-[var(--bg-soft)]/40 px-3 py-3 text-xs text-[var(--text-muted)]">
             {syncInfo?.configured ? (
@@ -417,7 +419,18 @@ export default function SettingsPage() {
                 <div>
                   Status: <span className="font-medium text-[var(--success)]">Configured</span>
                 </div>
-                <div className="mt-1 truncate">Tenant: {syncInfo.tenantId}</div>
+                <div className="mt-1 break-all">
+                  Cloud shop ID:{" "}
+                  <span className="font-mono text-[var(--text)]">{syncInfo.tenantId}</span>
+                </div>
+                <div className="mt-1">
+                  Source:{" "}
+                  {syncInfo.tenantSource === "activation"
+                    ? "Pro activation (this company)"
+                    : syncInfo.tenantSource === "env"
+                      ? "Dev .env fallback"
+                      : "—"}
+                </div>
                 <div className="mt-1">Local customers: {syncInfo.localCustomerCount}</div>
                 <div className="mt-1">
                   Last sync: {syncInfo.lastSyncAt ? new Date(syncInfo.lastSyncAt).toLocaleString() : "Never"}
@@ -428,8 +441,9 @@ export default function SettingsPage() {
               </>
             ) : (
               <div>
-                Not configured — add Supabase keys to <code className="text-[var(--text)]">.env</code> and
-                restart the app.
+                Not ready — add Supabase URL + service role to <code className="text-[var(--text)]">.env</code>
+                , then activate Pro (or set <code className="text-[var(--text)]">SUPABASE_TENANT_ID</code> for
+                development) and restart.
               </div>
             )}
           </div>

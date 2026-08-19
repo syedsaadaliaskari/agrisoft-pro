@@ -11,7 +11,6 @@ import {
 } from "./index";
 import { licenses, settings } from "./schema";
 import { setSkipQuitAutoBackup } from "./backup";
-import { loadLanConfig } from "../lan/config";
 
 function removeIfExists(p: string) {
   if (fs.existsSync(p)) fs.unlinkSync(p);
@@ -26,25 +25,26 @@ type LicenseSnapshot = {
   expiresAt: string | null;
   notes: string | null;
   phone: string | null;
+  tenantId: string | null;
   createdAt: string;
   updatedAt: string;
 };
 
 /**
  * Wipe shop data and reseed a clean DB.
- * Keeps Install ID + Pro licenses + vendor unlock so activation is not lost.
- * Blocks LAN client mode (reset only on standalone / main PC).
+ * Keeps Install ID + Pro licenses + vendor unlock + cloud tenant so activation is not lost.
  */
 export async function resetShopDatabase(): Promise<{ relaunching: true }> {
-  if (loadLanConfig().mode === "client") {
-    throw new Error("Reset shop data only on the main PC (or This PC alone mode)");
-  }
-
   const live = getDbPath();
   if (!live) throw new Error("Database path unknown");
 
   const db = getDb();
-  const keepKeys = ["license_install_id", "license_installed_at", "vendor_unlocked"] as const;
+  const keepKeys = [
+    "license_install_id",
+    "license_installed_at",
+    "vendor_unlocked",
+    "supabase_tenant_id",
+  ] as const;
   const keptSettings: { key: string; value: string; groupName: string }[] = [];
   for (const key of keepKeys) {
     const row = db.select().from(settings).where(eq(settings.key, key)).get();
@@ -65,6 +65,7 @@ export async function resetShopDatabase(): Promise<{ relaunching: true }> {
     expiresAt: r.expiresAt,
     notes: r.notes,
     phone: r.phone,
+    tenantId: r.tenantId ?? null,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   }));

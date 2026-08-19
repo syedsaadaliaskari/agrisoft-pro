@@ -2,12 +2,20 @@ import { randomUUID } from "crypto";
 import { eq } from "drizzle-orm";
 import { getDb } from "../db";
 import { customers, settings } from "../db/schema";
-import { getSyncConfig, supabaseRest, tenantId, SyncError } from "./client";
+import {
+  ensureCloudTenant,
+  getSyncConfig,
+  supabaseRest,
+  tenantId,
+  SyncError,
+  type TenantSource,
+} from "./client";
 
 export type CloudSyncStatus = {
   configured: boolean;
   url: string;
   tenantId: string;
+  tenantSource: TenantSource;
   lastSyncAt: string | null;
   lastError: string | null;
   localCustomerCount: number;
@@ -90,6 +98,7 @@ export function getCloudSyncStatus(): CloudSyncStatus {
     configured: cfg.configured,
     url: cfg.url,
     tenantId: cfg.tenantId,
+    tenantSource: cfg.tenantSource,
     lastSyncAt: getSetting("cloud_last_sync_at") || null,
     lastError: getSetting("cloud_last_sync_error") || null,
     localCustomerCount,
@@ -100,10 +109,19 @@ export function getCloudSyncStatus(): CloudSyncStatus {
 export async function runCustomerCloudSync(): Promise<CloudSyncResult> {
   const cfg = getSyncConfig();
   if (!cfg.configured) {
-    throw new SyncError("Supabase is not configured in .env");
+    throw new SyncError(
+      "Supabase is not configured. Add URL + service role key, and activate Pro (or set SUPABASE_TENANT_ID for dev)."
+    );
   }
 
+  const tid = tenantId();
   const db = getDb();
+  const shopName =
+    db.select().from(settings).where(eq(settings.key, "shop_name")).get()?.value?.trim() ||
+    "Shop";
+
+  await ensureCloudTenant(tid, shopName);
+
   const local = db.select().from(customers).all();
   const payload = local.map(toCloud);
 
@@ -120,7 +138,7 @@ export async function runCustomerCloudSync(): Promise<CloudSyncResult> {
 
   const remote = await supabaseRest<CloudCustomer[]>("customers", {
     method: "GET",
-    query: `tenant_id=eq.${encodeURIComponent(tenantId())}&deleted_at=is.null&select=*`,
+    query: `tenant_id=eq.${encodeURIComponent(tid)}&deleted_at=is.null&select=*`,
   });
 
   let pulled = 0;

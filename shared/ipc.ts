@@ -1,11 +1,3 @@
-import type {
-  LanConfigUpdateInput,
-  LanDiscoveredServer,
-  LanRuntimeStatus,
-} from "./lan";
-
-export type { LanConfig, LanConfigUpdateInput, LanDiscoveredServer, LanMode, LanRuntimeStatus } from "./lan";
-
 /** Shared IPC channel names between Electron main and renderer */
 export const IPC = {
   PING: "app:ping",
@@ -178,13 +170,6 @@ export const IPC = {
 
   CLOUD_SYNC_STATUS: "cloud:syncStatus",
   CLOUD_SYNC_NOW: "cloud:syncNow",
-
-  // LAN multi-PC (local to this install — not proxied)
-  LAN_STATUS: "lan:status",
-  LAN_UPDATE: "lan:update",
-  LAN_TEST: "lan:test",
-  LAN_DISCOVER: "lan:discover",
-  LAN_LOCAL_ADDRESSES: "lan:localAddresses",
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
@@ -1275,6 +1260,8 @@ export type LicenseStatus = {
   expiresAt: string | null;
   licenseName: string | null;
   isDevBypass: boolean;
+  /** Supabase tenants.id for this shop after Pro activation */
+  cloudTenantId: string | null;
 };
 
 export type LicenseRow = {
@@ -1286,6 +1273,8 @@ export type LicenseRow = {
   expiresAt: string | null;
   notes: string | null;
   phone: string | null;
+  /** Cloud shop namespace — unique per company */
+  tenantId: string | null;
   createdAt: string;
   activationCode: string;
 };
@@ -1471,6 +1460,7 @@ export type ElectronAPI = {
       configured: boolean;
       url: string;
       tenantId: string;
+      tenantSource: "activation" | "env" | "";
       lastSyncAt: string | null;
       lastError: string | null;
       localCustomerCount: number;
@@ -1479,16 +1469,6 @@ export type ElectronAPI = {
   runCloudSyncNow: () => Promise<
     ActionResult<{ pushedCustomers: number; pulledCustomers: number; lastSyncAt: string }>
   >;
-
-  getLanStatus: () => Promise<ActionResult<LanRuntimeStatus>>;
-  updateLanConfig: (input: LanConfigUpdateInput) => Promise<ActionResult<LanRuntimeStatus>>;
-  testLanConnection: (input?: {
-    host?: string;
-    port?: number;
-    accessKey?: string;
-  }) => Promise<ActionResult<{ name: string }>>;
-  discoverLanServers: () => Promise<ActionResult<LanDiscoveredServer[]>>;
-  getLanLocalAddresses: () => Promise<ActionResult<string[]>>;
 };
 
 declare global {

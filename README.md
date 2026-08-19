@@ -76,7 +76,7 @@ npm run db:reseed
 
 ## Out of scope (not built)
 
-Cloud sync, multi-branch (multi-store), barcode hardware, advanced tax engine, full audit UI, auto-updater.
+Multi-branch (multi-store), advanced tax engine, full product/sales cloud sync (customers auto-sync when online), mobile companion (separate app).
 
 ## Backup & restore
 

@@ -113,13 +113,16 @@ export default function ActivatedListPage() {
         />
       ) : (
         <DataTable
-          headers={["Company", "Install ID", "Plan", "Activated", "Expires", ""]}
+          headers={["Company", "Install ID", "Cloud ID", "Plan", "Activated", "Expires", ""]}
           empty={false}
         >
           {rows.map((row) => (
             <tr key={row.id} className="border-b border-[var(--border)] last:border-0">
               <td className="px-4 py-3 text-sm font-medium">{row.name}</td>
               <td className="px-4 py-3 font-mono text-xs">{row.installId}</td>
+              <td className="px-4 py-3 font-mono text-[10px] text-[var(--text-muted)]" title={row.tenantId ?? ""}>
+                {row.tenantId ? `${row.tenantId.slice(0, 8)}…` : "—"}
+              </td>
               <td className="px-4 py-3 text-sm capitalize">{row.plan}</td>
               <td className="px-4 py-3 text-sm">{row.activatedAt}</td>
               <td className="px-4 py-3 text-sm">{row.expiresAt ?? "Never"}</td>

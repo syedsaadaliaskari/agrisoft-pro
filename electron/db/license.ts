@@ -7,6 +7,7 @@ import { licenses, settings } from "./schema";
 const ACTIVATION_HMAC_SECRET = "agri-soft-pro-activation-v1";
 
 export const TRIAL_DAYS = 7;
+export const CLOUD_TENANT_SETTING_KEY = "supabase_tenant_id";
 
 export type LicensePlan = "monthly" | "yearly" | "forever";
 
@@ -22,6 +23,8 @@ export type LicenseStatus = {
   licenseName: string | null;
   /** Unpackaged Electron — never locks so development stays open */
   isDevBypass: boolean;
+  /** Shop cloud namespace (from activation). Empty until Pro code applied / env used. */
+  cloudTenantId: string | null;
 };
 
 export type LicenseRow = {
@@ -33,6 +36,7 @@ export type LicenseRow = {
   expiresAt: string | null;
   notes: string | null;
   phone: string | null;
+  tenantId: string | null;
   createdAt: string;
   activationCode: string;
 };
@@ -108,12 +112,13 @@ function mapLicense(row: typeof licenses.$inferSelect): LicenseRow {
     expiresAt: row.expiresAt,
     notes: row.notes,
     phone: row.phone ?? null,
+    tenantId: row.tenantId ?? null,
     createdAt: row.createdAt,
   };
   return { ...base, activationCode: buildActivationCode(base) };
 }
 
-type ActivationPayload = {
+type ActivationPayloadV1 = {
   v: 1;
   installId: string;
   name: string;
@@ -122,17 +127,40 @@ type ActivationPayload = {
   expiresAt: string | null;
 };
 
+type ActivationPayloadV2 = {
+  v: 2;
+  installId: string;
+  name: string;
+  plan: LicensePlan;
+  activatedAt: string;
+  expiresAt: string | null;
+  tenantId: string;
+};
+
+type ActivationPayload = ActivationPayloadV1 | ActivationPayloadV2;
+
 export function buildActivationCode(
-  row: Pick<LicenseRow, "installId" | "name" | "plan" | "activatedAt" | "expiresAt">
+  row: Pick<LicenseRow, "installId" | "name" | "plan" | "activatedAt" | "expiresAt" | "tenantId">
 ): string {
-  const payload: ActivationPayload = {
-    v: 1,
-    installId: row.installId,
-    name: row.name,
-    plan: row.plan,
-    activatedAt: row.activatedAt,
-    expiresAt: row.expiresAt,
-  };
+  const tenantId = row.tenantId?.trim();
+  const payload: ActivationPayload = tenantId
+    ? {
+        v: 2,
+        installId: row.installId,
+        name: row.name,
+        plan: row.plan,
+        activatedAt: row.activatedAt,
+        expiresAt: row.expiresAt,
+        tenantId,
+      }
+    : {
+        v: 1,
+        installId: row.installId,
+        name: row.name,
+        plan: row.plan,
+        activatedAt: row.activatedAt,
+        expiresAt: row.expiresAt,
+      };
   const body = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
   const sig = createHmac("sha256", ACTIVATION_HMAC_SECRET).update(body).digest("base64url").slice(0, 24);
   return `ASP1.${body}.${sig}`;
@@ -157,12 +185,27 @@ function findActiveLicense(db: Db, installId: string): LicenseRow | null {
   return null;
 }
 
+function resolveTenantForInstall(db: Db, installId: string): string {
+  const prior = db
+    .select()
+    .from(licenses)
+    .where(eq(licenses.installId, installId))
+    .orderBy(desc(licenses.createdAt))
+    .all();
+  for (const row of prior) {
+    const tid = row.tenantId?.trim();
+    if (tid) return tid;
+  }
+  return randomUUID();
+}
+
 export function getLicenseStatus(db: Db, _isDev: boolean): LicenseStatus {
   const { installId, installedAt } = ensureInstallIdentity(db);
   const trialEndsAt = addDaysIso(installedAt, TRIAL_DAYS);
   const today = todayIsoDate();
   const elapsed = daysBetween(installedAt, today);
   const trialDaysLeft = Math.max(0, TRIAL_DAYS - elapsed);
+  const cloudTenantId = getSetting(db, CLOUD_TENANT_SETTING_KEY);
 
   const active = findActiveLicense(db, installId);
   if (active) {
@@ -177,6 +220,7 @@ export function getLicenseStatus(db: Db, _isDev: boolean): LicenseStatus {
       expiresAt: active.expiresAt,
       licenseName: active.name,
       isDevBypass: false,
+      cloudTenantId: cloudTenantId || active.tenantId,
     };
   }
 
@@ -192,6 +236,7 @@ export function getLicenseStatus(db: Db, _isDev: boolean): LicenseStatus {
       expiresAt: null,
       licenseName: null,
       isDevBypass: false,
+      cloudTenantId,
     };
   }
 
@@ -206,6 +251,7 @@ export function getLicenseStatus(db: Db, _isDev: boolean): LicenseStatus {
     expiresAt: null,
     licenseName: null,
     isDevBypass: false,
+    cloudTenantId,
   };
 }
 
@@ -236,6 +282,7 @@ export function createLicense(
   if (input.plan === "monthly") expiresAt = addMonthsIso(activatedAt, 1);
   if (input.plan === "yearly") expiresAt = addMonthsIso(activatedAt, 12);
 
+  const tenantId = resolveTenantForInstall(db, installId);
   const id = randomUUID();
   const now = new Date().toISOString();
   const phone = input.phone?.trim() || null;
@@ -249,6 +296,7 @@ export function createLicense(
       expiresAt,
       notes: input.notes?.trim() || null,
       phone,
+      tenantId,
       createdAt: now,
       updatedAt: now,
     })
@@ -290,6 +338,10 @@ export function lockThisInstallNow(db: Db): LicenseStatus {
   return getLicenseStatus(db, false);
 }
 
+function storeCloudTenantId(db: Db, tenantId: string) {
+  setSetting(db, CLOUD_TENANT_SETTING_KEY, tenantId.trim(), "sync");
+}
+
 /** Customer PC: paste code from vendor WhatsApp to unlock this install. */
 export function applyActivationCode(db: Db, rawCode: string): LicenseStatus {
   const code = rawCode.trim().replace(/\s+/g, "");
@@ -313,12 +365,15 @@ export function applyActivationCode(db: Db, rawCode: string): LicenseStatus {
     throw new Error("Invalid activation code");
   }
 
-  if (payload?.v !== 1 || !payload.installId || !payload.plan) {
+  if ((payload?.v !== 1 && payload?.v !== 2) || !payload.installId || !payload.plan) {
     throw new Error("Invalid activation code");
   }
   if (!["monthly", "yearly", "forever"].includes(payload.plan)) {
     throw new Error("Invalid plan in activation code");
   }
+
+  const tenantFromCode =
+    payload.v === 2 && typeof payload.tenantId === "string" ? payload.tenantId.trim() : "";
 
   const { installId } = ensureInstallIdentity(db);
   if (payload.installId.toUpperCase() !== installId) {
@@ -331,12 +386,21 @@ export function applyActivationCode(db: Db, rawCode: string): LicenseStatus {
     throw new Error("This activation code has expired");
   }
 
+  if (tenantFromCode) {
+    storeCloudTenantId(db, tenantFromCode);
+  }
+
   if (findActiveLicense(db, installId)) {
     return getLicenseStatus(db, false);
   }
 
   const id = randomUUID();
   const now = new Date().toISOString();
+  const tenantId = tenantFromCode || resolveTenantForInstall(db, installId);
+  if (!tenantFromCode) {
+    storeCloudTenantId(db, tenantId);
+  }
+
   db.insert(licenses)
     .values({
       id,
@@ -346,6 +410,7 @@ export function applyActivationCode(db: Db, rawCode: string): LicenseStatus {
       activatedAt: payload.activatedAt || todayIsoDate(),
       expiresAt: payload.plan === "forever" ? null : payload.expiresAt,
       notes: "Applied from activation code",
+      tenantId,
       createdAt: now,
       updatedAt: now,
     })

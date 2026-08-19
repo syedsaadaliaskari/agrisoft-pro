@@ -440,6 +440,7 @@ CREATE TABLE IF NOT EXISTS licenses (
   expires_at TEXT,
   notes TEXT,
   phone TEXT,
+  tenant_id TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -469,6 +470,11 @@ export async function initDatabase(): Promise<Db> {
   applyBootstrapSchema(sqlite);
   try {
     sqlite.exec("ALTER TABLE licenses ADD COLUMN phone TEXT");
+  } catch {
+    // column already exists
+  }
+  try {
+    sqlite.exec("ALTER TABLE licenses ADD COLUMN tenant_id TEXT");
   } catch {
     // column already exists
   }

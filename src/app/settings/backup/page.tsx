@@ -240,7 +240,7 @@ export default function BackupPage() {
             <h2 className="mt-1 text-lg font-semibold tracking-tight">Reset all shop data</h2>
             <p className="mt-1 text-xs text-[var(--text-muted)]">
               Erases sales, purchases, stock, parties, and users. Keeps Install ID and Pro activation.
-              App restarts with admin / admin123. Not available on LAN cashier PCs.
+              App restarts with admin / admin123.
             </p>
             <div className="mt-3 max-w-sm">
               <Input

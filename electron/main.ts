@@ -6,7 +6,7 @@ import { runAutoBackup, shouldSkipQuitAutoBackup } from "./db/backup";
 import { registerIpcHandlers } from "./ipc/handlers";
 import { registerHandler } from "./ipc/register";
 import { setupAutoUpdater } from "./updater";
-import { applyLanModeFromConfig } from "./lan";
+import { startCloudSyncScheduler } from "./sync/scheduler";
 import { IPC, type ActionResult } from "../shared/ipc";
 
 let quitting = false;
@@ -210,26 +210,14 @@ app.whenReady().then(async () => {
   registerIpcHandlers(app.getVersion(), isDev);
 
   try {
-    await applyLanModeFromConfig();
-  } catch (err) {
-    console.warn("LAN mode start failed:", err);
-  }
-
-  // Auto daily backup on start if today's file is missing (main/standalone only)
-  try {
-    const { loadLanConfig } = await import("./lan/config");
-    if (loadLanConfig().mode !== "client") {
-      await runAutoBackup(false);
-    }
+    await runAutoBackup(false);
   } catch (err) {
     console.warn("Auto backup on start failed:", err);
   }
 
-  // n8n WhatsApp queue: scan reminders + flush (needs internet to send) — main/standalone only
+  // n8n WhatsApp queue: scan reminders + flush (needs internet to send)
   const runN8nPass = async () => {
     try {
-      const { loadLanConfig } = await import("./lan/config");
-      if (loadLanConfig().mode === "client") return;
       const { getDb } = await import("./db");
       const { runN8nAutomationPass } = await import("./db/n8n");
       await runN8nAutomationPass(getDb());
@@ -239,6 +227,13 @@ app.whenReady().then(async () => {
   };
   void runN8nPass();
   setInterval(() => void runN8nPass(), 6 * 60 * 60 * 1000);
+
+  // Cloud sync customers when online (startup, every 15 min, network return)
+  try {
+    startCloudSyncScheduler();
+  } catch (err) {
+    console.warn("Cloud sync scheduler failed to start:", err);
+  }
 
   registerHandler(
     IPC.APP_PRINT_HTML,
@@ -307,28 +302,17 @@ app.on("window-all-closed", () => {
 app.on("before-quit", (event) => {
   if (quitting) return;
   if (shouldSkipQuitAutoBackup()) {
-    void import("./lan/server").then((m) => m.stopLanServer()).finally(() => {
-      closeDatabase();
-    });
+    closeDatabase();
     return;
   }
   event.preventDefault();
   quitting = true;
   void (async () => {
     try {
-      const { loadLanConfig } = await import("./lan/config");
-      if (loadLanConfig().mode !== "client") {
-        await runAutoBackup(true);
-      }
+      await runAutoBackup(true);
     } catch (err) {
       console.warn("Auto backup on quit failed:", err);
     } finally {
-      try {
-        const { stopLanServer } = await import("./lan/server");
-        await stopLanServer();
-      } catch {
-        /* ignore */
-      }
       closeDatabase();
       app.exit(0);
     }

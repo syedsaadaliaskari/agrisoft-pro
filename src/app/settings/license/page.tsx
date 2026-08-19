@@ -84,7 +84,7 @@ export default function LicenseInfoPage() {
     }
     setLastCode(res.data.activationCode);
     setOkMsg(
-      `Activated ${res.data.plan} for ${res.data.name}. Copy the activation code (and n8n will WhatsApp it if enabled + online).`
+      `Activated ${res.data.plan} for ${res.data.name}. Cloud shop ID: ${res.data.tenantId ?? "—"}. Copy the activation code (n8n will WhatsApp it if enabled + online).`
     );
     setForm({ name: "", installId: "", plan: "forever", notes: "", phone: "" });
     await load();

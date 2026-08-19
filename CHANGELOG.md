@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Removed
+- Multi-PC (LAN) mode — multi-device will use cloud sync instead of Wi‑Fi peer sharing.
+
+### Cloud sync
+- Customers auto-sync when online (app start, every 15 minutes, and when the connection returns). Manual “Sync customers now” remains in Settings.
+- Each company gets a unique Supabase `tenants.id` when you Activate Pro. The ID is embedded in the activation code, stored on the shop PC, and used for all sync (Supabase = main server for every shop).
+- Re-activating the same Install ID reuses the same cloud shop ID. `.env` `SUPABASE_TENANT_ID` remains a vendor/dev fallback only.
+
 ## 0.1.5 — 2026-08-12
 
 ### Multi-PC (LAN)

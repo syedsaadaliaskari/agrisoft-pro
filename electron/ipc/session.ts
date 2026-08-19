@@ -1,46 +1,12 @@
-import { AsyncLocalStorage } from "async_hooks";
 import type { SessionUser } from "../../shared/ipc";
 
-type RequestContext = {
-  /** Authenticated user for this request (null = anonymous). */
-  user: SessionUser | null;
-  /** True when serving a LAN cashier request (not the local UI session). */
-  remote: boolean;
-};
-
-const requestContext = new AsyncLocalStorage<RequestContext>();
-
-/** Local UI session on this PC (Mode A / main PC operator). */
 let localSession: SessionUser | null = null;
 
-export function runWithRequestContext<T>(ctx: RequestContext, fn: () => T): T {
-  return requestContext.run(ctx, fn);
-}
-
-export async function runWithRequestContextAsync<T>(
-  ctx: RequestContext,
-  fn: () => Promise<T>
-): Promise<T> {
-  return requestContext.run(ctx, fn);
-}
-
-export function isRemoteRequest(): boolean {
-  return requestContext.getStore()?.remote === true;
-}
-
 export function setCurrentSession(user: SessionUser | null): void {
-  if (isRemoteRequest()) {
-    // Remote sessions are token-backed; do not clobber the main PC UI session.
-    const store = requestContext.getStore();
-    if (store) store.user = user;
-    return;
-  }
   localSession = user;
 }
 
 export function getCurrentSession(): SessionUser | null {
-  const store = requestContext.getStore();
-  if (store) return store.user;
   return localSession;
 }
 

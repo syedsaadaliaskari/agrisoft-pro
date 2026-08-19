@@ -55,7 +55,7 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
           return;
         }
       } catch {
-        /* status unavailable (e.g. LAN down) — still open the app shell */
+        /* status unavailable — still open the app shell */
       }
       if (!cancelled) setLicenseReady(true);
     })();

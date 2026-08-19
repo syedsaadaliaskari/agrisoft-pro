@@ -73,6 +73,12 @@ export function registerLicenseHandlers(isDev: boolean): void {
         enqueueLicenseActivated(getDb(), row, input.phone ?? row.phone);
         // Fire-and-forget flush; offline keeps item in queue
         void flushN8nQueue(getDb());
+        // Best-effort: create this shop's namespace in Supabase (source of truth)
+        if (row.tenantId) {
+          void import("../sync/client")
+            .then((m) => m.ensureCloudTenant(row.tenantId!, row.name))
+            .catch((err) => console.warn("Cloud tenant upsert failed:", err));
+        }
         return row;
       })
   );
