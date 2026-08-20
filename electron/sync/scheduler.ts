@@ -1,6 +1,6 @@
 import { net } from "electron";
 import { getSyncConfig } from "./client";
-import { recordSyncError, runCustomerCloudSync } from "./customers";
+import { recordSyncError, runShopCloudSync } from "./shop";
 
 let syncing = false;
 let lastAttemptAt = 0;
@@ -25,7 +25,7 @@ export async function maybeRunCustomerCloudSync(
   syncing = true;
   lastAttemptAt = Date.now();
   try {
-    await runCustomerCloudSync();
+    await runShopCloudSync();
   } catch (err) {
     const message = err instanceof Error ? err.message : "Sync failed";
     try {

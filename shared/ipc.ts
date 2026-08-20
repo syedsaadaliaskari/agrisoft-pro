@@ -1467,7 +1467,21 @@ export type ElectronAPI = {
     }>
   >;
   runCloudSyncNow: () => Promise<
-    ActionResult<{ pushedCustomers: number; pulledCustomers: number; lastSyncAt: string }>
+    ActionResult<{
+      pushedCustomers: number;
+      pulledCustomers: number;
+      pushedProducts: number;
+      pulledProducts: number;
+      pushedSales: number;
+      pulledSales: number;
+      pushedVendors: number;
+      pulledVendors: number;
+      pushedPurchases: number;
+      pulledPurchases: number;
+      pushedVouchers: number;
+      pulledVouchers: number;
+      lastSyncAt: string;
+    }>
   >;
 };
 

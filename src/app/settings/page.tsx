@@ -209,9 +209,7 @@ export default function SettingsPage() {
       setError(res.error);
       return;
     }
-    setSuccess(
-      `Synced: ${res.data.pushedCustomers} sent, ${res.data.pulledCustomers} updated`
-    );
+    setSuccess("Cloud sync finished. Shop data is up to date.");
   };
 
   const onVendorUnlock = async (e: React.FormEvent) => {

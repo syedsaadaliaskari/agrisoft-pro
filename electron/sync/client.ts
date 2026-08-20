@@ -95,6 +95,20 @@ export async function supabaseRest<T = unknown>(
   }
 }
 
+export async function supabaseUpsert(table: string, rows: unknown[]): Promise<number> {
+  if (!rows.length) return 0;
+  const chunkSize = 200;
+  for (let i = 0; i < rows.length; i += chunkSize) {
+    await supabaseRest(table, {
+      method: "POST",
+      query: "on_conflict=id",
+      prefer: "resolution=merge-duplicates,return=minimal",
+      body: rows.slice(i, i + chunkSize),
+    });
+  }
+  return rows.length;
+}
+
 export function tenantId(): string {
   const { tenantId: id } = resolveTenant();
   if (!id) {

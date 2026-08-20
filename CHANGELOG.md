@@ -6,9 +6,10 @@
 - Multi-PC (LAN) mode — multi-device will use cloud sync instead of Wi‑Fi peer sharing.
 
 ### Cloud sync
-- Customers auto-sync when online (app start, every 15 minutes, and when the connection returns). Manual “Sync customers now” remains in Settings.
-- Each company gets a unique Supabase `tenants.id` when you Activate Pro. The ID is embedded in the activation code, stored on the shop PC, and used for all sync (Supabase = main server for every shop).
-- Re-activating the same Install ID reuses the same cloud shop ID. `.env` `SUPABASE_TENANT_ID` remains a vendor/dev fallback only.
+- Auto-sync when online (app start, every 15 minutes, network return) + manual Sync now.
+- Syncs shop ERP data to Supabase: masters (units/categories/taxes/discounts/additions), customers, vendors, accounts, products/variants, vouchers/entries, sales, purchases, sale/purchase returns, stock movements, document counters.
+- Each company gets a unique Supabase `tenants.id` from Pro activation (`.env` tenant is vendor/dev fallback only).
+- Not synced: local users/passwords, audit log, vendor platform (client companies / licenses).
 
 ## 0.1.5 — 2026-08-12
 

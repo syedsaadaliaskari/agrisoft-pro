@@ -3,10 +3,10 @@ import { IPC, type ActionResult } from "../../shared/ipc";
 import {
   getCloudSyncStatus,
   recordSyncError,
-  runCustomerCloudSync,
+  runShopCloudSync,
   type CloudSyncResult,
   type CloudSyncStatus,
-} from "../sync/customers";
+} from "../sync/shop";
 import { SyncError } from "../sync/client";
 
 function ok<T>(data: T): ActionResult<T> {
@@ -27,7 +27,7 @@ export function registerSyncHandlers() {
 
   registerHandler(IPC.CLOUD_SYNC_NOW, async (): Promise<ActionResult<CloudSyncResult>> => {
     try {
-      const result = await runCustomerCloudSync();
+      const result = await runShopCloudSync();
       return ok(result);
     } catch (err) {
       const message = err instanceof SyncError || err instanceof Error ? err.message : "Sync failed";
