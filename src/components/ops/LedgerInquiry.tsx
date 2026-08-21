@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -74,6 +74,7 @@ export function LedgerInquiry({
   statement,
   exportFilename,
   emptyHint,
+  headerActions,
 }: {
   title: string;
   subtitle: string;
@@ -91,6 +92,7 @@ export function LedgerInquiry({
   statement: LedgerStatement | null;
   exportFilename: string;
   emptyHint: string;
+  headerActions?: ReactNode;
 }) {
   const [query, setQuery] = useState("");
 
@@ -229,7 +231,9 @@ export function LedgerInquiry({
                     </span>
                   </div>
                 </div>
-                <ExportMenu
+                <div className="flex flex-wrap items-center gap-2">
+                  {headerActions}
+                  <ExportMenu
                   filename={exportFilename}
                   title={statement.title}
                   columns={[
@@ -251,6 +255,7 @@ export function LedgerInquiry({
                     balance: l.balance,
                   }))}
                 />
+                </div>
               </div>
 
               <OpsStatStrip

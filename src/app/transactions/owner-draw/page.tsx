@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { ArrowDownLeft, Ban, Pencil, Receipt } from "lucide-react";
+import { Ban, Pencil, Receipt, UserRound } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import {
   DocStatusBadge,
@@ -16,27 +15,22 @@ import { Alert, Button, DataTable, Input, Select, Textarea } from "@/components/
 import { getApi } from "@/lib/api";
 import { hasPermission } from "@/lib/permissions";
 import { useAuthStore } from "@/store/auth";
-import type { Account, Customer, Voucher } from "@shared/ipc";
+import type { Account, Voucher } from "@shared/ipc";
 
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export default function ReceivePaymentPage() {
-  const searchParams = useSearchParams();
-  const prefCustomerId = searchParams.get("customerId") || "";
+export default function OwnerDrawPage() {
   const user = useAuthStore((s) => s.user);
   const canCreate = hasPermission(user, "transactions.create");
 
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [cashAccounts, setCashAccounts] = useState<Account[]>([]);
   const [rows, setRows] = useState<Voucher[]>([]);
   const [loading, setLoading] = useState(true);
   const [voucherDate, setVoucherDate] = useState(today());
-  const [customerId, setCustomerId] = useState(prefCustomerId);
   const [accountId, setAccountId] = useState("");
   const [amount, setAmount] = useState("");
-  const [referenceNo, setReferenceNo] = useState("");
   const [notes, setNotes] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -46,34 +40,21 @@ export default function ReceivePaymentPage() {
   const load = useCallback(async () => {
     setLoading(true);
     const api = getApi();
-    const [c, a, v] = await Promise.all([
-      api.listCustomers(),
+    const [c, v] = await Promise.all([
       api.listAccounts({ cashBankOnly: true }),
-      api.listVouchers({ voucherType: "receipt" }),
+      api.listVouchers({ voucherType: "owner_draw", includeCancelled: true }),
     ]);
     if (c.ok) {
-      const active = c.data.filter((x) => x.isActive);
-      setCustomers(active);
-      setCustomerId((prev) => {
-        if (prefCustomerId && active.some((x) => x.id === prefCustomerId)) return prefCustomerId;
-        return prev || active[0]?.id || "";
-      });
-    }
-    if (a.ok) {
-      setAccounts(a.data);
-      if (a.data[0]) setAccountId((prev) => prev || a.data[0].id);
+      setCashAccounts(c.data);
+      if (c.data[0]) setAccountId((prev) => prev || c.data[0].id);
     }
     if (v.ok) setRows(v.data);
     setLoading(false);
-  }, [prefCustomerId]);
+  }, []);
 
   useEffect(() => {
     void load();
   }, [load]);
-
-  useEffect(() => {
-    if (prefCustomerId) setCustomerId(prefCustomerId);
-  }, [prefCustomerId]);
 
   const stats = useMemo(() => {
     const active = rows.filter((r) => r.status !== "cancelled");
@@ -89,23 +70,19 @@ export default function ReceivePaymentPage() {
 
   const resetForm = () => {
     setVoucherDate(today());
-    setCustomerId(customers[0]?.id ?? "");
     setAmount("");
-    setReferenceNo("");
     setNotes("");
     setEditingId(null);
     setError("");
-    if (accounts[0]) setAccountId(accounts[0].id);
+    if (cashAccounts[0]) setAccountId(cashAccounts[0].id);
   };
 
   const openEdit = (row: Voucher) => {
     if (row.status === "cancelled") return;
     setEditingId(row.id);
     setVoucherDate(row.voucherDate);
-    setCustomerId(row.partyId ?? "");
     if (row.accountId) setAccountId(row.accountId);
     setAmount(String(row.grandTotal));
-    setReferenceNo(row.referenceNo ?? "");
     setNotes(row.notes ?? "");
     setError("");
     setOkMsg("");
@@ -117,15 +94,13 @@ export default function ReceivePaymentPage() {
     setOkMsg("");
     const payload = {
       voucherDate,
-      customerId,
       accountId,
       amount: Number(amount),
-      referenceNo: referenceNo || null,
       notes: notes || null,
     };
     const res = editingId
-      ? await getApi().updateReceivePayment(editingId, payload)
-      : await getApi().receivePayment(payload);
+      ? await getApi().updateOwnerDraw(editingId, payload)
+      : await getApi().postOwnerDraw(payload);
     setSaving(false);
     if (!res.ok) {
       setError(res.error);
@@ -138,7 +113,7 @@ export default function ReceivePaymentPage() {
 
   const onCancel = async (row: Voucher) => {
     if (row.status === "cancelled") return;
-    if (!confirm(`Cancel receipt ${row.voucherNo}?`)) return;
+    if (!confirm(`Cancel owner draw ${row.voucherNo}?`)) return;
     const res = await getApi().cancelVoucher(row.id);
     if (!res.ok) {
       setError(res.error);
@@ -150,8 +125,8 @@ export default function ReceivePaymentPage() {
 
   return (
     <AppShell
-      title="Receive Payment"
-      subtitle="Customer receipts into cash or bank"
+      title="Owner Draw"
+      subtitle="Take cash/bank for personal use — does not count as expense"
       permission="transactions.create"
     >
       {error ? (
@@ -166,20 +141,20 @@ export default function ReceivePaymentPage() {
       ) : null}
 
       <VoucherWorkspace
-        formTitle={editingId ? "Edit receipt" : "New receipt"}
-        formHint="Reduce customer receivable and deposit to till / bank"
+        formTitle={editingId ? "Edit owner draw" : "New owner draw"}
+        formHint="Reduces cash/bank and owner equity — not an operating expense"
         stats={
           <OpsStatStrip
             items={[
               {
-                label: "Today received",
+                label: "Today's draws",
                 value: money(stats.todayTotal),
-                hint: `${stats.todayCount} receipt${stats.todayCount === 1 ? "" : "s"}`,
+                hint: `${stats.todayCount} voucher${stats.todayCount === 1 ? "" : "s"}`,
                 tone: "accent",
-                icon: ArrowDownLeft,
+                icon: UserRound,
               },
               {
-                label: "Active receipts",
+                label: "Active draws",
                 value: String(stats.count),
                 hint: money(stats.total) + " posted",
                 icon: Receipt,
@@ -196,16 +171,10 @@ export default function ReceivePaymentPage() {
               onChange={(e) => setVoucherDate(e.target.value)}
             />
             <Select
-              label="Customer"
-              value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-              options={customers.map((c) => ({ value: c.id, label: `${c.name}` }))}
-            />
-            <Select
-              label="Deposit to"
+              label="Taken from"
               value={accountId}
               onChange={(e) => setAccountId(e.target.value)}
-              options={accounts.map((a) => ({ value: a.id, label: `${a.name}` }))}
+              options={cashAccounts.map((a) => ({ value: a.id, label: a.name }))}
             />
             <Input
               label="Amount"
@@ -214,11 +183,6 @@ export default function ReceivePaymentPage() {
               step="0.01"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-            />
-            <Input
-              label="Reference"
-              value={referenceNo}
-              onChange={(e) => setReferenceNo(e.target.value)}
             />
             <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
             <div className="flex flex-wrap gap-2 pt-1">
@@ -229,27 +193,21 @@ export default function ReceivePaymentPage() {
               ) : null}
               <Button
                 onClick={() => void onSave()}
-                disabled={saving || !customerId || !accountId || !amount || !canCreate}
+                disabled={saving || !amount || !accountId || !canCreate}
               >
-                {saving ? "Saving..." : editingId ? "Update receipt" : "Post receipt"}
+                {saving ? "Saving..." : editingId ? "Update draw" : "Post owner draw"}
               </Button>
             </div>
           </>
         }
-        listTitle="Receipt register"
+        listTitle="Owner draw register"
         list={
           loading ? (
             <OpsListSkeleton rows={5} />
           ) : rows.length === 0 ? (
-            <OpsEmptyState
-              title="No receipts yet"
-              hint="Post a customer payment to clear receivables into cash or bank."
-            />
+            <OpsEmptyState title="No owner draws yet" hint="Post a draw when cash leaves for personal use." />
           ) : (
-            <DataTable
-              headers={["Voucher", "Customer", "Account", "Amount", "Status", ""]}
-              empty={false}
-            >
+            <DataTable headers={["Voucher", "Taken from", "Amount", "Status", ""]} empty={false}>
               {rows.map((row) => (
                 <tr
                   key={row.id}
@@ -259,7 +217,6 @@ export default function ReceivePaymentPage() {
                     <div className="font-mono text-xs font-semibold">{row.voucherNo}</div>
                     <div className="text-[11px] text-[var(--text-muted)]">{row.voucherDate}</div>
                   </td>
-                  <td className="px-4 py-3.5 font-medium">{row.partyName || "—"}</td>
                   <td className="px-4 py-3.5 text-[var(--text-muted)]">{row.accountName || "—"}</td>
                   <td className="px-4 py-3.5 font-semibold tabular-nums">{money(row.grandTotal)}</td>
                   <td className="px-4 py-3.5">

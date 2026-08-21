@@ -112,6 +112,8 @@ export const IPC = {
   TX_EXPENSE_UPDATE: "transactions:expenseUpdate",
   TX_INCOME: "transactions:income",
   TX_INCOME_UPDATE: "transactions:incomeUpdate",
+  TX_OWNER_DRAW: "transactions:ownerDraw",
+  TX_OWNER_DRAW_UPDATE: "transactions:ownerDrawUpdate",
   VOUCHERS_UPDATE: "vouchers:update",
   // Dashboard / reports
   DASHBOARD_SUMMARY: "dashboard:summary",
@@ -219,6 +221,7 @@ export type DocType =
   | "journal"
   | "expense"
   | "income"
+  | "owner_draw"
   | "customer"
   | "vendor"
   | "product";
@@ -508,7 +511,8 @@ export type VoucherType =
   | "receipt"
   | "journal"
   | "expense"
-  | "income";
+  | "income"
+  | "owner_draw";
 
 export type VoucherStatus = "draft" | "posted" | "cancelled";
 
@@ -653,6 +657,15 @@ export type ExpenseVoucherInput = {
   notes?: string | null;
 };
 
+export type OwnerDrawInput = {
+  voucherDate: string;
+  /** Cash or Bank account money is taken from */
+  accountId: string;
+  amount: number;
+  referenceNo?: string | null;
+  notes?: string | null;
+};
+
 export type IncomeVoucherInput = {
   voucherDate: string;
   incomeAccountId: string;
@@ -665,7 +678,7 @@ export type IncomeVoucherInput = {
 
 // ─── Purchases ──────────────────────────────────────────────
 
-export type PaymentMode = "cash" | "credit" | "bank";
+export type PaymentMode = "cash" | "credit" | "bank" | "split";
 
 export type PurchaseLineInput = {
   variantId: string;
@@ -679,9 +692,14 @@ export type CreatePurchaseInput = {
   invoiceDate: string;
   vendorId: string;
   paymentMode: PaymentMode;
-  /** Required when paidAmount > 0 */
+  /** Required when a single cash/bank account is used (legacy) */
   accountId?: string | null;
   paidAmount?: number;
+  /** Split settlement — cash leg (optional; use with bankPaid) */
+  cashPaid?: number;
+  bankPaid?: number;
+  cashAccountId?: string | null;
+  bankAccountId?: string | null;
   referenceNo?: string | null;
   notes?: string | null;
   discountAmount?: number;
@@ -718,11 +736,17 @@ export type Purchase = {
   additionAmount: number;
   taxAmount: number;
   grandTotal: number;
-  /** Sum of linked sale returns (0 if none) */
+  /** Sum of linked purchase returns (0 if none) */
   returnedTotal?: number;
   /** grandTotal − returnedTotal (never below 0) */
   netTotal?: number;
   paidAmount: number;
+  /** Invoice paid + later make-payment allocations (FIFO) */
+  collectedAmount?: number;
+  dueAmount?: number;
+  /** From voucher legs when loaded with detail */
+  cashPaid?: number;
+  bankPaid?: number;
   notes: string | null;
   status: string;
   createdBy: string | null;
@@ -798,6 +822,10 @@ export type CreateSaleInput = {
   paymentMode: PaymentMode;
   accountId?: string | null;
   paidAmount?: number;
+  cashPaid?: number;
+  bankPaid?: number;
+  cashAccountId?: string | null;
+  bankAccountId?: string | null;
   referenceNo?: string | null;
   notes?: string | null;
   discountAmount?: number;
@@ -840,6 +868,16 @@ export type Sale = {
   /** grandTotal − returnedTotal (never below 0) */
   netTotal?: number;
   paidAmount: number;
+  /**
+   * Invoice paid + later receive-payment allocations (FIFO).
+   * Use for due/settled on the sales list — not paidAmount alone.
+   */
+  collectedAmount?: number;
+  /** netTotal − collectedAmount (never below 0) */
+  dueAmount?: number;
+  /** From voucher legs when loaded with detail */
+  cashPaid?: number;
+  bankPaid?: number;
   notes: string | null;
   status: string;
   createdBy: string | null;
@@ -950,6 +988,19 @@ export type DashboardSummary = {
   monthProfitEstimate: number;
   cashBalance: number;
   bankBalance: number;
+  /** Cash (1100) balance at start of today (before today's vouchers) — local calendar day */
+  cashOpeningToday: number;
+  /** Debits to cash today */
+  cashInToday: number;
+  /** Credits to cash today */
+  cashOutToday: number;
+  /** Cash balance now */
+  cashClosingToday: number;
+  /** Cash + bank opening today */
+  moneyOpeningToday: number;
+  moneyInToday: number;
+  moneyOutToday: number;
+  moneyClosingToday: number;
   arBalance: number;
   apBalance: number;
   inventoryValue: number;
@@ -1371,6 +1422,8 @@ export type ElectronAPI = {
   updateExpense: (id: string, input: ExpenseVoucherInput) => Promise<ActionResult<Voucher>>;
   postIncome: (input: IncomeVoucherInput) => Promise<ActionResult<Voucher>>;
   updateIncome: (id: string, input: IncomeVoucherInput) => Promise<ActionResult<Voucher>>;
+  postOwnerDraw: (input: OwnerDrawInput) => Promise<ActionResult<Voucher>>;
+  updateOwnerDraw: (id: string, input: OwnerDrawInput) => Promise<ActionResult<Voucher>>;
 
   listPurchases: () => Promise<ActionResult<Purchase[]>>;
   getPurchase: (id: string) => Promise<ActionResult<Purchase>>;

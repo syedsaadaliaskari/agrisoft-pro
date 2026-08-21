@@ -1,12 +1,20 @@
 ﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowUpRight } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { LedgerInquiry } from "@/components/ops/LedgerInquiry";
+import { Button } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
+import { hasPermission } from "@/lib/permissions";
+import { useAuthStore } from "@/store/auth";
 import type { PartyLedger, Vendor } from "@shared/ipc";
 
 export default function VendorLedgerPage() {
+  const router = useRouter();
+  const user = useAuthStore((s) => s.user);
+  const canPay = hasPermission(user, "transactions.create");
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [vendorId, setVendorId] = useState("");
   const [fromDate, setFromDate] = useState("");
@@ -72,6 +80,20 @@ export default function VendorLedgerPage() {
         error={error}
         exportFilename="vendor-ledger"
         emptyHint="Choose a vendor from the left to see purchases, payments, returns, and running balance."
+        headerActions={
+          canPay && vendorId ? (
+            <Button
+              size="sm"
+              type="button"
+              onClick={() =>
+                router.push(`/transactions/pay?vendorId=${encodeURIComponent(vendorId)}`)
+              }
+            >
+              <ArrowUpRight size={14} />
+              Make payment
+            </Button>
+          ) : null
+        }
         statement={
           ledger
             ? {

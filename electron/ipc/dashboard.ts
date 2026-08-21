@@ -15,7 +15,7 @@ import {
 import { getDb } from "../db";
 import { getSettingsMap } from "../db/settings";
 import { requireAccountByCode } from "../db/accounts";
-import { computeAccountOpening, money } from "../db/ledger";
+import { computeAccountOpening, money, sumAccountEntries } from "../db/ledger";
 import {
   sales,
   saleItems,
@@ -38,6 +38,7 @@ import {
   sumSaleReturnsInRange,
   sumSaleReturnsOnDate,
 } from "../db/returnsNet";
+import { allSaleCollectedAmounts } from "../db/invoiceCollections";
 import { requirePermission, PermissionError } from "./session";
 
 function ok<T>(data: T): ActionResult<T> {
@@ -78,13 +79,21 @@ async function guarded<T>(check: () => void, fn: Handler<T>): Promise<ActionResu
 }
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  // Local calendar day (not UTC) so PK shops see today's cash correctly
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function daysAgo(n: number) {
   const d = new Date();
   d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 export function registerDashboardHandlers(): void {
@@ -162,6 +171,27 @@ export function registerDashboardHandlers(): void {
       const ap = requireAccountByCode(db, "2100", "AP");
       const fullBal = (accountId: string) => computeAccountOpening(db, accountId, "9999-99-99")!.signed;
 
+      // Today's money day book (local date): cash + bank opening / in / out / closing
+      const cashOpeningToday = money(computeAccountOpening(db, cash.id, t)!.signed);
+      const cashDayMove = sumAccountEntries(db, cash.id, { fromDate: t, toDate: t });
+      const cashInToday = money(cashDayMove.debit);
+      const cashOutToday = money(cashDayMove.credit);
+      const cashClosingToday = money(cashOpeningToday + cashInToday - cashOutToday);
+
+      const bankOpeningToday = money(computeAccountOpening(db, bank.id, t)!.signed);
+      const bankDayMove = sumAccountEntries(db, bank.id, { fromDate: t, toDate: t });
+      const bankInToday = money(bankDayMove.debit);
+      const bankOutToday = money(bankDayMove.credit);
+      const bankClosingToday = money(bankOpeningToday + bankInToday - bankOutToday);
+
+      const moneyOpeningToday = money(cashOpeningToday + bankOpeningToday);
+      const moneyInToday = money(cashInToday + bankInToday);
+      const moneyOutToday = money(cashOutToday + bankOutToday);
+      const moneyClosingToday = money(cashClosingToday + bankClosingToday);
+
+      const cashBalance = money(fullBal(cash.id));
+      const bankBalance = money(fullBal(bank.id));
+
       const inventoryValue =
         db
           .select({
@@ -231,6 +261,7 @@ export function registerDashboardHandlers(): void {
         .limit(8)
         .all();
 
+      const collected = allSaleCollectedAmounts(db);
       const openSaleInvoices = db
         .select()
         .from(sales)
@@ -238,7 +269,9 @@ export function registerDashboardHandlers(): void {
         .all()
         .filter((r) => {
           const returned = returnedTotalForSale(db, r.id);
-          return money(r.grandTotal - returned) > money(r.paidAmount);
+          const net = money(r.grandTotal - returned);
+          const got = collected.get(r.id) ?? money(Math.min(r.paidAmount, net));
+          return net > got;
         }).length;
 
       const monthSalesTotal = money(monthSalesGross - monthSaleReturns);
@@ -254,8 +287,16 @@ export function registerDashboardHandlers(): void {
         monthSalesTotal,
         monthPurchasesTotal,
         monthProfitEstimate,
-        cashBalance: money(fullBal(cash.id)),
-        bankBalance: money(fullBal(bank.id)),
+        cashBalance,
+        bankBalance,
+        cashOpeningToday,
+        cashInToday,
+        cashOutToday,
+        cashClosingToday,
+        moneyOpeningToday,
+        moneyInToday,
+        moneyOutToday,
+        moneyClosingToday,
         arBalance: money(Math.abs(fullBal(ar.id))),
         apBalance: money(Math.abs(fullBal(ap.id))),
         inventoryValue: money(Number(inventoryValue)),

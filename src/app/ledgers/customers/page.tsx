@@ -1,12 +1,20 @@
 ﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowDownLeft } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { LedgerInquiry } from "@/components/ops/LedgerInquiry";
+import { Button } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
+import { hasPermission } from "@/lib/permissions";
+import { useAuthStore } from "@/store/auth";
 import type { Customer, PartyLedger } from "@shared/ipc";
 
 export default function CustomerLedgerPage() {
+  const router = useRouter();
+  const user = useAuthStore((s) => s.user);
+  const canReceive = hasPermission(user, "transactions.create");
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerId, setCustomerId] = useState("");
   const [fromDate, setFromDate] = useState("");
@@ -72,6 +80,20 @@ export default function CustomerLedgerPage() {
         error={error}
         exportFilename="customer-ledger"
         emptyHint="Choose a customer from the left to see sales, receipts, returns, and running balance."
+        headerActions={
+          canReceive && customerId ? (
+            <Button
+              size="sm"
+              type="button"
+              onClick={() =>
+                router.push(`/transactions/receive?customerId=${encodeURIComponent(customerId)}`)
+              }
+            >
+              <ArrowDownLeft size={14} />
+              Receive payment
+            </Button>
+          ) : null
+        }
         statement={
           ledger
             ? {

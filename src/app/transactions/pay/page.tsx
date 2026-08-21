@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { ArrowUpRight, Ban, Pencil, Receipt } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import {
@@ -22,6 +23,8 @@ function today() {
 }
 
 export default function MakePaymentPage() {
+  const searchParams = useSearchParams();
+  const prefVendorId = searchParams.get("vendorId") || "";
   const user = useAuthStore((s) => s.user);
   const canCreate = hasPermission(user, "transactions.create");
 
@@ -30,7 +33,7 @@ export default function MakePaymentPage() {
   const [rows, setRows] = useState<Voucher[]>([]);
   const [loading, setLoading] = useState(true);
   const [voucherDate, setVoucherDate] = useState(today());
-  const [vendorId, setVendorId] = useState("");
+  const [vendorId, setVendorId] = useState(prefVendorId);
   const [accountId, setAccountId] = useState("");
   const [amount, setAmount] = useState("");
   const [referenceNo, setReferenceNo] = useState("");
@@ -51,7 +54,10 @@ export default function MakePaymentPage() {
     if (v.ok) {
       const active = v.data.filter((x) => x.isActive);
       setVendors(active);
-      if (active[0]) setVendorId((prev) => prev || active[0].id);
+      setVendorId((prev) => {
+        if (prefVendorId && active.some((x) => x.id === prefVendorId)) return prefVendorId;
+        return prev || active[0]?.id || "";
+      });
     }
     if (a.ok) {
       setAccounts(a.data);
@@ -59,11 +65,15 @@ export default function MakePaymentPage() {
     }
     if (list.ok) setRows(list.data);
     setLoading(false);
-  }, []);
+  }, [prefVendorId]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (prefVendorId) setVendorId(prefVendorId);
+  }, [prefVendorId]);
 
   const stats = useMemo(() => {
     const active = rows.filter((r) => r.status !== "cancelled");

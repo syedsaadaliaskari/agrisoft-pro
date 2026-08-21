@@ -71,6 +71,7 @@ const DEFAULT_ACCOUNTS = [
   { code: "2100", name: "Payables", accountType: "liability" },
   { code: "3000", name: "Equity", accountType: "equity" },
   { code: "3100", name: "Owner Equity", accountType: "equity" },
+  { code: "3200", name: "Owner Draw", accountType: "equity" },
   { code: "4000", name: "Income", accountType: "income" },
   { code: "4100", name: "Sales", accountType: "income" },
   { code: "4200", name: "Other Income", accountType: "income" },
@@ -255,6 +256,47 @@ export function ensurePermissions(db: Db): void {
   upsertSystemSetting(db, "must_change_password", "0");
 
   ensureSimpleAccountNames(db);
+  ensureOwnerDrawSupport(db);
+}
+
+/** Insert Owner Draw equity account + document counter on existing installs. */
+export function ensureOwnerDrawSupport(db: Db): void {
+  const now = new Date().toISOString();
+  const draw = db.select().from(accounts).where(eq(accounts.code, "3200")).get();
+  if (!draw) {
+    db.insert(accounts)
+      .values({
+        id: randomUUID(),
+        code: "3200",
+        name: "Owner Draw",
+        accountType: "equity",
+        isSystem: true,
+        isActive: true,
+        openingBalance: 0,
+      })
+      .run();
+  } else if (draw.name !== "Owner Draw") {
+    db.update(accounts)
+      .set({ name: "Owner Draw", updatedAt: now })
+      .where(eq(accounts.id, draw.id))
+      .run();
+  }
+
+  const counter = db
+    .select()
+    .from(documentCounters)
+    .where(eq(documentCounters.docType, "owner_draw"))
+    .get();
+  if (!counter) {
+    db.insert(documentCounters)
+      .values({
+        id: randomUUID(),
+        docType: "owner_draw",
+        prefix: "#",
+        nextNumber: 1,
+      })
+      .run();
+  }
 }
 
 /** Rename default chart accounts to short plain names (Cash, Bank, …). */
@@ -490,6 +532,7 @@ export async function seedDatabase(
       { id: randomUUID(), docType: "journal", prefix: "#", nextNumber: 1 },
       { id: randomUUID(), docType: "expense", prefix: "#", nextNumber: 1 },
       { id: randomUUID(), docType: "income", prefix: "#", nextNumber: 1 },
+      { id: randomUUID(), docType: "owner_draw", prefix: "#", nextNumber: 1 },
       { id: randomUUID(), docType: "customer", prefix: "#", nextNumber: 1 },
       { id: randomUUID(), docType: "vendor", prefix: "#", nextNumber: 1 },
       { id: randomUUID(), docType: "product", prefix: "#", nextNumber: 1 },

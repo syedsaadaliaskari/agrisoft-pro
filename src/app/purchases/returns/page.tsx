@@ -418,17 +418,40 @@ export default function PurchaseReturnsPage() {
             </ComposerSection>
 
             <ComposerSection title="Refund">
-              <PaymentModePicker value={refundMode} onChange={setRefundMode} />
-              {refundMode !== "credit" ? (
-                <div className="mt-3">
-                  <Select
-                    label="Account"
-                    value={accountId}
-                    onChange={(e) => setAccountId(e.target.value)}
-                    options={accounts.map((a) => ({ value: a.id, label: a.name }))}
-                  />
-                </div>
-              ) : null}
+              {purchaseId ? (
+                <>
+                  <p className="text-sm text-[var(--text-muted)]">
+                    Linked to original purchase — cash/bank and payable reverse in the same
+                    proportion as that purchase was paid (part-paid purchases do not add full
+                    invoice amount back to cash).
+                  </p>
+                  <div className="mt-3">
+                    <Select
+                      label="Cash/bank account (optional)"
+                      value={accountId}
+                      onChange={(e) => setAccountId(e.target.value)}
+                      options={[
+                        { value: "", label: "Use original purchase account" },
+                        ...accounts.map((a) => ({ value: a.id, label: a.name })),
+                      ]}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <PaymentModePicker value={refundMode} onChange={setRefundMode} />
+                  {refundMode !== "credit" ? (
+                    <div className="mt-3">
+                      <Select
+                        label="Account"
+                        value={accountId}
+                        onChange={(e) => setAccountId(e.target.value)}
+                        options={accounts.map((a) => ({ value: a.id, label: a.name }))}
+                      />
+                    </div>
+                  ) : null}
+                </>
+              )}
             </ComposerSection>
 
             <ComposerSection title="Products">

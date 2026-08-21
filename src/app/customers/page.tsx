@@ -185,7 +185,7 @@ export default function CustomersPage() {
         form={
           <>
             <Input
-              label="Code (auto if blank)"
+              label="Code"
               value={form.code}
               onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
             />

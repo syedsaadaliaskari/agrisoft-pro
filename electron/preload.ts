@@ -83,6 +83,8 @@ const api: ElectronAPI = {
   updateExpense: (id, input) => ipcRenderer.invoke(IPC.TX_EXPENSE_UPDATE, id, input),
   postIncome: (input) => ipcRenderer.invoke(IPC.TX_INCOME, input),
   updateIncome: (id, input) => ipcRenderer.invoke(IPC.TX_INCOME_UPDATE, id, input),
+  postOwnerDraw: (input) => ipcRenderer.invoke(IPC.TX_OWNER_DRAW, input),
+  updateOwnerDraw: (id, input) => ipcRenderer.invoke(IPC.TX_OWNER_DRAW_UPDATE, id, input),
 
   listPurchases: () => ipcRenderer.invoke(IPC.PURCHASES_LIST),
   getPurchase: (id) => ipcRenderer.invoke(IPC.PURCHASES_GET, id),

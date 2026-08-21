@@ -15,6 +15,7 @@ import {
   type MakePaymentInput,
   type ExpenseVoucherInput,
   type IncomeVoucherInput,
+  type OwnerDrawInput,
   type PartyType,
   type Account,
   type VoucherType,
@@ -404,23 +405,20 @@ export function registerLedgerHandlers(): void {
           // Returns { debit, credit } from party perspective
           const t = v.voucherType;
           const amt = money(v.grandTotal);
-          // Cash/bank returns settle via cash — do not move party AR/AP again
-          // (credit refunds use paidAmount === 0)
-          const isCreditRefund = money(v.paidAmount) === 0;
+          const cashSettled = money(v.paidAmount);
+          // Credit/party impact is only the unpaid portion of the document.
+          // Mixed returns (part cash + part credit) must still move AR/AP for creditPart.
+          const creditPart = money(Math.max(0, amt - cashSettled));
           if (partyType === "customer") {
-            if (t === "sale") return { debit: amt, credit: money(v.paidAmount) };
-            if (t === "sale_return") {
-              return isCreditRefund ? { debit: 0, credit: amt } : { debit: 0, credit: 0 };
-            }
+            if (t === "sale") return { debit: amt, credit: cashSettled };
+            if (t === "sale_return") return { debit: 0, credit: creditPart };
             if (t === "receipt") return { debit: 0, credit: money(v.paidAmount || v.grandTotal) };
             if (t === "income") return { debit: 0, credit: 0 };
             return { debit: 0, credit: 0 };
           }
           // vendor
-          if (t === "purchase") return { debit: money(v.paidAmount), credit: amt };
-          if (t === "purchase_return") {
-            return isCreditRefund ? { debit: amt, credit: 0 } : { debit: 0, credit: 0 };
-          }
+          if (t === "purchase") return { debit: cashSettled, credit: amt };
+          if (t === "purchase_return") return { debit: creditPart, credit: 0 };
           if (t === "payment") return { debit: money(v.paidAmount || v.grandTotal), credit: 0 };
           return { debit: 0, credit: 0 };
         };
@@ -844,6 +842,101 @@ export function registerLedgerHandlers(): void {
           module: "transactions",
           entityId: id,
           details: `Updated income ${existing.voucherNo} ${amount}`,
+        });
+        return ok(enrichVoucher(id)!);
+      })
+  );
+
+  registerHandler(IPC.TX_OWNER_DRAW, async (_e, input: OwnerDrawInput): Promise<ActionResult<Voucher>> =>
+    guarded(() => requirePermission("transactions.create"), async () => {
+      const amount = money(Number(input.amount));
+      if (amount <= 0) return fail("Amount must be positive");
+      const db = getDb();
+      const cash = db.select().from(accounts).where(eq(accounts.id, input.accountId)).get();
+      if (!cash) return fail("Cash/Bank account not found");
+      if (cash.code !== "1100" && cash.code !== "1200") {
+        return fail("Owner draw must come from Cash or Bank");
+      }
+      const drawAcct = requireAccountByCode(db, "3200", "Owner Draw");
+      const session = getCurrentSession();
+      const voucherNo = nextDocumentNumber(db, "owner_draw");
+      const id = randomUUID();
+      const ts = nowIso();
+      db.insert(vouchers)
+        .values({
+          id,
+          voucherNo,
+          voucherType: "owner_draw",
+          voucherDate: input.voucherDate,
+          partyType: null,
+          partyId: null,
+          accountId: input.accountId,
+          referenceNo: input.referenceNo?.trim() || null,
+          notes: input.notes?.trim() || null,
+          grandTotal: amount,
+          paidAmount: amount,
+          status: "posted",
+          createdBy: session?.id ?? null,
+          createdAt: ts,
+          updatedAt: ts,
+        })
+        .run();
+      // Debit Owner Draw (reduces equity), credit Cash/Bank (money leaves shop)
+      insertVoucherEntry(db, id, drawAcct.id, amount, 0, `Owner draw ${voucherNo}`, 0);
+      insertVoucherEntry(db, id, input.accountId, 0, amount, `Owner draw ${voucherNo}`, 1);
+      writeAuditLog(db, {
+        userId: session?.id ?? null,
+        action: "create",
+        module: "transactions",
+        entityId: id,
+        details: `Owner draw ${voucherNo} ${amount}`,
+      });
+      return ok(enrichVoucher(id)!);
+    })
+  );
+
+  registerHandler(
+    IPC.TX_OWNER_DRAW_UPDATE,
+    async (_e, id: string, input: OwnerDrawInput): Promise<ActionResult<Voucher>> =>
+      guarded(() => requirePermission("transactions.create"), async () => {
+        const amount = money(Number(input.amount));
+        if (amount <= 0) return fail("Amount must be positive");
+        const db = getDb();
+        const existing = db.select().from(vouchers).where(eq(vouchers.id, id)).get();
+        if (!existing || existing.voucherType !== "owner_draw") return fail("Owner draw not found");
+        if (existing.status === "cancelled") return fail("Cannot edit cancelled owner draw");
+
+        const cash = db.select().from(accounts).where(eq(accounts.id, input.accountId)).get();
+        if (!cash) return fail("Cash/Bank account not found");
+        if (cash.code !== "1100" && cash.code !== "1200") {
+          return fail("Owner draw must come from Cash or Bank");
+        }
+        const drawAcct = requireAccountByCode(db, "3200", "Owner Draw");
+        const session = getCurrentSession();
+        const ts = nowIso();
+
+        db.delete(voucherEntries).where(eq(voucherEntries.voucherId, id)).run();
+        db.update(vouchers)
+          .set({
+            voucherDate: input.voucherDate,
+            accountId: input.accountId,
+            referenceNo: input.referenceNo?.trim() || null,
+            notes: input.notes?.trim() || null,
+            grandTotal: amount,
+            paidAmount: amount,
+            status: "posted",
+            updatedAt: ts,
+          })
+          .where(eq(vouchers.id, id))
+          .run();
+        insertVoucherEntry(db, id, drawAcct.id, amount, 0, `Owner draw ${existing.voucherNo}`, 0);
+        insertVoucherEntry(db, id, input.accountId, 0, amount, `Owner draw ${existing.voucherNo}`, 1);
+        writeAuditLog(db, {
+          userId: session?.id ?? null,
+          action: "update",
+          module: "transactions",
+          entityId: id,
+          details: `Updated owner draw ${existing.voucherNo} ${amount}`,
         });
         return ok(enrichVoucher(id)!);
       })

@@ -26,7 +26,7 @@ import {
   OpsListSkeleton,
   OpsStatStrip,
   PaymentModeBadge,
-  PaymentModePicker,
+  SettlementPanel,
   TotalsPanel,
   money,
 } from "@/components/ops/DocumentWorkspace";
@@ -54,10 +54,14 @@ type DraftLine = {
   unitCost: string;
 };
 
-type ModeFilter = "all" | "cash" | "bank" | "credit" | "today";
+type ModeFilter = "all" | "cash" | "bank" | "credit" | "split" | "today";
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 export default function PurchasesPage() {
@@ -76,12 +80,12 @@ export default function PurchasesPage() {
   const [saving, setSaving] = useState(false);
   const [invoiceDate, setInvoiceDate] = useState(today());
   const [vendorId, setVendorId] = useState("");
-  const [paymentMode, setPaymentMode] = useState<PaymentMode>("credit");
   const [accountId, setAccountId] = useState("");
   const [discountAmount, setDiscountAmount] = useState("0");
   const [additionAmount, setAdditionAmount] = useState("0");
   const [taxAmount, setTaxAmount] = useState("0");
-  const [paidAmount, setPaidAmount] = useState("");
+  const [cashPaid, setCashPaid] = useState("0");
+  const [bankPaid, setBankPaid] = useState("0");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [pickVariantId, setPickVariantId] = useState("");
@@ -118,7 +122,10 @@ export default function PurchasesPage() {
     const t = today();
     const todayRows = active.filter((r) => r.invoiceDate === t);
     const netOf = (r: (typeof active)[0]) => r.netTotal ?? r.grandTotal;
-    const payable = active.reduce((s, r) => s + Math.max(0, netOf(r) - r.paidAmount), 0);
+    const payable = active.reduce(
+      (s, r) => s + (r.dueAmount ?? Math.max(0, netOf(r) - (r.collectedAmount ?? r.paidAmount))),
+      0
+    );
     const avg = active.length ? active.reduce((s, r) => s + netOf(r), 0) / active.length : 0;
     return {
       count: active.length,
@@ -134,7 +141,12 @@ export default function PurchasesPage() {
     const t = today();
     return rows.filter((r) => {
       if (modeFilter === "today" && r.invoiceDate !== t) return false;
-      if (modeFilter === "cash" || modeFilter === "bank" || modeFilter === "credit") {
+      if (
+        modeFilter === "cash" ||
+        modeFilter === "bank" ||
+        modeFilter === "credit" ||
+        modeFilter === "split"
+      ) {
         if (r.paymentMode !== modeFilter) return false;
       }
       if (!q) return true;
@@ -154,6 +166,7 @@ export default function PurchasesPage() {
       cash: rows.filter((r) => r.paymentMode === "cash").length,
       bank: rows.filter((r) => r.paymentMode === "bank").length,
       credit: rows.filter((r) => r.paymentMode === "credit").length,
+      split: rows.filter((r) => r.paymentMode === "split").length,
     };
   }, [rows]);
 
@@ -180,18 +193,19 @@ export default function PurchasesPage() {
       ) / 100,
     [subtotal, discountAmount, additionAmount, taxAmount]
   );
-  const effectivePaid =
-    paidAmount === "" ? (paymentMode === "credit" ? 0 : grand) : Number(paidAmount || 0);
+  const cashNum = Number(cashPaid || 0);
+  const bankNum = Number(bankPaid || 0);
+  const effectivePaid = Math.round((cashNum + bankNum) * 100) / 100;
   const balanceDue = Math.max(0, Math.round((grand - effectivePaid) * 100) / 100);
 
   const resetComposer = () => {
     setInvoiceDate(today());
     setVendorId(vendors[0]?.id ?? "");
-    setPaymentMode("credit");
     setDiscountAmount("0");
     setAdditionAmount("0");
     setTaxAmount("0");
-    setPaidAmount("");
+    setCashPaid("0");
+    setBankPaid("0");
     setNotes("");
     setLines([]);
     setPickVariantId("");
@@ -215,11 +229,19 @@ export default function PurchasesPage() {
     setEditingId(purchase.id);
     setInvoiceDate(purchase.invoiceDate);
     setVendorId(purchase.vendorId ?? "");
-    setPaymentMode(purchase.paymentMode);
     setDiscountAmount(String(purchase.discountAmount));
     setAdditionAmount(String(purchase.additionAmount));
     setTaxAmount(String(purchase.taxAmount));
-    setPaidAmount(String(purchase.paidAmount));
+    if (purchase.cashPaid != null || purchase.bankPaid != null) {
+      setCashPaid(String(purchase.cashPaid ?? 0));
+      setBankPaid(String(purchase.bankPaid ?? 0));
+    } else if (purchase.paymentMode === "bank") {
+      setCashPaid("0");
+      setBankPaid(String(purchase.paidAmount));
+    } else {
+      setCashPaid(String(purchase.paidAmount));
+      setBankPaid("0");
+    }
     setNotes(purchase.notes || "");
     setPickVariantId("");
     setError("");
@@ -259,13 +281,30 @@ export default function PurchasesPage() {
   const onSave = async () => {
     setSaving(true);
     setError("");
+    const cash =
+      cashPaid === "" && (bankPaid === "" || bankPaid === "0")
+        ? grand
+        : Number(cashPaid || 0);
+    const bank =
+      cashPaid === "" && (bankPaid === "" || bankPaid === "0")
+        ? 0
+        : Number(bankPaid || 0);
+    const paymentMode: PaymentMode =
+      cash + bank === 0
+        ? "credit"
+        : cash > 0 && bank > 0
+          ? "split"
+          : bank > 0
+            ? "bank"
+            : "cash";
     const payload = {
       invoiceDate,
       vendorId,
       paymentMode,
-      accountId: paymentMode === "credit" && !paidAmount ? null : accountId || null,
-      paidAmount:
-        paidAmount === "" ? (paymentMode === "credit" ? 0 : grand) : Number(paidAmount),
+      accountId: paymentMode === "credit" ? null : accountId || null,
+      cashPaid: cash,
+      bankPaid: bank,
+      paidAmount: cash + bank,
       discountAmount: Number(discountAmount || 0),
       additionAmount: Number(additionAmount || 0),
       taxAmount: Number(taxAmount || 0),
@@ -404,6 +443,7 @@ export default function PurchasesPage() {
             { value: "credit", label: "Credit", count: filterCounts.credit },
             { value: "cash", label: "Cash", count: filterCounts.cash },
             { value: "bank", label: "Bank", count: filterCounts.bank },
+            { value: "split", label: "Split", count: filterCounts.split },
           ]}
         />
       </div>
@@ -433,7 +473,9 @@ export default function PurchasesPage() {
         >
           {filtered.map((row) => {
             const net = row.netTotal ?? row.grandTotal;
-            const due = Math.max(0, net - row.paidAmount);
+            const due =
+              row.dueAmount ?? Math.max(0, net - (row.collectedAmount ?? row.paidAmount));
+            const collected = row.collectedAmount ?? row.paidAmount;
             return (
               <tr
                 key={row.id}
@@ -466,7 +508,7 @@ export default function PurchasesPage() {
                   ) : null}
                 </td>
                 <td className="px-4 py-3.5">
-                  <div className="tabular-nums text-sm">{money(row.paidAmount)}</div>
+                  <div className="tabular-nums text-sm">{money(collected)}</div>
                   <div
                     className={`text-[11px] ${due > 0 ? "text-amber-600 dark:text-amber-300" : "text-[var(--success)]"}`}
                   >
@@ -554,24 +596,15 @@ export default function PurchasesPage() {
               </div>
             </ComposerSection>
 
-            <ComposerSection title="Payment">
-              <PaymentModePicker value={paymentMode} onChange={setPaymentMode} />
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <Select
-                  label="Account"
-                  value={accountId}
-                  onChange={(e) => setAccountId(e.target.value)}
-                  options={accounts.map((a) => ({ value: a.id, label: a.name }))}
-                />
-                <Input
-                  label="Paid now"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={paidAmount}
-                  onChange={(e) => setPaidAmount(e.target.value)}
-                />
-              </div>
+            <ComposerSection title="Settlement">
+              <SettlementPanel
+                grandTotal={grand}
+                cashPaid={cashPaid}
+                bankPaid={bankPaid}
+                onCashPaid={setCashPaid}
+                onBankPaid={setBankPaid}
+                dueHint="Unpaid amount stays on vendor payable."
+              />
             </ComposerSection>
 
             <ComposerSection
@@ -703,6 +736,8 @@ export default function PurchasesPage() {
                 },
                 { label: "Additions", value: money(Number(additionAmount || 0)), muted: true },
                 { label: "Tax", value: money(Number(taxAmount || 0)), muted: true },
+                { label: "Cash", value: money(cashNum), muted: true },
+                { label: "Bank", value: money(bankNum), muted: true },
                 { label: "Paid now", value: money(effectivePaid), muted: true },
               ]}
               grand={money(grand)}
@@ -781,13 +816,25 @@ export default function PurchasesPage() {
                 { label: "Discount", value: money(viewing.discountAmount), muted: true },
                 { label: "Additions", value: money(viewing.additionAmount), muted: true },
                 { label: "Tax", value: money(viewing.taxAmount), muted: true },
-                { label: "Paid", value: money(viewing.paidAmount), muted: true },
+                { label: "Paid on bill", value: money(viewing.paidAmount), muted: true },
+                {
+                  label: "Settled",
+                  value: money(viewing.collectedAmount ?? viewing.paidAmount),
+                  muted: true,
+                },
                 ...(viewing.returnedTotal
                   ? [{ label: "Returned", value: money(viewing.returnedTotal), muted: true }]
                   : []),
               ]}
               grand={money(viewing.netTotal ?? viewing.grandTotal)}
-              due={money(Math.max(0, (viewing.netTotal ?? viewing.grandTotal) - viewing.paidAmount))}
+              due={money(
+                viewing.dueAmount ??
+                  Math.max(
+                    0,
+                    (viewing.netTotal ?? viewing.grandTotal) -
+                      (viewing.collectedAmount ?? viewing.paidAmount)
+                  )
+              )}
               dueLabel="Payable balance"
             />
           </div>

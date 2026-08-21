@@ -180,7 +180,7 @@ export default function VendorsPage() {
         form={
           <>
             <Input
-              label="Code (auto if blank)"
+              label="Code"
               value={form.code}
               onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
             />

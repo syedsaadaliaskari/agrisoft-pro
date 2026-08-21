@@ -67,6 +67,7 @@ export const en: Dict = {
   "nav.receivePayment": "Receive Payment",
   "nav.makePayment": "Make Payment",
   "nav.expense": "Expense",
+  "nav.ownerDraw": "Owner Draw",
   "nav.income": "Income",
   "nav.accountsLedger": "Accounts Ledger",
   "nav.customerLedger": "Customer Ledger",
@@ -180,6 +181,7 @@ export const en: Dict = {
   "payment.cash": "Cash",
   "payment.bank": "Bank",
   "payment.credit": "Credit",
+  "payment.split": "Split",
 
   "backup.backup": "Backup",
   "backup.restore": "Restore",

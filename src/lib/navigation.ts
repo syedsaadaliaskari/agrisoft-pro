@@ -130,6 +130,12 @@ export const navigation: NavGroup[] = [
         permission: "transactions.view",
       },
       { labelKey: "nav.expense", href: "/transactions/expense", icon: Wallet, permission: "transactions.view" },
+      {
+        labelKey: "nav.ownerDraw",
+        href: "/transactions/owner-draw",
+        icon: UserRound,
+        permission: "transactions.view",
+      },
       { labelKey: "nav.income", href: "/transactions/income", icon: TrendingUp, permission: "transactions.view" },
     ],
   },

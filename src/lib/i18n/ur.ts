@@ -67,6 +67,7 @@ export const ur: Dict = {
   "nav.receivePayment": "رقم وصولی",
   "nav.makePayment": "رقم ادائیگی",
   "nav.expense": "خرچہ",
+  "nav.ownerDraw": "مالک کی رقم",
   "nav.income": "آمدنی",
   "nav.accountsLedger": "اکاؤنٹس لیجر",
   "nav.customerLedger": "کسٹمر لیجر",
@@ -180,6 +181,7 @@ export const ur: Dict = {
   "payment.cash": "نقد",
   "payment.bank": "بینک",
   "payment.credit": "ادھار",
+  "payment.split": "Mixed",
 
   "backup.backup": "بیک اپ",
   "backup.restore": "بحالی",

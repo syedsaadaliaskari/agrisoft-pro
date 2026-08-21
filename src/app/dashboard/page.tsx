@@ -57,7 +57,11 @@ function fmt(cur: string, n: number) {
 }
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 const emptyCompany = {
@@ -168,11 +172,20 @@ export default function DashboardPage() {
       color: "var(--info)",
     },
     {
-      label: "Cash + bank",
-      value: summary ? fmt(cur, summary.cashBalance + summary.bankBalance) : "…",
-      sub: summary ? `Cash ${fmt(cur, summary.cashBalance)} · Bank ${fmt(cur, summary.bankBalance)}` : "",
+      label: "Money today",
+      value: summary ? fmt(cur, summary.moneyClosingToday ?? summary.cashClosingToday) : "…",
+      sub: summary
+        ? `Open ${fmt(cur, summary.moneyOpeningToday ?? summary.cashOpeningToday)} · In ${fmt(cur, summary.moneyInToday ?? summary.cashInToday)} · Out ${fmt(cur, summary.moneyOutToday ?? summary.cashOutToday)}`
+        : "",
       icon: Banknote,
       color: "var(--accent)",
+    },
+    {
+      label: "Bank now",
+      value: summary ? fmt(cur, summary.bankBalance) : "…",
+      sub: summary ? `Cash now ${fmt(cur, summary.cashBalance)}` : "",
+      icon: Building2,
+      color: "var(--info)",
     },
     {
       label: "Receivables",
@@ -364,6 +377,41 @@ export default function DashboardPage() {
               );
             })}
           </div>
+
+          {!isVendor && summary ? (
+            <div className="mt-5 rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--accent)]">
+                Money day book (today)
+              </p>
+              <p className="mt-1 text-sm text-[var(--text-muted)]">
+                Cash + bank together — sales, receipts, purchase returns add; purchases, payments,
+                expenses, sale returns, and owner draw subtract.
+              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-4">
+                {[
+                  { label: "Opening", value: summary.moneyOpeningToday ?? summary.cashOpeningToday },
+                  { label: "In", value: summary.moneyInToday ?? summary.cashInToday },
+                  { label: "Out", value: summary.moneyOutToday ?? summary.cashOutToday },
+                  { label: "Closing", value: summary.moneyClosingToday ?? summary.cashClosingToday },
+                ].map((row) => (
+                  <div
+                    key={row.label}
+                    className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5"
+                  >
+                    <p className="text-[11px] text-[var(--text-muted)]">{row.label}</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums">
+                      {fmt(cur, Number(row.value || 0))}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-xs text-[var(--text-muted)]">
+                Cash alone: open {fmt(cur, summary.cashOpeningToday)} · in{" "}
+                {fmt(cur, summary.cashInToday)} · out {fmt(cur, summary.cashOutToday)} · close{" "}
+                {fmt(cur, summary.cashClosingToday)}
+              </p>
+            </div>
+          ) : null}
 
           {isVendor ? (
             <div className="mt-5 overflow-visible rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)]">

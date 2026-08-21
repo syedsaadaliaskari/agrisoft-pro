@@ -432,17 +432,39 @@ export default function SaleReturnsPage() {
             </ComposerSection>
 
             <ComposerSection title="Refund">
-              <PaymentModePicker value={refundMode} onChange={setRefundMode} />
-              {refundMode !== "credit" ? (
-                <div className="mt-3">
-                  <Select
-                    label="Account"
-                    value={accountId}
-                    onChange={(e) => setAccountId(e.target.value)}
-                    options={accounts.map((a) => ({ value: a.id, label: a.name }))}
-                  />
-                </div>
-              ) : null}
+              {saleId ? (
+                <>
+                  <p className="text-sm text-[var(--text-muted)]">
+                    Linked to original sale — cash/bank and credit reverse in the same proportion as
+                    that sale was paid. Account override applies only to the cash/bank portion.
+                  </p>
+                  <div className="mt-3">
+                    <Select
+                      label="Cash/bank account (optional)"
+                      value={accountId}
+                      onChange={(e) => setAccountId(e.target.value)}
+                      options={[
+                        { value: "", label: "Use original sale account" },
+                        ...accounts.map((a) => ({ value: a.id, label: a.name })),
+                      ]}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <PaymentModePicker value={refundMode} onChange={setRefundMode} />
+                  {refundMode !== "credit" ? (
+                    <div className="mt-3">
+                      <Select
+                        label="Account"
+                        value={accountId}
+                        onChange={(e) => setAccountId(e.target.value)}
+                        options={accounts.map((a) => ({ value: a.id, label: a.name }))}
+                      />
+                    </div>
+                  ) : null}
+                </>
+              )}
             </ComposerSection>
 
             <ComposerSection title="Products">

@@ -21,6 +21,15 @@ import { getSettingsMap } from "../db/settings";
 import { readShopLogoDataUrl } from "../db/branding";
 import { netAmount, returnedTotalForPurchase } from "../db/returnsNet";
 import {
+  cashBankFromVoucher,
+  resolveSettlement,
+  splitReversalAcrossCashBank,
+} from "../db/settlement";
+import {
+  allPurchaseCollectedAmounts,
+  collectedAmountsForVendor,
+} from "../db/invoiceCollections";
+import {
   purchases,
   purchaseItems,
   purchaseReturns,
@@ -87,7 +96,11 @@ function mapReturnItem(row: typeof purchaseReturnItems.$inferSelect): PurchaseRe
   };
 }
 
-function enrichPurchase(id: string, withItems = true): Purchase | null {
+function enrichPurchase(
+  id: string,
+  withItems = true,
+  collectedMap?: Map<string, number>
+): Purchase | null {
   const db = getDb();
   const row = db.select().from(purchases).where(eq(purchases.id, id)).get();
   if (!row) return null;
@@ -96,6 +109,17 @@ function enrichPurchase(id: string, withItems = true): Purchase | null {
     : null;
   const settings = getSettingsMap(db);
   const returnedTotal = returnedTotalForPurchase(db, id);
+  const netTotal = netAmount(row.grandTotal, returnedTotal);
+
+  let collectedAmount = money(Math.min(row.paidAmount, netTotal));
+  if (collectedMap?.has(id)) {
+    collectedAmount = collectedMap.get(id)!;
+  } else if (row.vendorId) {
+    collectedAmount =
+      collectedAmountsForVendor(db, row.vendorId).get(id) ?? collectedAmount;
+  }
+  const dueAmount = money(Math.max(0, netTotal - collectedAmount));
+
   const base: Purchase = {
     id: row.id,
     voucherId: row.voucherId,
@@ -110,8 +134,10 @@ function enrichPurchase(id: string, withItems = true): Purchase | null {
     taxAmount: row.taxAmount,
     grandTotal: row.grandTotal,
     returnedTotal,
-    netTotal: netAmount(row.grandTotal, returnedTotal),
+    netTotal,
     paidAmount: row.paidAmount,
+    collectedAmount,
+    dueAmount,
     notes: row.notes,
     status: row.status,
     createdBy: row.createdBy,
@@ -131,6 +157,9 @@ function enrichPurchase(id: string, withItems = true): Purchase | null {
       .orderBy(asc(purchaseItems.lineOrder))
       .all()
       .map(mapItem);
+    const legs = cashBankFromVoucher(db, row.voucherId, "credit");
+    base.cashPaid = legs.cashPaid;
+    base.bankPaid = legs.bankPaid;
   }
   return base;
 }
@@ -172,13 +201,15 @@ function enrichReturn(id: string, withItems = true): PurchaseReturn | null {
 export function registerPurchaseHandlers(): void {
   registerHandler(IPC.PURCHASES_LIST, async (): Promise<ActionResult<Purchase[]>> =>
     guarded(() => requirePermission("purchases.view"), async () => {
-      const rows = getDb()
+      const db = getDb();
+      const collected = allPurchaseCollectedAmounts(db);
+      const rows = db
         .select({ id: purchases.id })
         .from(purchases)
         .where(ne(purchases.status, "deleted"))
         .orderBy(desc(purchases.invoiceDate), desc(purchases.createdAt))
         .all();
-      return ok(rows.map((r) => enrichPurchase(r.id, false)!).filter(Boolean));
+      return ok(rows.map((r) => enrichPurchase(r.id, false, collected)!).filter(Boolean));
     })
   );
 
@@ -192,13 +223,15 @@ export function registerPurchaseHandlers(): void {
 
   registerHandler(IPC.PURCHASES_LIST_BY_VENDOR, async (_e, vendorId: string): Promise<ActionResult<Purchase[]>> =>
     guarded(() => requirePermission("purchases.view"), async () => {
-      const rows = getDb()
+      const db = getDb();
+      const collected = collectedAmountsForVendor(db, vendorId);
+      const rows = db
         .select({ id: purchases.id })
         .from(purchases)
         .where(and(eq(purchases.vendorId, vendorId), ne(purchases.status, "deleted")))
         .orderBy(desc(purchases.invoiceDate))
         .all();
-      return ok(rows.map((r) => enrichPurchase(r.id, false)!).filter(Boolean));
+      return ok(rows.map((r) => enrichPurchase(r.id, false, collected)!).filter(Boolean));
     })
   );
 
@@ -209,7 +242,7 @@ export function registerPurchaseHandlers(): void {
       if (!input.vendorId) return fail("Vendor is required");
 
       const mode = (input.paymentMode || "credit") as PaymentMode;
-      if (!["cash", "credit", "bank"].includes(mode)) return fail("Invalid payment mode");
+      if (!["cash", "credit", "bank", "split"].includes(mode)) return fail("Invalid payment mode");
 
       const db = getDb();
       const session = getCurrentSession();
@@ -268,22 +301,27 @@ export function registerPurchaseHandlers(): void {
       const grandTotal = money(computedSubtotal - discountAmount + additionAmount + taxAmount);
       if (grandTotal < 0) return fail("Grand total cannot be negative");
 
-      let paidAmount = money(Number(input.paidAmount ?? 0));
-      if (mode === "cash" || mode === "bank") {
-        if (paidAmount <= 0) paidAmount = grandTotal;
-      }
-      if (paidAmount < 0 || paidAmount > grandTotal) return fail("Invalid paid amount");
-      const due = money(grandTotal - paidAmount);
-
-      let payAccountId: string | null = input.accountId ?? null;
-      if (paidAmount > 0) {
-        if (!payAccountId) {
-          payAccountId = requireAccountByCode(db, mode === "bank" ? "1200" : "1100", "Cash/Bank").id;
-        } else {
-          const acct = db.select().from(accounts).where(eq(accounts.id, payAccountId)).get();
-          if (!acct) return fail("Payment account not found");
-        }
-      }
+      const settled = resolveSettlement(db, {
+        paymentMode: mode,
+        paidAmount: input.paidAmount,
+        cashPaid: input.cashPaid,
+        bankPaid: input.bankPaid,
+        accountId: input.accountId,
+        cashAccountId: input.cashAccountId,
+        bankAccountId: input.bankAccountId,
+        grandTotal,
+      });
+      if ("error" in settled) return fail(settled.error);
+      const {
+        cashPaid,
+        bankPaid,
+        paidAmount,
+        due,
+        paymentMode: resolvedMode,
+        cashAccountId,
+        bankAccountId,
+        headerAccountId,
+      } = settled;
 
       const invAcct = requireAccountByCode(db, "1400", "Inventory Asset");
       const apAcct = requireAccountByCode(db, "2100", "Accounts Payable");
@@ -301,7 +339,7 @@ export function registerPurchaseHandlers(): void {
           voucherDate: input.invoiceDate,
           partyType: "vendor",
           partyId: input.vendorId,
-          accountId: payAccountId,
+          accountId: headerAccountId,
           referenceNo: input.referenceNo?.trim() || null,
           notes: input.notes?.trim() || null,
           subtotal: computedSubtotal,
@@ -319,8 +357,11 @@ export function registerPurchaseHandlers(): void {
 
       let order = 0;
       insertVoucherEntry(db, voucherId, invAcct.id, grandTotal, 0, `Purchase ${invoiceNo}`, order++);
-      if (paidAmount > 0 && payAccountId) {
-        insertVoucherEntry(db, voucherId, payAccountId, 0, paidAmount, `Purchase ${invoiceNo} paid`, order++);
+      if (cashPaid > 0 && cashAccountId) {
+        insertVoucherEntry(db, voucherId, cashAccountId, 0, cashPaid, `Purchase ${invoiceNo} cash`, order++);
+      }
+      if (bankPaid > 0 && bankAccountId) {
+        insertVoucherEntry(db, voucherId, bankAccountId, 0, bankPaid, `Purchase ${invoiceNo} bank`, order++);
       }
       if (due > 0) {
         insertVoucherEntry(db, voucherId, apAcct.id, 0, due, `Purchase ${invoiceNo} payable`, order++);
@@ -333,7 +374,7 @@ export function registerPurchaseHandlers(): void {
           invoiceNo,
           invoiceDate: input.invoiceDate,
           vendorId: input.vendorId,
-          paymentMode: mode,
+          paymentMode: resolvedMode,
           subtotal: computedSubtotal,
           discountAmount,
           additionAmount,
@@ -411,7 +452,7 @@ export function registerPurchaseHandlers(): void {
         if (!input.vendorId) return fail("Vendor is required");
 
         const mode = (input.paymentMode || "credit") as PaymentMode;
-        if (!["cash", "credit", "bank"].includes(mode)) return fail("Invalid payment mode");
+        if (!["cash", "credit", "bank", "split"].includes(mode)) return fail("Invalid payment mode");
 
         const db = getDb();
         const session = getCurrentSession();
@@ -499,22 +540,27 @@ export function registerPurchaseHandlers(): void {
         const grandTotal = money(computedSubtotal - discountAmount + additionAmount + taxAmount);
         if (grandTotal < 0) return fail("Grand total cannot be negative");
 
-        let paidAmount = money(Number(input.paidAmount ?? 0));
-        if (mode === "cash" || mode === "bank") {
-          if (paidAmount <= 0) paidAmount = grandTotal;
-        }
-        if (paidAmount < 0 || paidAmount > grandTotal) return fail("Invalid paid amount");
-        const due = money(grandTotal - paidAmount);
-
-        let payAccountId: string | null = input.accountId ?? null;
-        if (paidAmount > 0) {
-          if (!payAccountId) {
-            payAccountId = requireAccountByCode(db, mode === "bank" ? "1200" : "1100", "Cash/Bank").id;
-          } else {
-            const acct = db.select().from(accounts).where(eq(accounts.id, payAccountId)).get();
-            if (!acct) return fail("Payment account not found");
-          }
-        }
+        const settled = resolveSettlement(db, {
+          paymentMode: mode,
+          paidAmount: input.paidAmount,
+          cashPaid: input.cashPaid,
+          bankPaid: input.bankPaid,
+          accountId: input.accountId,
+          cashAccountId: input.cashAccountId,
+          bankAccountId: input.bankAccountId,
+          grandTotal,
+        });
+        if ("error" in settled) return fail(settled.error);
+        const {
+          cashPaid,
+          bankPaid,
+          paidAmount,
+          due,
+          paymentMode: resolvedMode,
+          cashAccountId,
+          bankAccountId,
+          headerAccountId,
+        } = settled;
 
         const invAcct = requireAccountByCode(db, "1400", "Inventory Asset");
         const apAcct = requireAccountByCode(db, "2100", "Accounts Payable");
@@ -538,7 +584,7 @@ export function registerPurchaseHandlers(): void {
             voucherDate: input.invoiceDate,
             partyType: "vendor",
             partyId: input.vendorId,
-            accountId: payAccountId,
+            accountId: headerAccountId,
             referenceNo: input.referenceNo?.trim() || null,
             notes: input.notes?.trim() || null,
             subtotal: computedSubtotal,
@@ -555,8 +601,27 @@ export function registerPurchaseHandlers(): void {
 
         let order = 0;
         insertVoucherEntry(db, voucherId, invAcct.id, grandTotal, 0, `Purchase ${existing.invoiceNo}`, order++);
-        if (paidAmount > 0 && payAccountId) {
-          insertVoucherEntry(db, voucherId, payAccountId, 0, paidAmount, `Purchase ${existing.invoiceNo} paid`, order++);
+        if (cashPaid > 0 && cashAccountId) {
+          insertVoucherEntry(
+            db,
+            voucherId,
+            cashAccountId,
+            0,
+            cashPaid,
+            `Purchase ${existing.invoiceNo} cash`,
+            order++
+          );
+        }
+        if (bankPaid > 0 && bankAccountId) {
+          insertVoucherEntry(
+            db,
+            voucherId,
+            bankAccountId,
+            0,
+            bankPaid,
+            `Purchase ${existing.invoiceNo} bank`,
+            order++
+          );
         }
         if (due > 0) {
           insertVoucherEntry(db, voucherId, apAcct.id, 0, due, `Purchase ${existing.invoiceNo} payable`, order++);
@@ -566,7 +631,7 @@ export function registerPurchaseHandlers(): void {
           .set({
             invoiceDate: input.invoiceDate,
             vendorId: input.vendorId,
-            paymentMode: mode,
+            paymentMode: resolvedMode,
             subtotal: computedSubtotal,
             discountAmount,
             additionAmount,
@@ -732,6 +797,7 @@ export function registerPurchaseHandlers(): void {
         if (!input.vendorId) return fail("Vendor is required");
 
         const mode = (input.refundMode || "cash") as PaymentMode;
+        if (!["cash", "credit", "bank"].includes(mode)) return fail("Invalid refund mode");
         const db = getDb();
         const session = getCurrentSession();
         const vendor = db.select().from(vendors).where(eq(vendors.id, input.vendorId)).get();
@@ -815,11 +881,69 @@ export function registerPurchaseHandlers(): void {
         const taxAmount = money(Number(input.taxAmount ?? 0));
         const grandTotal = money(subtotal + taxAmount);
 
+        // When linked to an original purchase, reverse cash/bank vs AP in the same
+        // proportion as the purchase was paid (incl. cash+bank split settlement).
+        let cashPart = 0;
+        let bankPart = 0;
+        let creditPart = 0;
+        let cashRefundAccountId: string | null = null;
+        let bankRefundAccountId: string | null = null;
         let payAccountId: string | null = input.accountId ?? null;
-        if (mode === "cash" || mode === "bank") {
-          if (!payAccountId) {
-            payAccountId = requireAccountByCode(db, mode === "bank" ? "1200" : "1100", "Cash/Bank").id;
+        let linkedPurchase: typeof purchases.$inferSelect | null = null;
+
+        if (input.purchaseId) {
+          linkedPurchase =
+            db.select().from(purchases).where(eq(purchases.id, input.purchaseId)).get() ?? null;
+        }
+
+        if (linkedPurchase && linkedPurchase.grandTotal > 0) {
+          const paidShare = Math.min(
+            1,
+            Math.max(0, linkedPurchase.paidAmount / linkedPurchase.grandTotal)
+          );
+          const reversePaid = money(grandTotal * paidShare);
+          creditPart = money(grandTotal - reversePaid);
+          const orig = cashBankFromVoucher(db, linkedPurchase.voucherId, "credit");
+          const split = splitReversalAcrossCashBank(reversePaid, orig.cashPaid, orig.bankPaid);
+          cashPart = split.cashPart;
+          bankPart = split.bankPart;
+          if (cashPart > 0) {
+            cashRefundAccountId =
+              input.accountId && bankPart === 0 ? input.accountId : orig.cashAccountId;
           }
+          if (bankPart > 0) {
+            bankRefundAccountId = orig.bankAccountId;
+          }
+          payAccountId = cashRefundAccountId || bankRefundAccountId;
+        } else if (mode === "credit") {
+          creditPart = grandTotal;
+          cashPart = 0;
+          bankPart = 0;
+          payAccountId = null;
+        } else if (mode === "bank") {
+          bankPart = grandTotal;
+          cashPart = 0;
+          creditPart = 0;
+          bankRefundAccountId =
+            payAccountId || requireAccountByCode(db, "1200", "Cash/Bank").id;
+          payAccountId = bankRefundAccountId;
+        } else {
+          cashPart = grandTotal;
+          bankPart = 0;
+          creditPart = 0;
+          cashRefundAccountId =
+            payAccountId || requireAccountByCode(db, "1100", "Cash/Bank").id;
+          payAccountId = cashRefundAccountId;
+        }
+
+        const moneyOut = money(cashPart + bankPart);
+        if (cashPart > 0 && cashRefundAccountId) {
+          const acct = db.select().from(accounts).where(eq(accounts.id, cashRefundAccountId)).get();
+          if (!acct) return fail("Refund cash account not found");
+        }
+        if (bankPart > 0 && bankRefundAccountId) {
+          const acct = db.select().from(accounts).where(eq(accounts.id, bankRefundAccountId)).get();
+          if (!acct) return fail("Refund bank account not found");
         }
 
         const invAcct = requireAccountByCode(db, "1400", "Inventory Asset");
@@ -843,7 +967,7 @@ export function registerPurchaseHandlers(): void {
             subtotal,
             taxAmount,
             grandTotal,
-            paidAmount: mode === "credit" ? 0 : grandTotal,
+            paidAmount: moneyOut,
             status: "posted",
             createdBy: session?.id ?? null,
             createdAt: ts,
@@ -852,10 +976,38 @@ export function registerPurchaseHandlers(): void {
           .run();
 
         let order = 0;
-        if (mode === "credit") {
-          insertVoucherEntry(db, voucherId, apAcct.id, grandTotal, 0, `Purchase return ${returnNo}`, order++);
-        } else if (payAccountId) {
-          insertVoucherEntry(db, voucherId, payAccountId, grandTotal, 0, `Purchase return ${returnNo} refund`, order++);
+        if (cashPart > 0 && cashRefundAccountId) {
+          insertVoucherEntry(
+            db,
+            voucherId,
+            cashRefundAccountId,
+            cashPart,
+            0,
+            `Purchase return ${returnNo} cash`,
+            order++
+          );
+        }
+        if (bankPart > 0 && bankRefundAccountId) {
+          insertVoucherEntry(
+            db,
+            voucherId,
+            bankRefundAccountId,
+            bankPart,
+            0,
+            `Purchase return ${returnNo} bank`,
+            order++
+          );
+        }
+        if (creditPart > 0) {
+          insertVoucherEntry(
+            db,
+            voucherId,
+            apAcct.id,
+            creditPart,
+            0,
+            `Purchase return ${returnNo}`,
+            order++
+          );
         }
         insertVoucherEntry(db, voucherId, invAcct.id, 0, grandTotal, `Purchase return ${returnNo} stock out`, order++);
 

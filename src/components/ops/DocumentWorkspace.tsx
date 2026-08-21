@@ -3,6 +3,7 @@
 import type { LucideIcon } from "lucide-react";
 import { cn, formatMoney } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { Button, Input } from "@/components/ui/form";
 import { useI18n } from "@/lib/i18n";
 import type { PaymentMode } from "@shared/ipc";
 
@@ -139,9 +140,19 @@ export function PaymentModeBadge({ mode }: { mode: string }) {
       ? "bg-[var(--success)]/12 text-[var(--success)]"
       : m === "bank"
         ? "bg-[var(--info)]/12 text-[var(--info)]"
-        : "bg-amber-500/12 text-amber-700 dark:text-amber-300";
+        : m === "split"
+          ? "bg-[var(--accent)]/12 text-[var(--accent)]"
+          : "bg-amber-500/12 text-amber-700 dark:text-amber-300";
   const label =
-    m === "cash" ? t("payment.cash") : m === "bank" ? t("payment.bank") : m === "credit" ? t("payment.credit") : mode;
+    m === "cash"
+      ? t("payment.cash")
+      : m === "bank"
+        ? t("payment.bank")
+        : m === "credit"
+          ? t("payment.credit")
+          : m === "split"
+            ? t("payment.split")
+            : mode;
   return (
     <span className={cn("inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold", tone)}>
       {label}
@@ -159,13 +170,13 @@ export function PaymentModePicker({
   options?: { value: PaymentMode; label: string; hint?: string }[];
 }) {
   const { t } = useI18n();
-  const resolved =
+  const resolved: { value: PaymentMode; label: string; hint?: string }[] =
     options ??
-    ([
+    [
       { value: "cash", label: t("payment.cash") },
       { value: "bank", label: t("payment.bank") },
       { value: "credit", label: t("payment.credit") },
-    ] as const);
+    ];
   return (
     <div className="space-y-1.5">
       <div className="text-xs font-medium text-[var(--text-muted)]">{t("payment.mode")}</div>
@@ -189,6 +200,109 @@ export function PaymentModePicker({
             </button>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+/** Cash + bank + credit on one bill — shows due live so ledger stays correct. */
+export function SettlementPanel({
+  grandTotal,
+  cashPaid,
+  bankPaid,
+  onCashPaid,
+  onBankPaid,
+  dueHint,
+}: {
+  grandTotal: number;
+  cashPaid: string;
+  bankPaid: string;
+  onCashPaid: (v: string) => void;
+  onBankPaid: (v: string) => void;
+  /** Shown when due &gt; 0, e.g. "Customer will owe this balance" */
+  dueHint?: string;
+}) {
+  const cash = Number(cashPaid || 0);
+  const bank = Number(bankPaid || 0);
+  const paid = Math.round((cash + bank) * 100) / 100;
+  const due = Math.max(0, Math.round((grandTotal - paid) * 100) / 100);
+  const over = paid > grandTotal + 0.001;
+
+  const setFullCash = () => {
+    onCashPaid(String(grandTotal || 0));
+    onBankPaid("0");
+  };
+  const setFullBank = () => {
+    onCashPaid("0");
+    onBankPaid(String(grandTotal || 0));
+  };
+  const setCreditAll = () => {
+    onCashPaid("0");
+    onBankPaid("0");
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" size="sm" variant="secondary" onClick={setFullCash}>
+          Full cash
+        </Button>
+        <Button type="button" size="sm" variant="secondary" onClick={setFullBank}>
+          Full bank
+        </Button>
+        <Button type="button" size="sm" variant="secondary" onClick={setCreditAll}>
+          Credit all
+        </Button>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Input
+          label="Cash received"
+          type="number"
+          min={0}
+          step="0.01"
+          value={cashPaid}
+          onChange={(e) => onCashPaid(e.target.value)}
+        />
+        <Input
+          label="Bank received"
+          type="number"
+          min={0}
+          step="0.01"
+          value={bankPaid}
+          onChange={(e) => onBankPaid(e.target.value)}
+        />
+      </div>
+      <div
+        className={cn(
+          "rounded-xl border px-3 py-2.5 text-sm",
+          over
+            ? "border-[var(--danger)]/40 bg-[var(--danger)]/10"
+            : due > 0
+              ? "border-amber-500/30 bg-amber-500/10"
+              : "border-[var(--success)]/30 bg-[var(--success)]/10"
+        )}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[var(--text-muted)]">Paid now</span>
+          <span className="font-semibold tabular-nums">{money(paid)}</span>
+        </div>
+        <div className="mt-1.5 flex items-center justify-between gap-3">
+          <span className="text-[var(--text-muted)]">Balance due</span>
+          <span
+            className={cn(
+              "font-semibold tabular-nums",
+              over ? "text-[var(--danger)]" : due > 0 ? "text-amber-700 dark:text-amber-300" : "text-[var(--success)]"
+            )}
+          >
+            {over ? `Over by ${money(paid - grandTotal)}` : money(due)}
+          </span>
+        </div>
+        {due > 0 && dueHint ? (
+          <p className="mt-2 text-xs text-[var(--text-muted)]">{dueHint}</p>
+        ) : null}
+        <p className="mt-2 text-[11px] text-[var(--text-muted)]">
+          One save posts cash, bank, and credit together — no separate receive/pay for this bill.
+        </p>
       </div>
     </div>
   );
