@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
 import type { Db } from "./index";
+import { DOC_PREFIXES } from "./counters";
 import {
   roles,
   permissions,
@@ -292,7 +293,7 @@ export function ensureOwnerDrawSupport(db: Db): void {
       .values({
         id: randomUUID(),
         docType: "owner_draw",
-        prefix: "#",
+        prefix: DOC_PREFIXES.owner_draw,
         nextNumber: 1,
       })
       .run();
@@ -523,19 +524,24 @@ export async function seedDatabase(
 
   db.insert(documentCounters)
     .values([
-      { id: randomUUID(), docType: "sale", prefix: "#", nextNumber: 1 },
-      { id: randomUUID(), docType: "sale_return", prefix: "#", nextNumber: 1 },
-      { id: randomUUID(), docType: "purchase", prefix: "#", nextNumber: 1 },
-      { id: randomUUID(), docType: "purchase_return", prefix: "#", nextNumber: 1 },
-      { id: randomUUID(), docType: "payment", prefix: "#", nextNumber: 1 },
-      { id: randomUUID(), docType: "receipt", prefix: "#", nextNumber: 1 },
-      { id: randomUUID(), docType: "journal", prefix: "#", nextNumber: 1 },
-      { id: randomUUID(), docType: "expense", prefix: "#", nextNumber: 1 },
-      { id: randomUUID(), docType: "income", prefix: "#", nextNumber: 1 },
-      { id: randomUUID(), docType: "owner_draw", prefix: "#", nextNumber: 1 },
-      { id: randomUUID(), docType: "customer", prefix: "#", nextNumber: 1 },
-      { id: randomUUID(), docType: "vendor", prefix: "#", nextNumber: 1 },
-      { id: randomUUID(), docType: "product", prefix: "#", nextNumber: 1 },
+      { id: randomUUID(), docType: "sale", prefix: DOC_PREFIXES.sale, nextNumber: 1 },
+      { id: randomUUID(), docType: "sale_return", prefix: DOC_PREFIXES.sale_return, nextNumber: 1 },
+      { id: randomUUID(), docType: "purchase", prefix: DOC_PREFIXES.purchase, nextNumber: 1 },
+      {
+        id: randomUUID(),
+        docType: "purchase_return",
+        prefix: DOC_PREFIXES.purchase_return,
+        nextNumber: 1,
+      },
+      { id: randomUUID(), docType: "payment", prefix: DOC_PREFIXES.payment, nextNumber: 1 },
+      { id: randomUUID(), docType: "receipt", prefix: DOC_PREFIXES.receipt, nextNumber: 1 },
+      { id: randomUUID(), docType: "journal", prefix: DOC_PREFIXES.journal, nextNumber: 1 },
+      { id: randomUUID(), docType: "expense", prefix: DOC_PREFIXES.expense, nextNumber: 1 },
+      { id: randomUUID(), docType: "income", prefix: DOC_PREFIXES.income, nextNumber: 1 },
+      { id: randomUUID(), docType: "owner_draw", prefix: DOC_PREFIXES.owner_draw, nextNumber: 1 },
+      { id: randomUUID(), docType: "customer", prefix: DOC_PREFIXES.customer, nextNumber: 1 },
+      { id: randomUUID(), docType: "vendor", prefix: DOC_PREFIXES.vendor, nextNumber: 1 },
+      { id: randomUUID(), docType: "product", prefix: DOC_PREFIXES.product, nextNumber: 1 },
     ])
     .run();
 }

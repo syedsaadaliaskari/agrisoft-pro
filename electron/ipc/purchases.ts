@@ -41,6 +41,7 @@ import {
   vendors,
   accounts,
   stockMovements,
+  units,
 } from "../db/schema";
 import { requirePermission, getCurrentSession, PermissionError } from "./session";
 
@@ -68,6 +69,14 @@ async function guarded<T>(check: () => void, fn: Handler<T>): Promise<ActionResu
   }
 }
 
+/** Line unit label: what the user picked, else the product's own unit. */
+function resolveUnitLabel(unitId: string | null, override?: string | null): string | null {
+  const picked = String(override ?? "").trim();
+  if (picked) return picked;
+  if (!unitId) return null;
+  return getDb().select().from(units).where(eq(units.id, unitId)).get()?.shortName ?? null;
+}
+
 function mapItem(row: typeof purchaseItems.$inferSelect): PurchaseItem {
   return {
     id: row.id,
@@ -77,6 +86,7 @@ function mapItem(row: typeof purchaseItems.$inferSelect): PurchaseItem {
     size: row.size,
     color: row.color,
     quantity: row.quantity,
+    unit: row.unit,
     unitCost: row.unitCost,
     discountAmount: row.discountAmount,
     taxAmount: row.taxAmount,
@@ -255,6 +265,7 @@ export function registerPurchaseHandlers(): void {
         size: string | null;
         color: string | null;
         quantity: number;
+        unit: string | null;
         unitCost: number;
         discountAmount: number;
         taxAmount: number;
@@ -286,6 +297,7 @@ export function registerPurchaseHandlers(): void {
           size: variant.size,
           color: variant.color,
           quantity: qty,
+          unit: resolveUnitLabel(product.unitId, line.unit),
           unitCost: money(unitCost),
           discountAmount,
           taxAmount,
@@ -399,6 +411,7 @@ export function registerPurchaseHandlers(): void {
             size: line.size,
             color: line.color,
             quantity: line.quantity,
+            unit: line.unit,
             unitCost: line.unitCost,
             discountAmount: line.discountAmount,
             taxAmount: line.taxAmount,
@@ -494,6 +507,7 @@ export function registerPurchaseHandlers(): void {
           size: string | null;
           color: string | null;
           quantity: number;
+          unit: string | null;
           unitCost: number;
           discountAmount: number;
           taxAmount: number;
@@ -525,6 +539,7 @@ export function registerPurchaseHandlers(): void {
             size: variant.size,
             color: variant.color,
             quantity: qty,
+            unit: resolveUnitLabel(product.unitId, line.unit),
             unitCost: money(unitCost),
             discountAmount,
             taxAmount,
@@ -655,6 +670,7 @@ export function registerPurchaseHandlers(): void {
               size: line.size,
               color: line.color,
               quantity: line.quantity,
+              unit: line.unit,
               unitCost: line.unitCost,
               discountAmount: line.discountAmount,
               taxAmount: line.taxAmount,

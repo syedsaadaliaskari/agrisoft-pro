@@ -1,9 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Plus } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { LedgerInquiry } from "@/components/ops/LedgerInquiry";
+import { Button } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
+import { hasPermission } from "@/lib/permissions";
+import { useAuthStore } from "@/store/auth";
 import type { Account, AccountLedger } from "@shared/ipc";
 
 function AccountTypeLedgerPage({
@@ -11,12 +16,21 @@ function AccountTypeLedgerPage({
   subtitle,
   accountType,
   exportFilename,
+  actionLabel,
+  actionPath,
+  actionParam,
 }: {
   title: string;
   subtitle: string;
   accountType: "expense" | "income";
   exportFilename: string;
+  actionLabel: string;
+  actionPath: string;
+  actionParam: string;
 }) {
+  const router = useRouter();
+  const user = useAuthStore((s) => s.user);
+  const canCreate = hasPermission(user, "transactions.create");
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountId, setAccountId] = useState("");
   const [fromDate, setFromDate] = useState("");
@@ -82,6 +96,24 @@ function AccountTypeLedgerPage({
         error={error}
         exportFilename={exportFilename}
         emptyHint={`Choose a ${accountType} account from the left to see period movements and closing balance.`}
+        headerActions={
+          canCreate ? (
+            <Button
+              size="sm"
+              type="button"
+              onClick={() =>
+                router.push(
+                  accountId
+                    ? `${actionPath}?${actionParam}=${encodeURIComponent(accountId)}`
+                    : actionPath
+                )
+              }
+            >
+              <Plus size={14} />
+              {actionLabel}
+            </Button>
+          ) : null
+        }
         statement={
           ledger
             ? {
@@ -111,6 +143,9 @@ export default function ExpenseLedgerPage() {
       subtitle="Expense account movements"
       accountType="expense"
       exportFilename="expense-ledger"
+      actionLabel="New expense"
+      actionPath="/transactions/expense"
+      actionParam="expenseAccountId"
     />
   );
 }

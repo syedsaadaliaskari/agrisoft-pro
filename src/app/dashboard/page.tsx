@@ -405,10 +405,31 @@ export default function DashboardPage() {
                   </div>
                 ))}
               </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5">
+                  <p className="text-[11px] text-[var(--text-muted)]">Received today</p>
+                  <p className="mt-1 text-lg font-semibold tabular-nums text-[var(--success)]">
+                    {fmt(cur, Number(summary.receivedToday || 0))}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-[var(--text-muted)]">
+                    Recovery collected from customers
+                  </p>
+                </div>
+                <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5">
+                  <p className="text-[11px] text-[var(--text-muted)]">Paid out today</p>
+                  <p className="mt-1 text-lg font-semibold tabular-nums text-[var(--danger)]">
+                    {fmt(cur, Number(summary.paidOutToday || 0))}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-[var(--text-muted)]">Payments made to vendors</p>
+                </div>
+              </div>
               <p className="mt-3 text-xs text-[var(--text-muted)]">
                 Cash alone: open {fmt(cur, summary.cashOpeningToday)} · in{" "}
                 {fmt(cur, summary.cashInToday)} · out {fmt(cur, summary.cashOutToday)} · close{" "}
                 {fmt(cur, summary.cashClosingToday)}
+              </p>
+              <p className="mt-1 text-xs text-[var(--text-muted)]">
+                Today&apos;s closing becomes tomorrow&apos;s opening automatically.
               </p>
             </div>
           ) : null}

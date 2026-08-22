@@ -51,6 +51,7 @@ import type {
   PaymentMode,
   ReceiptSize,
   Sale,
+  Unit,
 } from "@shared/ipc";
 
 type DraftLine = {
@@ -59,6 +60,7 @@ type DraftLine = {
   label: string;
   stockQty: number;
   quantity: string;
+  unit: string;
   unitPrice: string;
   costPrice: number;
 };
@@ -80,6 +82,7 @@ export default function SalesPage() {
   const [rows, setRows] = useState<Sale[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [inventory, setInventory] = useState<InventoryRow[]>([]);
+  const [units, setUnits] = useState<Unit[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [search, setSearch] = useState("");
   const [modeFilter, setModeFilter] = useState<ModeFilter>("all");
@@ -108,16 +111,18 @@ export default function SalesPage() {
     setLoading(true);
     setError("");
     const api = getApi();
-    const [salesRes, custRes, invRes, acctRes] = await Promise.all([
+    const [salesRes, custRes, invRes, acctRes, unitRes] = await Promise.all([
       api.listSales(),
       api.listCustomers(),
       api.listInventory(),
       api.listAccounts({ cashBankOnly: true }),
+      api.listUnits(),
     ]);
     if (!salesRes.ok) setError(salesRes.error);
     else setRows(salesRes.data);
     if (custRes.ok) setCustomers(custRes.data.filter((c) => c.isActive));
     if (invRes.ok) setInventory(invRes.data.filter((r) => r.isActive));
+    if (unitRes.ok) setUnits(unitRes.data.filter((u) => u.isActive));
     if (acctRes.ok) {
       setAccounts(acctRes.data);
       if (!accountId && acctRes.data[0]) setAccountId(acctRes.data[0].id);
@@ -257,6 +262,7 @@ export default function SalesPage() {
           label: `${it.productName} (${it.size}/${it.color})`,
           stockQty: (inv?.stockQty ?? 0) + it.quantity,
           quantity: String(it.quantity),
+          unit: it.unit ?? inv?.unit ?? "",
           unitPrice: String(it.unitPrice),
           costPrice: inv?.costPrice ?? 0,
         };
@@ -281,6 +287,7 @@ export default function SalesPage() {
         label: `${row.productName} (${row.size}/${row.color})`,
         stockQty: row.stockQty,
         quantity: "1",
+        unit: row.unit ?? "",
         unitPrice: String(row.salePrice),
         costPrice: row.costPrice,
       },
@@ -297,6 +304,8 @@ export default function SalesPage() {
       }),
     [lines]
   );
+
+  const unitChoices = useMemo(() => units.map((u) => u.shortName), [units]);
 
   const removeLine = (key: string) => setLines((prev) => prev.filter((l) => l.key !== key));
 
@@ -349,6 +358,7 @@ export default function SalesPage() {
       items: lines.map((l) => ({
         variantId: l.variantId,
         quantity: Number(l.quantity),
+        unit: l.unit || null,
         unitPrice: Number(l.unitPrice),
       })),
     };
@@ -677,7 +687,7 @@ export default function SalesPage() {
               </div>
 
               <LineItemsTable
-                headers={["Product", "Stock", "Qty", "Price", "Total", ""]}
+                headers={["Product", "Stock", "Qty", "Unit", "Price", "Total", ""]}
                 empty={lines.length === 0}
               >
                 {lines.map((line) => {
@@ -718,6 +728,29 @@ export default function SalesPage() {
                           }
                           className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1.5 text-sm outline-none ring-[var(--accent)] focus:ring-1"
                         />
+                      </td>
+                      <td className="px-3 py-2.5 w-[96px]">
+                        <select
+                          value={line.unit}
+                          onChange={(e) =>
+                            setLines((prev) =>
+                              prev.map((l) =>
+                                l.key === line.key ? { ...l, unit: e.target.value } : l
+                              )
+                            )
+                          }
+                          className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1.5 text-sm outline-none ring-[var(--accent)] focus:ring-1"
+                        >
+                          <option value="">—</option>
+                          {(unitChoices.includes(line.unit) || !line.unit
+                            ? unitChoices
+                            : [line.unit, ...unitChoices]
+                          ).map((u) => (
+                            <option key={u} value={u}>
+                              {u}
+                            </option>
+                          ))}
+                        </select>
                       </td>
                       <td className="px-3 py-2.5 w-[120px]">
                         <input
@@ -867,7 +900,10 @@ export default function SalesPage() {
                   <td className="px-3 py-2.5 text-[var(--text-muted)]">
                     {it.size} / {it.color}
                   </td>
-                  <td className="px-3 py-2.5 tabular-nums">{it.quantity}</td>
+                  <td className="px-3 py-2.5 tabular-nums">
+                    {it.quantity}
+                    {it.unit ? <span className="ml-1 text-[var(--text-muted)]">{it.unit}</span> : null}
+                  </td>
                   <td className="px-3 py-2.5 tabular-nums">{money(it.unitPrice)}</td>
                   <td className="px-3 py-2.5 font-medium tabular-nums">{money(it.lineTotal)}</td>
                 </tr>

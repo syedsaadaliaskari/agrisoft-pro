@@ -1,5 +1,5 @@
 import { registerHandler } from "./register";
-import { and, asc, count, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import {
   IPC,
@@ -159,7 +159,11 @@ function allocateVariantSku(productSku: string, size: string, color: string, pre
 export function registerProductHandlers(): void {
   registerHandler(IPC.PRODUCTS_LIST, async (): Promise<ActionResult<Product[]>> =>
     guarded(() => requirePermission("products.view"), async () => {
-      const rows = getDb().select({ id: products.id }).from(products).orderBy(asc(products.name)).all();
+      const rows = getDb()
+        .select({ id: products.id })
+        .from(products)
+        .orderBy(desc(products.createdAt), asc(products.name))
+        .all();
       return ok(rows.map((r) => enrichProduct(r.id)!).filter(Boolean));
     })
   );
@@ -531,6 +535,7 @@ export function registerProductHandlers(): void {
           size: productVariants.size,
           color: productVariants.color,
           stockQty: productVariants.stockQty,
+          unit: units.shortName,
           costPrice: sql<number>`coalesce(${productVariants.costPrice}, ${products.costPrice})`,
           salePrice: sql<number>`coalesce(${productVariants.salePrice}, ${products.salePrice})`,
           reorderLevel: products.reorderLevel,
@@ -538,7 +543,8 @@ export function registerProductHandlers(): void {
         })
         .from(productVariants)
         .innerJoin(products, eq(productVariants.productId, products.id))
-        .orderBy(asc(products.name), asc(productVariants.size))
+        .leftJoin(units, eq(products.unitId, units.id))
+        .orderBy(desc(products.createdAt), asc(products.name), asc(productVariants.size))
         .all();
 
       return ok(
@@ -553,6 +559,7 @@ export function registerProductHandlers(): void {
           size: r.size,
           color: r.color,
           stockQty: Number(r.stockQty),
+          unit: r.unit ?? null,
           costPrice: Number(r.costPrice),
           salePrice: Number(r.salePrice),
           reorderLevel: Number(r.reorderLevel),
@@ -582,6 +589,7 @@ export function registerProductHandlers(): void {
           size: productVariants.size,
           color: productVariants.color,
           stockQty: productVariants.stockQty,
+          unit: units.shortName,
           costPrice: sql<number>`coalesce(${productVariants.costPrice}, ${products.costPrice})`,
           salePrice: sql<number>`coalesce(${productVariants.salePrice}, ${products.salePrice})`,
           reorderLevel: products.reorderLevel,
@@ -599,6 +607,7 @@ export function registerProductHandlers(): void {
           size: string;
           color: string;
           stockQty: number;
+          unit: string | null;
           costPrice: number;
           salePrice: number;
           reorderLevel: number;
@@ -614,6 +623,7 @@ export function registerProductHandlers(): void {
           size: r.size,
           color: r.color,
           stockQty: Number(r.stockQty),
+          unit: r.unit ?? null,
           costPrice: Number(r.costPrice),
           salePrice: Number(r.salePrice),
           reorderLevel: Number(r.reorderLevel),
@@ -626,6 +636,7 @@ export function registerProductHandlers(): void {
           .select(selectRow)
           .from(productVariants)
           .innerJoin(products, eq(productVariants.productId, products.id))
+          .leftJoin(units, eq(products.unitId, units.id))
           .where(and(eq(productVariants.barcode, code), eq(productVariants.isActive, true)))
           .all();
         if (byVariant.length === 1) return ok(toRow(byVariant[0]!));
@@ -638,6 +649,7 @@ export function registerProductHandlers(): void {
           .select(selectRow)
           .from(productVariants)
           .innerJoin(products, eq(productVariants.productId, products.id))
+          .leftJoin(units, eq(products.unitId, units.id))
           .where(
             and(
               eq(products.barcode, code),
@@ -705,6 +717,9 @@ export function registerProductHandlers(): void {
           size: variant.size,
           color: variant.color,
           stockQty: newQty,
+          unit: product.unitId
+            ? db.select().from(units).where(eq(units.id, product.unitId)).get()?.shortName ?? null
+            : null,
           costPrice: Number(variant.costPrice ?? product.costPrice),
           salePrice: Number(variant.salePrice ?? product.salePrice),
           reorderLevel: product.reorderLevel,

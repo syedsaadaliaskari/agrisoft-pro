@@ -1,5 +1,5 @@
 import { registerHandler } from "./register";
-import { asc, count, eq } from "drizzle-orm";
+import { asc, count, desc, eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import {
   IPC,
@@ -136,7 +136,11 @@ function allocatePartyCode(
 export function registerPartyHandlers(): void {
   registerHandler(IPC.CUSTOMERS_LIST, async (): Promise<ActionResult<Customer[]>> =>
     guarded(() => requirePermission("customers.view"), async () => {
-      const rows = getDb().select().from(customers).orderBy(asc(customers.name)).all();
+      const rows = getDb()
+        .select()
+        .from(customers)
+        .orderBy(desc(customers.createdAt), asc(customers.name))
+        .all();
       return ok(rows.map(mapCustomer));
     })
   );
@@ -249,7 +253,11 @@ export function registerPartyHandlers(): void {
 
   registerHandler(IPC.VENDORS_LIST, async (): Promise<ActionResult<Vendor[]>> =>
     guarded(() => requirePermission("vendors.view"), async () => {
-      const rows = getDb().select().from(vendors).orderBy(asc(vendors.name)).all();
+      const rows = getDb()
+        .select()
+        .from(vendors)
+        .orderBy(desc(vendors.createdAt), asc(vendors.name))
+        .all();
       return ok(rows.map(mapVendor));
     })
   );

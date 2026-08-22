@@ -27,8 +27,14 @@ import {
   categories,
   auditLogs,
   users,
+  vouchers,
+  saleReturns,
+  purchaseReturns,
 } from "../db/schema";
 import {
+  netAmount,
+  purchaseReturnedTotalsMap,
+  saleReturnedTotalsMap,
   returnedTotalForSale,
   sumPurchaseReturnTaxInRange,
   sumPurchaseReturnsInRange,
@@ -192,6 +198,28 @@ export function registerDashboardHandlers(): void {
       const cashBalance = money(fullBal(cash.id));
       const bankBalance = money(fullBal(bank.id));
 
+      const voucherTotalOnDate = (voucherType: "receipt" | "payment", onDate: string) =>
+        money(
+          Number(
+            db
+              .select({
+                total: sql<number>`coalesce(sum(case when ${vouchers.paidAmount} > 0 then ${vouchers.paidAmount} else ${vouchers.grandTotal} end), 0)`,
+              })
+              .from(vouchers)
+              .where(
+                and(
+                  eq(vouchers.voucherType, voucherType),
+                  eq(vouchers.status, "posted"),
+                  eq(vouchers.voucherDate, onDate)
+                )
+              )
+              .get()?.total ?? 0
+          )
+        );
+
+      const receivedToday = voucherTotalOnDate("receipt", t);
+      const paidOutToday = voucherTotalOnDate("payment", t);
+
       const inventoryValue =
         db
           .select({
@@ -297,6 +325,8 @@ export function registerDashboardHandlers(): void {
         moneyInToday,
         moneyOutToday,
         moneyClosingToday,
+        receivedToday,
+        paidOutToday,
         arBalance: money(Math.abs(fullBal(ar.id))),
         apBalance: money(Math.abs(fullBal(ap.id))),
         inventoryValue: money(Number(inventoryValue)),
@@ -367,20 +397,49 @@ export function registerDashboardHandlers(): void {
         .orderBy(desc(sales.invoiceDate))
         .all();
 
-      const mapped = rows.map((r) => ({
-        id: r.id,
-        invoiceNo: r.invoiceNo,
-        invoiceDate: r.invoiceDate,
-        customerName: r.customerId
-          ? db.select().from(customers).where(eq(customers.id, r.customerId)).get()?.name ?? null
-          : null,
-        paymentMode: r.paymentMode,
-        subtotal: r.subtotal,
-        discountAmount: r.discountAmount,
-        taxAmount: r.taxAmount,
-        grandTotal: r.grandTotal,
-        paidAmount: r.paidAmount,
-      }));
+      const returnedMap = saleReturnedTotalsMap(db);
+      const mapped = rows.map((r) => {
+        const returnedTotal = returnedMap.get(r.id) ?? 0;
+        return {
+          id: r.id,
+          invoiceNo: r.invoiceNo,
+          invoiceDate: r.invoiceDate,
+          customerName: r.customerId
+            ? db.select().from(customers).where(eq(customers.id, r.customerId)).get()?.name ?? null
+            : null,
+          paymentMode: r.paymentMode,
+          subtotal: r.subtotal,
+          discountAmount: r.discountAmount,
+          taxAmount: r.taxAmount,
+          grandTotal: r.grandTotal,
+          returnedTotal,
+          netTotal: netAmount(r.grandTotal, returnedTotal),
+          paidAmount: r.paidAmount,
+        };
+      });
+
+      const returnConditions = [];
+      if (query?.fromDate) returnConditions.push(gte(saleReturns.returnDate, query.fromDate));
+      if (query?.toDate) returnConditions.push(lte(saleReturns.returnDate, query.toDate));
+      const returnRows = db
+        .select()
+        .from(saleReturns)
+        .where(returnConditions.length ? and(...returnConditions) : undefined)
+        .orderBy(desc(saleReturns.returnDate), desc(saleReturns.createdAt))
+        .all()
+        .map((r) => ({
+          id: r.id,
+          returnNo: r.returnNo,
+          returnDate: r.returnDate,
+          partyName: r.customerId
+            ? db.select().from(customers).where(eq(customers.id, r.customerId)).get()?.name ?? null
+            : null,
+          againstInvoiceNo: r.saleId
+            ? db.select().from(sales).where(eq(sales.id, r.saleId)).get()?.invoiceNo ?? null
+            : null,
+          taxAmount: r.taxAmount,
+          grandTotal: r.grandTotal,
+        }));
 
       const returnsTotal = sumSaleReturnsInRange(db, query?.fromDate, query?.toDate);
       const returnsTax = sumSaleReturnTaxInRange(db, query?.fromDate, query?.toDate);
@@ -402,6 +461,9 @@ export function registerDashboardHandlers(): void {
         fromDate: query?.fromDate ?? null,
         toDate: query?.toDate ?? null,
         rows: mapped,
+        returnRows,
+        totalGross: money(mapped.reduce((s, r) => s + r.grandTotal, 0)),
+        totalReturns: money(returnsTotal),
         totalSubtotal: money(mapped.reduce((s, r) => s + r.subtotal, 0)),
         totalDiscount: money(mapped.reduce((s, r) => s + r.discountAmount, 0)),
         totalTax: money(mapped.reduce((s, r) => s + r.taxAmount, 0) - returnsTax),
@@ -429,20 +491,49 @@ export function registerDashboardHandlers(): void {
           .orderBy(desc(purchases.invoiceDate))
           .all();
 
-        const mapped = rows.map((r) => ({
-          id: r.id,
-          invoiceNo: r.invoiceNo,
-          invoiceDate: r.invoiceDate,
-          vendorName: r.vendorId
-            ? db.select().from(vendors).where(eq(vendors.id, r.vendorId)).get()?.name ?? null
-            : null,
-          paymentMode: r.paymentMode,
-          subtotal: r.subtotal,
-          discountAmount: r.discountAmount,
-          taxAmount: r.taxAmount,
-          grandTotal: r.grandTotal,
-          paidAmount: r.paidAmount,
-        }));
+        const returnedMap = purchaseReturnedTotalsMap(db);
+        const mapped = rows.map((r) => {
+          const returnedTotal = returnedMap.get(r.id) ?? 0;
+          return {
+            id: r.id,
+            invoiceNo: r.invoiceNo,
+            invoiceDate: r.invoiceDate,
+            vendorName: r.vendorId
+              ? db.select().from(vendors).where(eq(vendors.id, r.vendorId)).get()?.name ?? null
+              : null,
+            paymentMode: r.paymentMode,
+            subtotal: r.subtotal,
+            discountAmount: r.discountAmount,
+            taxAmount: r.taxAmount,
+            grandTotal: r.grandTotal,
+            returnedTotal,
+            netTotal: netAmount(r.grandTotal, returnedTotal),
+            paidAmount: r.paidAmount,
+          };
+        });
+
+        const returnConditions = [];
+        if (query?.fromDate) returnConditions.push(gte(purchaseReturns.returnDate, query.fromDate));
+        if (query?.toDate) returnConditions.push(lte(purchaseReturns.returnDate, query.toDate));
+        const returnRows = db
+          .select()
+          .from(purchaseReturns)
+          .where(returnConditions.length ? and(...returnConditions) : undefined)
+          .orderBy(desc(purchaseReturns.returnDate), desc(purchaseReturns.createdAt))
+          .all()
+          .map((r) => ({
+            id: r.id,
+            returnNo: r.returnNo,
+            returnDate: r.returnDate,
+            partyName: r.vendorId
+              ? db.select().from(vendors).where(eq(vendors.id, r.vendorId)).get()?.name ?? null
+              : null,
+            againstInvoiceNo: r.purchaseId
+              ? db.select().from(purchases).where(eq(purchases.id, r.purchaseId)).get()?.invoiceNo ?? null
+              : null,
+            taxAmount: r.taxAmount,
+            grandTotal: r.grandTotal,
+          }));
 
         const returnsTotal = sumPurchaseReturnsInRange(db, query?.fromDate, query?.toDate);
         const returnsTax = sumPurchaseReturnTaxInRange(db, query?.fromDate, query?.toDate);
@@ -464,6 +555,9 @@ export function registerDashboardHandlers(): void {
           fromDate: query?.fromDate ?? null,
           toDate: query?.toDate ?? null,
           rows: mapped,
+          returnRows,
+          totalGross: money(mapped.reduce((s, r) => s + r.grandTotal, 0)),
+          totalReturns: money(returnsTotal),
           totalSubtotal: money(mapped.reduce((s, r) => s + r.subtotal, 0)),
           totalDiscount: money(mapped.reduce((s, r) => s + r.discountAmount, 0)),
           totalTax: money(mapped.reduce((s, r) => s + r.taxAmount, 0) - returnsTax),
@@ -540,6 +634,7 @@ export function registerDashboardHandlers(): void {
         })
         .from(productVariants)
         .innerJoin(products, eq(productVariants.productId, products.id))
+        .orderBy(desc(products.createdAt), asc(products.name), asc(productVariants.size))
         .all();
 
       const mapped = rows.map((r) => {

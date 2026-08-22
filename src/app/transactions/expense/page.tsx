@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Ban, Pencil, Receipt, Wallet } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import {
@@ -22,6 +23,8 @@ function today() {
 }
 
 export default function ExpensePage() {
+  const searchParams = useSearchParams();
+  const prefExpenseAccountId = searchParams.get("expenseAccountId") || "";
   const user = useAuthStore((s) => s.user);
   const canCreate = hasPermission(user, "transactions.create");
 
@@ -30,7 +33,7 @@ export default function ExpensePage() {
   const [rows, setRows] = useState<Voucher[]>([]);
   const [loading, setLoading] = useState(true);
   const [voucherDate, setVoucherDate] = useState(today());
-  const [expenseAccountId, setExpenseAccountId] = useState("");
+  const [expenseAccountId, setExpenseAccountId] = useState(prefExpenseAccountId);
   const [accountId, setAccountId] = useState("");
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
@@ -49,7 +52,12 @@ export default function ExpensePage() {
     ]);
     if (e.ok) {
       setExpenseAccounts(e.data);
-      if (e.data[0]) setExpenseAccountId((prev) => prev || e.data[0].id);
+      setExpenseAccountId((prev) => {
+        if (prefExpenseAccountId && e.data.some((x) => x.id === prefExpenseAccountId)) {
+          return prefExpenseAccountId;
+        }
+        return prev || e.data[0]?.id || "";
+      });
     }
     if (c.ok) {
       setCashAccounts(c.data);
@@ -57,11 +65,15 @@ export default function ExpensePage() {
     }
     if (v.ok) setRows(v.data);
     setLoading(false);
-  }, []);
+  }, [prefExpenseAccountId]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (prefExpenseAccountId) setExpenseAccountId(prefExpenseAccountId);
+  }, [prefExpenseAccountId]);
 
   const stats = useMemo(() => {
     const active = rows.filter((r) => r.status !== "cancelled");

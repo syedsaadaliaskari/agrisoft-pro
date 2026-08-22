@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Ban, Pencil, Receipt, TrendingUp } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import {
@@ -22,6 +23,8 @@ function today() {
 }
 
 export default function IncomePage() {
+  const searchParams = useSearchParams();
+  const prefIncomeAccountId = searchParams.get("incomeAccountId") || "";
   const user = useAuthStore((s) => s.user);
   const canCreate = hasPermission(user, "transactions.create");
 
@@ -30,7 +33,7 @@ export default function IncomePage() {
   const [rows, setRows] = useState<Voucher[]>([]);
   const [loading, setLoading] = useState(true);
   const [voucherDate, setVoucherDate] = useState(today());
-  const [incomeAccountId, setIncomeAccountId] = useState("");
+  const [incomeAccountId, setIncomeAccountId] = useState(prefIncomeAccountId);
   const [accountId, setAccountId] = useState("");
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
@@ -49,7 +52,12 @@ export default function IncomePage() {
     ]);
     if (i.ok) {
       setIncomeAccounts(i.data);
-      if (i.data[0]) setIncomeAccountId((prev) => prev || i.data[0].id);
+      setIncomeAccountId((prev) => {
+        if (prefIncomeAccountId && i.data.some((x) => x.id === prefIncomeAccountId)) {
+          return prefIncomeAccountId;
+        }
+        return prev || i.data[0]?.id || "";
+      });
     }
     if (c.ok) {
       setCashAccounts(c.data);
@@ -57,11 +65,15 @@ export default function IncomePage() {
     }
     if (v.ok) setRows(v.data);
     setLoading(false);
-  }, []);
+  }, [prefIncomeAccountId]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (prefIncomeAccountId) setIncomeAccountId(prefIncomeAccountId);
+  }, [prefIncomeAccountId]);
 
   const stats = useMemo(() => {
     const active = rows.filter((r) => r.status !== "cancelled");

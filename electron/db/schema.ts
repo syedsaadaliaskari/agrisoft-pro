@@ -346,6 +346,8 @@ export const saleItems = sqliteTable("sale_items", {
   size: text("size"),
   color: text("color"),
   quantity: real("quantity").notNull(),
+  /** Unit label captured at billing time (pcs, kg, bag …) */
+  unit: text("unit"),
   unitPrice: real("unit_price").notNull(),
   costPrice: real("cost_price").notNull().default(0),
   discountAmount: real("discount_amount").notNull().default(0),
@@ -423,6 +425,8 @@ export const purchaseItems = sqliteTable("purchase_items", {
   size: text("size"),
   color: text("color"),
   quantity: real("quantity").notNull(),
+  /** Unit label captured at billing time (pcs, kg, bag …) */
+  unit: text("unit"),
   unitCost: real("unit_cost").notNull(),
   discountAmount: real("discount_amount").notNull().default(0),
   taxAmount: real("tax_amount").notNull().default(0),

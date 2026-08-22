@@ -1,7 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Ban, BookOpen, Pencil, Plus, Scale, X } from "lucide-react";
+import {
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  Ban,
+  BookOpen,
+  Pencil,
+  Plus,
+  Scale,
+  X,
+} from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import {
   ComposerSection,
@@ -41,6 +50,7 @@ export default function JournalPage() {
   const [voucherDate, setVoucherDate] = useState(today());
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<Line[]>(blankLines());
+  const [linkAmounts, setLinkAmounts] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [okMsg, setOkMsg] = useState("");
@@ -72,6 +82,9 @@ export default function JournalPage() {
   );
   const balanced = Math.abs(debitTotal - creditTotal) < 0.005 && debitTotal > 0;
 
+  const cashAccount = useMemo(() => accounts.find((a) => a.code === "1100"), [accounts]);
+  const bankAccount = useMemo(() => accounts.find((a) => a.code === "1200"), [accounts]);
+
   const stats = useMemo(() => {
     const active = rows.filter((r) => r.status !== "cancelled");
     const t = today();
@@ -87,8 +100,42 @@ export default function JournalPage() {
     setVoucherDate(today());
     setNotes("");
     setLines(blankLines());
+    setLinkAmounts(false);
     setEditingId(null);
     setError("");
+  };
+
+  // Preset pairs stay balanced automatically: the amount typed on one line mirrors to the other.
+  const setLineAmount = (key: string, side: "debit" | "credit", value: string) => {
+    setLines((prev) =>
+      prev.map((l) => {
+        if (l.key === key) {
+          return side === "debit"
+            ? { ...l, debit: value, credit: "" }
+            : { ...l, credit: value, debit: "" };
+        }
+        if (!linkAmounts || prev.length !== 2) return l;
+        return side === "debit"
+          ? { ...l, credit: value, debit: "" }
+          : { ...l, debit: value, credit: "" };
+      })
+    );
+  };
+
+  const applyTransferPreset = (direction: "deposit" | "withdraw") => {
+    if (!cashAccount || !bankAccount) return;
+    const narration =
+      direction === "deposit" ? "Cash deposited to bank" : "Cash withdrawn from bank";
+    const debitAccount = direction === "deposit" ? bankAccount : cashAccount;
+    const creditAccount = direction === "deposit" ? cashAccount : bankAccount;
+    setLines([
+      { key: "1", accountId: debitAccount.id, debit: "", credit: "", narration },
+      { key: "2", accountId: creditAccount.id, debit: "", credit: "", narration },
+    ]);
+    setNotes(narration);
+    setLinkAmounts(true);
+    setError("");
+    setOkMsg("");
   };
 
   const openEdit = (row: Voucher) => {
@@ -106,6 +153,7 @@ export default function JournalPage() {
         }))
       : blankLines();
     setLines(entries);
+    setLinkAmounts(false);
     setError("");
     setOkMsg("");
   };
@@ -221,6 +269,28 @@ export default function JournalPage() {
             <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
 
+          {cashAccount && bankAccount ? (
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-semibold text-[var(--text-muted)]">Quick presets</span>
+              <Button
+                variant="secondary"
+                size="sm"
+                type="button"
+                onClick={() => applyTransferPreset("deposit")}
+              >
+                <ArrowDownToLine size={14} /> Deposit cash to bank
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                type="button"
+                onClick={() => applyTransferPreset("withdraw")}
+              >
+                <ArrowUpFromLine size={14} /> Withdraw cash from bank
+              </Button>
+            </div>
+          ) : null}
+
           <div className="space-y-2">
             {lines.map((line, idx) => (
               <div
@@ -244,25 +314,13 @@ export default function JournalPage() {
                   label={idx === 0 ? "Debit" : undefined}
                   type="number"
                   value={line.debit}
-                  onChange={(e) =>
-                    setLines((prev) =>
-                      prev.map((l) =>
-                        l.key === line.key ? { ...l, debit: e.target.value, credit: "" } : l
-                      )
-                    )
-                  }
+                  onChange={(e) => setLineAmount(line.key, "debit", e.target.value)}
                 />
                 <Input
                   label={idx === 0 ? "Credit" : undefined}
                   type="number"
                   value={line.credit}
-                  onChange={(e) =>
-                    setLines((prev) =>
-                      prev.map((l) =>
-                        l.key === line.key ? { ...l, credit: e.target.value, debit: "" } : l
-                      )
-                    )
-                  }
+                  onChange={(e) => setLineAmount(line.key, "credit", e.target.value)}
                 />
                 <Input
                   label={idx === 0 ? "Narration" : undefined}
@@ -279,7 +337,10 @@ export default function JournalPage() {
                   variant="ghost"
                   size="sm"
                   className={idx === 0 ? "self-end" : "self-center"}
-                  onClick={() => setLines((prev) => prev.filter((l) => l.key !== line.key))}
+                  onClick={() => {
+                    setLinkAmounts(false);
+                    setLines((prev) => prev.filter((l) => l.key !== line.key));
+                  }}
                 >
                   <X size={14} />
                 </Button>
@@ -291,12 +352,13 @@ export default function JournalPage() {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() =>
+              onClick={() => {
+                setLinkAmounts(false);
                 setLines((prev) => [
                   ...prev,
                   { key: String(Date.now()), accountId: "", debit: "", credit: "", narration: "" },
-                ])
-              }
+                ]);
+              }}
             >
               <Plus size={14} /> Add line
             </Button>

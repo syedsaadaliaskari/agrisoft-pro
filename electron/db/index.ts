@@ -313,6 +313,7 @@ CREATE TABLE IF NOT EXISTS sale_items (
   size TEXT,
   color TEXT,
   quantity REAL NOT NULL,
+  unit TEXT,
   unit_price REAL NOT NULL,
   cost_price REAL NOT NULL DEFAULT 0,
   discount_amount REAL NOT NULL DEFAULT 0,
@@ -376,6 +377,7 @@ CREATE TABLE IF NOT EXISTS purchase_items (
   size TEXT,
   color TEXT,
   quantity REAL NOT NULL,
+  unit TEXT,
   unit_cost REAL NOT NULL,
   discount_amount REAL NOT NULL DEFAULT 0,
   tax_amount REAL NOT NULL DEFAULT 0,
@@ -478,6 +480,13 @@ export async function initDatabase(): Promise<Db> {
   } catch {
     // column already exists
   }
+  for (const table of ["sale_items", "purchase_items"]) {
+    try {
+      sqlite.exec(`ALTER TABLE ${table} ADD COLUMN unit TEXT`);
+    } catch {
+      // column already exists
+    }
+  }
 
   db = drizzle(sqlite, { schema });
 
@@ -495,8 +504,8 @@ export async function initDatabase(): Promise<Db> {
 
   await seedDatabase(db, { production: !isDev });
   ensurePermissions(db);
-  const { ensureSimpleDocumentPrefixes } = await import("./counters");
-  ensureSimpleDocumentPrefixes(db);
+  const { ensureDocumentPrefixes } = await import("./counters");
+  ensureDocumentPrefixes(db);
   // Heavy demo (products, cashier, sample sales) — development only
   if (isDev) {
     await seedDemoData(db);

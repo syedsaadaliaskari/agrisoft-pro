@@ -63,10 +63,12 @@ export default function PurchasesReportPage() {
       {report ? (
         <>
           <p className="mb-3 text-sm text-[var(--text-muted)]">
-            Total {report.totalGrand.toLocaleString()} · Paid {report.totalPaid.toLocaleString()}
+            Purchased {(report.totalGross ?? report.totalGrand).toLocaleString()} · Returns{" "}
+            <span className="text-[var(--danger)]">-{(report.totalReturns ?? 0).toLocaleString()}</span> · Net{" "}
+            {report.totalGrand.toLocaleString()} · Paid {report.totalPaid.toLocaleString()}
           </p>
           <DataTable
-            headers={["Invoice", "Date", "Vendor", "Mode", "Total", "Paid"]}
+            headers={["Invoice", "Date", "Vendor", "Mode", "Total", "Returned", "Net", "Paid"]}
             empty={report.rows.length === 0}
           >
             {report.rows.map((r) => (
@@ -76,10 +78,39 @@ export default function PurchasesReportPage() {
                 <td className="px-4 py-3">{r.vendorName || "—"}</td>
                 <td className="px-4 py-3 capitalize">{r.paymentMode}</td>
                 <td className="px-4 py-3">{r.grandTotal.toLocaleString()}</td>
+                <td className="px-4 py-3 text-[var(--danger)]">
+                  {r.returnedTotal ? `-${r.returnedTotal.toLocaleString()}` : "—"}
+                </td>
+                <td className="px-4 py-3 font-medium">
+                  {(r.netTotal ?? r.grandTotal).toLocaleString()}
+                </td>
                 <td className="px-4 py-3">{r.paidAmount.toLocaleString()}</td>
               </tr>
             ))}
           </DataTable>
+
+          <div className="mt-6">
+            <p className="mb-3 text-sm font-semibold">
+              Purchase returns in this period{" "}
+              <span className="font-normal text-[var(--text-muted)]">
+                ({report.returnRows?.length ?? 0})
+              </span>
+            </p>
+            <DataTable
+              headers={["Return no", "Date", "Vendor", "Against bill", "Amount"]}
+              empty={(report.returnRows?.length ?? 0) === 0}
+            >
+              {(report.returnRows ?? []).map((r) => (
+                <tr key={r.id} className="border-b border-[var(--border)] last:border-0">
+                  <td className="px-4 py-3 font-mono text-xs">{r.returnNo}</td>
+                  <td className="px-4 py-3">{r.returnDate}</td>
+                  <td className="px-4 py-3">{r.partyName || "—"}</td>
+                  <td className="px-4 py-3 font-mono text-xs">{r.againstInvoiceNo || "—"}</td>
+                  <td className="px-4 py-3 text-[var(--danger)]">-{r.grandTotal.toLocaleString()}</td>
+                </tr>
+              ))}
+            </DataTable>
+          </div>
         </>
       ) : null}
     </AppShell>

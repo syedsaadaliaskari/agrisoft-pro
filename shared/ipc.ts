@@ -395,6 +395,8 @@ export type InventoryRow = {
   size: string;
   color: string;
   stockQty: number;
+  /** Product unit short label (pcs, kg, bag …) */
+  unit: string | null;
   costPrice: number;
   salePrice: number;
   reorderLevel: number;
@@ -683,6 +685,8 @@ export type PaymentMode = "cash" | "credit" | "bank" | "split";
 export type PurchaseLineInput = {
   variantId: string;
   quantity: number;
+  /** Unit label for this line; defaults to the product unit when omitted */
+  unit?: string | null;
   unitCost: number;
   discountAmount?: number;
   taxAmount?: number;
@@ -716,6 +720,7 @@ export type PurchaseItem = {
   size: string | null;
   color: string | null;
   quantity: number;
+  unit: string | null;
   unitCost: number;
   discountAmount: number;
   taxAmount: number;
@@ -811,6 +816,8 @@ export type ReceiptSize = "thermal" | "a4";
 export type SaleLineInput = {
   variantId: string;
   quantity: number;
+  /** Unit label for this line; defaults to the product unit when omitted */
+  unit?: string | null;
   unitPrice: number;
   discountAmount?: number;
   taxAmount?: number;
@@ -842,6 +849,7 @@ export type SaleItem = {
   size: string | null;
   color: string | null;
   quantity: number;
+  unit: string | null;
   unitPrice: number;
   costPrice: number;
   discountAmount: number;
@@ -1001,6 +1009,10 @@ export type DashboardSummary = {
   moneyInToday: number;
   moneyOutToday: number;
   moneyClosingToday: number;
+  /** Money collected from customers today (receipt vouchers) */
+  receivedToday: number;
+  /** Money paid out to vendors today (payment vouchers) */
+  paidOutToday: number;
   arBalance: number;
   apBalance: number;
   inventoryValue: number;
@@ -1035,10 +1047,28 @@ export type SalesReportRow = {
   paidAmount: number;
 };
 
+/** A reverse (return) document listed alongside the invoices it offsets. */
+export type ReportReturnRow = {
+  id: string;
+  returnNo: string;
+  returnDate: string;
+  partyName: string | null;
+  /** Invoice number this return was booked against, when linked */
+  againstInvoiceNo: string | null;
+  taxAmount: number;
+  grandTotal: number;
+};
+
 export type SalesReport = {
   fromDate: string | null;
   toDate: string | null;
   rows: SalesReportRow[];
+  /** Sale returns inside the same date range (shown as negatives) */
+  returnRows: ReportReturnRow[];
+  /** Gross invoiced before returns are deducted */
+  totalGross: number;
+  /** Sum of returnRows */
+  totalReturns: number;
   totalSubtotal: number;
   totalDiscount: number;
   totalTax: number;
@@ -1069,6 +1099,12 @@ export type PurchasesReport = {
   fromDate: string | null;
   toDate: string | null;
   rows: PurchasesReportRow[];
+  /** Purchase returns inside the same date range (shown as negatives) */
+  returnRows: ReportReturnRow[];
+  /** Gross billed before returns are deducted */
+  totalGross: number;
+  /** Sum of returnRows */
+  totalReturns: number;
   totalSubtotal: number;
   totalDiscount: number;
   totalTax: number;

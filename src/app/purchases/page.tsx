@@ -44,13 +44,23 @@ import { getApi } from "@/lib/api";
 import { buildPurchasePrintHtml } from "@/lib/print";
 import { hasPermission } from "@/lib/permissions";
 import { useAuthStore } from "@/store/auth";
-import type { Account, InventoryRow, PaymentMode, Purchase, ReceiptSize, Vendor } from "@shared/ipc";
+import type {
+  Account,
+  InventoryRow,
+  PaymentMode,
+  Purchase,
+  ReceiptSize,
+  Unit,
+  Vendor,
+} from "@shared/ipc";
 
 type DraftLine = {
   key: string;
   variantId: string;
   label: string;
+  stockQty: number;
   quantity: string;
+  unit: string;
   unitCost: string;
 };
 
@@ -70,6 +80,7 @@ export default function PurchasesPage() {
   const [rows, setRows] = useState<Purchase[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [inventory, setInventory] = useState<InventoryRow[]>([]);
+  const [units, setUnits] = useState<Unit[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [search, setSearch] = useState("");
   const [modeFilter, setModeFilter] = useState<ModeFilter>("all");
@@ -96,16 +107,18 @@ export default function PurchasesPage() {
     setLoading(true);
     setError("");
     const api = getApi();
-    const [p, v, inv, acct] = await Promise.all([
+    const [p, v, inv, acct, unitRes] = await Promise.all([
       api.listPurchases(),
       api.listVendors(),
       api.listInventory(),
       api.listAccounts({ cashBankOnly: true }),
+      api.listUnits(),
     ]);
     if (!p.ok) setError(p.error);
     else setRows(p.data);
     if (v.ok) setVendors(v.data.filter((x) => x.isActive));
     if (inv.ok) setInventory(inv.data.filter((x) => x.isActive));
+    if (unitRes.ok) setUnits(unitRes.data.filter((u) => u.isActive));
     if (acct.ok) {
       setAccounts(acct.data);
       if (acct.data[0]) setAccountId(acct.data[0].id);
@@ -181,6 +194,8 @@ export default function PurchasesPage() {
     [inventory]
   );
 
+  const unitChoices = useMemo(() => units.map((u) => u.shortName), [units]);
+
   const subtotal = useMemo(
     () => lines.reduce((s, l) => s + Number(l.quantity || 0) * Number(l.unitCost || 0), 0),
     [lines]
@@ -246,13 +261,18 @@ export default function PurchasesPage() {
     setPickVariantId("");
     setError("");
     setLines(
-      (purchase.items ?? []).map((it) => ({
-        key: `${it.variantId}-${it.id}`,
-        variantId: it.variantId,
-        label: `${it.productName} (${it.size}/${it.color})`,
-        quantity: String(it.quantity),
-        unitCost: String(it.unitCost),
-      }))
+      (purchase.items ?? []).map((it) => {
+        const inv = inventory.find((r) => r.variantId === it.variantId);
+        return {
+          key: `${it.variantId}-${it.id}`,
+          variantId: it.variantId,
+          label: `${it.productName} (${it.size}/${it.color})`,
+          stockQty: inv?.stockQty ?? 0,
+          quantity: String(it.quantity),
+          unit: it.unit ?? inv?.unit ?? "",
+          unitCost: String(it.unitCost),
+        };
+      })
     );
     setComposer(true);
   };
@@ -270,7 +290,9 @@ export default function PurchasesPage() {
         key: `${pickVariantId}-${Date.now()}`,
         variantId: row.variantId,
         label: `${row.productName} (${row.size}/${row.color})`,
+        stockQty: row.stockQty,
         quantity: "1",
+        unit: row.unit ?? "",
         unitCost: String(row.costPrice),
       },
     ]);
@@ -312,6 +334,7 @@ export default function PurchasesPage() {
       items: lines.map((l) => ({
         variantId: l.variantId,
         quantity: Number(l.quantity),
+        unit: l.unit || null,
         unitCost: Number(l.unitCost),
       })),
     };
@@ -629,7 +652,7 @@ export default function PurchasesPage() {
                 </Button>
               </div>
               <LineItemsTable
-                headers={["Product", "Qty", "Unit cost", "Line total", ""]}
+                headers={["Product", "In stock", "Qty", "Unit", "Unit cost", "Line total", ""]}
                 empty={lines.length === 0}
                 emptyHint="Select a pack to receive into stock."
               >
@@ -638,6 +661,12 @@ export default function PurchasesPage() {
                   return (
                     <tr key={line.key}>
                       <td className="px-3 py-2.5 font-medium">{line.label}</td>
+                      <td className="px-3 py-2.5">
+                        <span className="text-xs tabular-nums text-[var(--text-muted)]">
+                          {line.stockQty}
+                          {line.unit ? ` ${line.unit}` : ""}
+                        </span>
+                      </td>
                       <td className="px-3 py-2.5 w-[100px]">
                         <input
                           type="number"
@@ -653,6 +682,29 @@ export default function PurchasesPage() {
                           }
                           className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1.5 text-sm outline-none ring-[var(--accent)] focus:ring-1"
                         />
+                      </td>
+                      <td className="px-3 py-2.5 w-[96px]">
+                        <select
+                          value={line.unit}
+                          onChange={(e) =>
+                            setLines((prev) =>
+                              prev.map((l) =>
+                                l.key === line.key ? { ...l, unit: e.target.value } : l
+                              )
+                            )
+                          }
+                          className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1.5 text-sm outline-none ring-[var(--accent)] focus:ring-1"
+                        >
+                          <option value="">—</option>
+                          {(unitChoices.includes(line.unit) || !line.unit
+                            ? unitChoices
+                            : [line.unit, ...unitChoices]
+                          ).map((u) => (
+                            <option key={u} value={u}>
+                              {u}
+                            </option>
+                          ))}
+                        </select>
                       </td>
                       <td className="px-3 py-2.5 w-[120px]">
                         <input
@@ -804,7 +856,10 @@ export default function PurchasesPage() {
                   <td className="px-3 py-2.5 text-[var(--text-muted)]">
                     {it.size} / {it.color}
                   </td>
-                  <td className="px-3 py-2.5 tabular-nums">{it.quantity}</td>
+                  <td className="px-3 py-2.5 tabular-nums">
+                    {it.quantity}
+                    {it.unit ? <span className="ml-1 text-[var(--text-muted)]">{it.unit}</span> : null}
+                  </td>
                   <td className="px-3 py-2.5 tabular-nums">{money(it.unitCost)}</td>
                   <td className="px-3 py-2.5 font-medium tabular-nums">{money(it.lineTotal)}</td>
                 </tr>

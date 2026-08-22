@@ -40,6 +40,7 @@ import {
   customers,
   accounts,
   stockMovements,
+  units,
 } from "../db/schema";
 import { requirePermission, getCurrentSession, PermissionError } from "./session";
 
@@ -76,6 +77,14 @@ async function guarded<T>(check: () => void, fn: Handler<T>): Promise<ActionResu
   }
 }
 
+/** Line unit label: what the user picked, else the product's own unit. */
+function resolveUnitLabel(unitId: string | null, override?: string | null): string | null {
+  const picked = String(override ?? "").trim();
+  if (picked) return picked;
+  if (!unitId) return null;
+  return getDb().select().from(units).where(eq(units.id, unitId)).get()?.shortName ?? null;
+}
+
 function mapSaleItem(row: typeof saleItems.$inferSelect): SaleItem {
   return {
     id: row.id,
@@ -85,6 +94,7 @@ function mapSaleItem(row: typeof saleItems.$inferSelect): SaleItem {
     size: row.size,
     color: row.color,
     quantity: row.quantity,
+    unit: row.unit,
     unitPrice: row.unitPrice,
     costPrice: row.costPrice,
     discountAmount: row.discountAmount,
@@ -293,6 +303,7 @@ export function registerSalesHandlers(): void {
         size: string | null;
         color: string | null;
         quantity: number;
+        unit: string | null;
         unitPrice: number;
         costPrice: number;
         discountAmount: number;
@@ -342,6 +353,7 @@ export function registerSalesHandlers(): void {
           size: variant.size,
           color: variant.color,
           quantity: qty,
+          unit: resolveUnitLabel(product.unitId, line.unit),
           unitPrice: money(unitPrice),
           costPrice: money(Number(variant.costPrice ?? product.costPrice ?? 0)),
           discountAmount,
@@ -460,6 +472,7 @@ export function registerSalesHandlers(): void {
             size: line.size,
             color: line.color,
             quantity: line.quantity,
+            unit: line.unit,
             unitPrice: line.unitPrice,
             costPrice: line.costPrice,
             discountAmount: line.discountAmount,
@@ -548,6 +561,7 @@ export function registerSalesHandlers(): void {
           size: string | null;
           color: string | null;
           quantity: number;
+          unit: string | null;
           unitPrice: number;
           costPrice: number;
           discountAmount: number;
@@ -597,6 +611,7 @@ export function registerSalesHandlers(): void {
             size: variant.size,
             color: variant.color,
             quantity: qty,
+            unit: resolveUnitLabel(product.unitId, line.unit),
             unitPrice: money(unitPrice),
             costPrice: money(Number(variant.costPrice ?? product.costPrice ?? 0)),
             discountAmount,
@@ -727,6 +742,7 @@ export function registerSalesHandlers(): void {
               size: line.size,
               color: line.color,
               quantity: line.quantity,
+              unit: line.unit,
               unitPrice: line.unitPrice,
               costPrice: line.costPrice,
               discountAmount: line.discountAmount,

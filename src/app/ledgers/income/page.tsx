@@ -1,12 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Plus } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { LedgerInquiry } from "@/components/ops/LedgerInquiry";
+import { Button } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
+import { hasPermission } from "@/lib/permissions";
+import { useAuthStore } from "@/store/auth";
 import type { Account, AccountLedger } from "@shared/ipc";
 
 export default function IncomeLedgerPage() {
+  const router = useRouter();
+  const user = useAuthStore((s) => s.user);
+  const canCreate = hasPermission(user, "transactions.create");
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountId, setAccountId] = useState("");
   const [fromDate, setFromDate] = useState("");
@@ -72,6 +80,24 @@ export default function IncomeLedgerPage() {
         error={error}
         exportFilename="income-ledger"
         emptyHint="Choose an income account from the left to see period movements and closing balance."
+        headerActions={
+          canCreate ? (
+            <Button
+              size="sm"
+              type="button"
+              onClick={() =>
+                router.push(
+                  accountId
+                    ? `/transactions/income?incomeAccountId=${encodeURIComponent(accountId)}`
+                    : "/transactions/income"
+                )
+              }
+            >
+              <Plus size={14} />
+              New income
+            </Button>
+          ) : null
+        }
         statement={
           ledger
             ? {
