@@ -52,8 +52,6 @@ const api: ElectronAPI = {
 
   listInventory: () => ipcRenderer.invoke(IPC.INVENTORY_LIST),
   adjustStock: (input) => ipcRenderer.invoke(IPC.INVENTORY_ADJUST, input),
-  findInventoryByBarcode: (barcode) => ipcRenderer.invoke(IPC.INVENTORY_FIND_BARCODE, barcode),
-
   listCustomers: () => ipcRenderer.invoke(IPC.CUSTOMERS_LIST),
   createCustomer: (input) => ipcRenderer.invoke(IPC.CUSTOMERS_CREATE, input),
   updateCustomer: (id, input) => ipcRenderer.invoke(IPC.CUSTOMERS_UPDATE, id, input),

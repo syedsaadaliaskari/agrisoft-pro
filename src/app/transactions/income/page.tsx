@@ -161,7 +161,6 @@ export default function IncomePage() {
 
       <VoucherWorkspace
         formTitle={editingId ? "Edit income" : "New income"}
-        formHint="Credit income head and debit cash/bank"
         stats={
           <OpsStatStrip
             items={[
@@ -230,10 +229,7 @@ export default function IncomePage() {
           loading ? (
             <OpsListSkeleton rows={5} />
           ) : rows.length === 0 ? (
-            <OpsEmptyState
-              title="No income vouchers yet"
-              hint="Post miscellaneous income that is not from a sale invoice."
-            />
+            <OpsEmptyState title="No income vouchers yet" />
           ) : (
             <DataTable
               headers={["Voucher", "Income acct", "Received in", "Amount", "Status", ""]}

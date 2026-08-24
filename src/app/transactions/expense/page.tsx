@@ -161,7 +161,6 @@ export default function ExpensePage() {
 
       <VoucherWorkspace
         formTitle={editingId ? "Edit expense" : "New expense"}
-        formHint="Debit expense head and credit cash/bank"
         stats={
           <OpsStatStrip
             items={[
@@ -230,7 +229,7 @@ export default function ExpensePage() {
           loading ? (
             <OpsListSkeleton rows={5} />
           ) : rows.length === 0 ? (
-            <OpsEmptyState title="No expenses yet" hint="Post rent, utilities, wages, and other operating costs." />
+            <OpsEmptyState title="No expenses yet" />
           ) : (
             <DataTable
               headers={["Voucher", "Expense acct", "Paid from", "Amount", "Status", ""]}

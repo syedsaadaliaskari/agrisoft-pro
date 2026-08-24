@@ -328,7 +328,6 @@ export default function SaleReturnsPage() {
       ) : filtered.length === 0 ? (
         <OpsEmptyState
           title={search || filter !== "all" ? "No matching returns" : "No sale returns yet"}
-          hint="Create a credit note from an original sale or by picking packs manually."
           action={
             !search && filter === "all" ? (
               <Button onClick={openCreate}>
@@ -433,23 +432,15 @@ export default function SaleReturnsPage() {
 
             <ComposerSection title="Refund">
               {saleId ? (
-                <>
-                  <p className="text-sm text-[var(--text-muted)]">
-                    Linked to original sale — cash/bank and credit reverse in the same proportion as
-                    that sale was paid. Account override applies only to the cash/bank portion.
-                  </p>
-                  <div className="mt-3">
-                    <Select
-                      label="Cash/bank account (optional)"
-                      value={accountId}
-                      onChange={(e) => setAccountId(e.target.value)}
-                      options={[
-                        { value: "", label: "Use original sale account" },
-                        ...accounts.map((a) => ({ value: a.id, label: a.name })),
-                      ]}
-                    />
-                  </div>
-                </>
+                <Select
+                  label="Cash/bank account (optional)"
+                  value={accountId}
+                  onChange={(e) => setAccountId(e.target.value)}
+                  options={[
+                    { value: "", label: "Use original sale account" },
+                    ...accounts.map((a) => ({ value: a.id, label: a.name })),
+                  ]}
+                />
               ) : (
                 <>
                   <PaymentModePicker value={refundMode} onChange={setRefundMode} />

@@ -142,7 +142,6 @@ export default function OwnerDrawPage() {
 
       <VoucherWorkspace
         formTitle={editingId ? "Edit owner draw" : "New owner draw"}
-        formHint="Reduces cash/bank and owner equity — not an operating expense"
         stats={
           <OpsStatStrip
             items={[
@@ -205,7 +204,7 @@ export default function OwnerDrawPage() {
           loading ? (
             <OpsListSkeleton rows={5} />
           ) : rows.length === 0 ? (
-            <OpsEmptyState title="No owner draws yet" hint="Post a draw when cash leaves for personal use." />
+            <OpsEmptyState title="No owner draws yet" />
           ) : (
             <DataTable headers={["Voucher", "Taken from", "Amount", "Status", ""]} empty={false}>
               {rows.map((row) => (

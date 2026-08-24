@@ -95,7 +95,6 @@ function AccountTypeLedgerPage({
         loading={loading}
         error={error}
         exportFilename={exportFilename}
-        emptyHint={`Choose a ${accountType} account from the left to see period movements and closing balance.`}
         headerActions={
           canCreate ? (
             <Button

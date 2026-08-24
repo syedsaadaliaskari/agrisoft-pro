@@ -79,7 +79,6 @@ export default function VendorLedgerPage() {
         loading={loading}
         error={error}
         exportFilename="vendor-ledger"
-        emptyHint="Choose a vendor from the left to see purchases, payments, returns, and running balance."
         headerActions={
           canPay && vendorId ? (
             <Button

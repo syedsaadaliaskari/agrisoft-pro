@@ -295,10 +295,7 @@ export default function CustomersPage() {
             {loading ? (
               <OpsListSkeleton rows={6} />
             ) : filtered.length === 0 ? (
-              <OpsEmptyState
-                title={search ? "No matching customers" : "No customers yet"}
-                hint="Add a buyer on the left — they will appear here for sales and receipts."
-              />
+              <OpsEmptyState title={search ? "No matching customers" : "No customers yet"} />
             ) : (
               <DataTable
                 headers={["Party", "Contact", "Opening", "Limit", "Status", ""]}

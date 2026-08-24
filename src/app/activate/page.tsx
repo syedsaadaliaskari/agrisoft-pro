@@ -150,10 +150,6 @@ export default function ActivatePage() {
               >
                 Activate Pro
               </h1>
-              <p className="mt-1.5 text-sm leading-relaxed text-[var(--text-muted)]">
-                Send your Install ID to the vendor. When they reply with an activation code, paste it
-                below — then use the normal login screen.
-              </p>
             </div>
           </div>
 
@@ -176,9 +172,6 @@ export default function ActivatePage() {
                 Loading ID…
               </div>
             )}
-            <p className="mt-4 max-w-sm text-center text-xs leading-relaxed text-[var(--text-muted)]">
-              Scan this QR or copy the Install ID and send it on WhatsApp ({VENDOR_SUPPORT.whatsappDisplay}).
-            </p>
           </div>
 
           <div className="mt-5 rounded-xl border border-[var(--border)] bg-[var(--bg-soft)]/70 p-4">
@@ -217,7 +210,6 @@ export default function ActivatePage() {
               label="Paste code"
               value={activationCode}
               onChange={(e) => setActivationCode(e.target.value)}
-              placeholder="ASP1.…"
               autoComplete="off"
             />
             <Button type="submit" disabled={busy || !activationCode.trim()}>

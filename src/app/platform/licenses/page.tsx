@@ -94,23 +94,14 @@ export default function ActivatedListPage() {
         </div>
       ) : null}
 
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <p className="max-w-xl text-xs text-[var(--text-muted)]">
-          <span className="font-medium text-[var(--text)]">Copy code</span> → WhatsApp to customer.
-          They paste it on their lock screen.{" "}
-          <span className="font-medium text-[var(--text)]">Stop access</span> on this PC locks
-          immediately.
-        </p>
+      <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
         <Button variant="ghost" size="sm" onClick={() => void load()} disabled={loading}>
           Refresh
         </Button>
       </div>
 
       {!loading && !rows.length ? (
-        <OpsEmptyState
-          title="No activated companies yet"
-          hint="Open Setup → License, paste an Install ID, activate, then copy the activation code."
-        />
+        <OpsEmptyState title="No activated companies yet" />
       ) : (
         <DataTable
           headers={["Company", "Install ID", "Plan", "Activated", "Expires", ""]}

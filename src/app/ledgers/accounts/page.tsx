@@ -71,7 +71,6 @@ export default function AccountsLedgerPage() {
         loading={loading}
         error={error}
         exportFilename="accounts-ledger"
-        emptyHint="Choose a cash, bank, or GL account from the left to see opening, movements, and closing balance."
         statement={
           ledger
             ? {

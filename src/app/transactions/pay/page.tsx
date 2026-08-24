@@ -167,7 +167,6 @@ export default function MakePaymentPage() {
 
       <VoucherWorkspace
         formTitle={editingId ? "Edit payment" : "New payment"}
-        formHint="Clear vendor payable from till or bank account"
         stats={
           <OpsStatStrip
             items={[
@@ -241,10 +240,7 @@ export default function MakePaymentPage() {
           loading ? (
             <OpsListSkeleton rows={5} />
           ) : rows.length === 0 ? (
-            <OpsEmptyState
-              title="No payments yet"
-              hint="Pay a vendor to reduce payables from cash or bank."
-            />
+            <OpsEmptyState title="No payments yet" />
           ) : (
             <DataTable
               headers={["Voucher", "Vendor", "Account", "Amount", "Status", ""]}

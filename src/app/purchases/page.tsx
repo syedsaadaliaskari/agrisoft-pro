@@ -476,11 +476,6 @@ export default function PurchasesPage() {
       ) : filtered.length === 0 ? (
         <OpsEmptyState
           title={search || modeFilter !== "all" ? "No matching purchases" : "No purchases yet"}
-          hint={
-            search || modeFilter !== "all"
-              ? "Clear filters or search to see the full receiving register."
-              : "Record a vendor bill — stock increases and payables post automatically."
-          }
           action={
             canCreate && !search && modeFilter === "all" ? (
               <Button onClick={openComposer}>
@@ -626,7 +621,6 @@ export default function PurchasesPage() {
                 bankPaid={bankPaid}
                 onCashPaid={setCashPaid}
                 onBankPaid={setBankPaid}
-                dueHint="Unpaid amount stays on vendor payable."
               />
             </ComposerSection>
 
@@ -654,7 +648,6 @@ export default function PurchasesPage() {
               <LineItemsTable
                 headers={["Product", "In stock", "Qty", "Unit", "Unit cost", "Line total", ""]}
                 empty={lines.length === 0}
-                emptyHint="Select a pack to receive into stock."
               >
                 {lines.map((line) => {
                   const lineTotal = Number(line.quantity || 0) * Number(line.unitCost || 0);
@@ -848,7 +841,6 @@ export default function PurchasesPage() {
               headers={["Product", "Pack", "Qty", "Cost", "Total"]}
               empty={!viewing.items?.length}
               emptyTitle="No items"
-              emptyHint=""
             >
               {(viewing.items ?? []).map((it) => (
                 <tr key={it.id}>

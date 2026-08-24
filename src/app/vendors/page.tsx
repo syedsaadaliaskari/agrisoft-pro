@@ -278,10 +278,7 @@ export default function VendorsPage() {
             {loading ? (
               <OpsListSkeleton rows={6} />
             ) : filtered.length === 0 ? (
-              <OpsEmptyState
-                title={search ? "No matching vendors" : "No vendors yet"}
-                hint="Add a supplier on the left — they will appear here for purchases and payments."
-              />
+              <OpsEmptyState title={search ? "No matching vendors" : "No vendors yet"} />
             ) : (
               <DataTable headers={["Party", "Contact", "Opening", "Status", ""]} empty={false}>
                 {filtered.map((row) => (

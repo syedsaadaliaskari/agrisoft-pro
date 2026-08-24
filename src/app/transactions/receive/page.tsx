@@ -167,7 +167,6 @@ export default function ReceivePaymentPage() {
 
       <VoucherWorkspace
         formTitle={editingId ? "Edit receipt" : "New receipt"}
-        formHint="Reduce customer receivable and deposit to till / bank"
         stats={
           <OpsStatStrip
             items={[
@@ -241,10 +240,7 @@ export default function ReceivePaymentPage() {
           loading ? (
             <OpsListSkeleton rows={5} />
           ) : rows.length === 0 ? (
-            <OpsEmptyState
-              title="No receipts yet"
-              hint="Post a customer payment to clear receivables into cash or bank."
-            />
+            <OpsEmptyState title="No receipts yet" />
           ) : (
             <DataTable
               headers={["Voucher", "Customer", "Account", "Amount", "Status", ""]}

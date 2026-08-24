@@ -314,7 +314,6 @@ export default function PurchaseReturnsPage() {
       ) : filtered.length === 0 ? (
         <OpsEmptyState
           title={search || filter !== "all" ? "No matching returns" : "No purchase returns yet"}
-          hint="Link a purchase bill to pull lines, or pick packs to return to the vendor."
           action={
             !search && filter === "all" ? (
               <Button onClick={openCreate}>
@@ -419,24 +418,15 @@ export default function PurchaseReturnsPage() {
 
             <ComposerSection title="Refund">
               {purchaseId ? (
-                <>
-                  <p className="text-sm text-[var(--text-muted)]">
-                    Linked to original purchase — cash/bank and payable reverse in the same
-                    proportion as that purchase was paid (part-paid purchases do not add full
-                    invoice amount back to cash).
-                  </p>
-                  <div className="mt-3">
-                    <Select
-                      label="Cash/bank account (optional)"
-                      value={accountId}
-                      onChange={(e) => setAccountId(e.target.value)}
-                      options={[
-                        { value: "", label: "Use original purchase account" },
-                        ...accounts.map((a) => ({ value: a.id, label: a.name })),
-                      ]}
-                    />
-                  </div>
-                </>
+                <Select
+                  label="Cash/bank account (optional)"
+                  value={accountId}
+                  onChange={(e) => setAccountId(e.target.value)}
+                  options={[
+                    { value: "", label: "Use original purchase account" },
+                    ...accounts.map((a) => ({ value: a.id, label: a.name })),
+                  ]}
+                />
               ) : (
                 <>
                   <PaymentModePicker value={refundMode} onChange={setRefundMode} />

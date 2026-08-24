@@ -79,7 +79,6 @@ export default function IncomeLedgerPage() {
         loading={loading}
         error={error}
         exportFilename="income-ledger"
-        emptyHint="Choose an income account from the left to see period movements and closing balance."
         headerActions={
           canCreate ? (
             <Button

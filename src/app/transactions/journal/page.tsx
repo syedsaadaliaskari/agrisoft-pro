@@ -246,7 +246,6 @@ export default function JournalPage() {
       <div className="mb-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_280px]">
         <ComposerSection
           title={editingId ? "Edit journal voucher" : "New journal voucher"}
-          hint="Debits must equal credits before posting"
           action={
             <span
               className={`rounded-lg px-2 py-1 text-[11px] font-semibold ${
@@ -400,7 +399,7 @@ export default function JournalPage() {
         {loading ? (
           <OpsListSkeleton rows={5} />
         ) : rows.length === 0 ? (
-          <OpsEmptyState title="No journals yet" hint="Create a balanced double-entry voucher above." />
+          <OpsEmptyState title="No journals yet" />
         ) : (
           <DataTable headers={["Voucher", "Amount", "Notes", "Status", ""]} empty={false}>
             {rows.map((row) => (

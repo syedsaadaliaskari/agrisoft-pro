@@ -450,14 +450,14 @@ export function OpsEmptyState({
   action,
 }: {
   title: string;
-  hint: string;
+  hint?: string;
   action?: React.ReactNode;
 }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--border-strong)] bg-[var(--bg-elevated)] px-6 py-16 text-center">
       <div className="mb-4 h-14 w-14 rounded-2xl bg-gradient-to-br from-[var(--accent-soft)] to-[var(--atmosphere-2)]" />
       <h3 className="text-base font-semibold">{title}</h3>
-      <p className="mt-1 max-w-md text-sm text-[var(--text-muted)]">{hint}</p>
+      {hint ? <p className="mt-1 max-w-md text-sm text-[var(--text-muted)]">{hint}</p> : null}
       {action ? <div className="mt-5">{action}</div> : null}
     </div>
   );

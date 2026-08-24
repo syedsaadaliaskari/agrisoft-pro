@@ -79,7 +79,6 @@ export default function CustomerLedgerPage() {
         loading={loading}
         error={error}
         exportFilename="customer-ledger"
-        emptyHint="Choose a customer from the left to see sales, receipts, returns, and running balance."
         headerActions={
           canReceive && customerId ? (
             <Button

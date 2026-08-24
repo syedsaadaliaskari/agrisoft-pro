@@ -200,7 +200,6 @@ export default function BackupPage() {
                 {t("backup.backup")}
               </div>
               <h2 className="mt-1 text-lg font-semibold tracking-tight">{t("backup.savePoint")}</h2>
-              <p className="mt-1 text-xs text-[var(--text-muted)]">{t("backup.backupHint")}</p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button onClick={() => void onManual()} disabled={busy}>
                   <Save size={14} /> {t("backup.backupNow")}
@@ -224,7 +223,6 @@ export default function BackupPage() {
                 {t("backup.restore")}
               </div>
               <h2 className="mt-1 text-lg font-semibold tracking-tight">{t("backup.replaceData")}</h2>
-              <p className="mt-1 text-xs text-[var(--text-muted)]">{t("backup.restoreHint")}</p>
               <div className="mt-4">
                 <Button variant="danger" onClick={() => void onRestore()} disabled={busy}>
                   <RotateCcw size={14} /> {t("backup.restoreFromFile")}
@@ -264,7 +262,6 @@ export default function BackupPage() {
           <div className="mb-3 flex items-end justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold">{t("backup.history")}</h2>
-              <p className="text-xs text-[var(--text-muted)]">{t("backup.historyHint")}</p>
             </div>
             <Button variant="ghost" size="sm" onClick={() => void load()} disabled={busy || loading}>
               <RefreshCw size={14} /> {t("common.refresh")}
@@ -272,7 +269,7 @@ export default function BackupPage() {
           </div>
 
           {!status?.autoBackups.length ? (
-            <OpsEmptyState title={t("backup.noAuto")} hint={t("backup.noAutoHint")} />
+            <OpsEmptyState title={t("backup.noAuto")} />
           ) : (
             <DataTable
               headers={[t("backup.file"), t("backup.saved"), t("backup.size"), ""]}

@@ -498,11 +498,6 @@ export default function SalesPage() {
       ) : filtered.length === 0 ? (
         <OpsEmptyState
           title={search || modeFilter !== "all" ? "No matching sales" : "No sales yet"}
-          hint={
-            search || modeFilter !== "all"
-              ? "Try clearing filters or search to see the full register."
-              : "Create your first invoice — add packs, set payment, and post to stock & ledger."
-          }
           action={
             canCreate && !search && modeFilter === "all" ? (
               <Button onClick={openComposer}>
@@ -660,7 +655,6 @@ export default function SalesPage() {
                 bankPaid={bankPaid}
                 onCashPaid={setCashPaid}
                 onBankPaid={setBankPaid}
-                dueHint="Pick a customer — unpaid amount goes to their ledger."
               />
             </ComposerSection>
 
@@ -892,7 +886,6 @@ export default function SalesPage() {
               headers={["Product", "Pack", "Qty", "Price", "Total"]}
               empty={!viewing.items?.length}
               emptyTitle="No items on this sale"
-              emptyHint=""
             >
               {(viewing.items ?? []).map((it) => (
                 <tr key={it.id}>

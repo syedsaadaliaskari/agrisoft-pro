@@ -21,7 +21,6 @@ import type { Category, Product, ProductVariant, Tax, Unit } from "@shared/ipc";
 
 const emptyProduct = {
   sku: "",
-  barcode: "",
   name: "",
   description: "",
   categoryId: "",
@@ -40,7 +39,6 @@ const emptyPack = {
   size: "",
   color: "",
   sku: "",
-  barcode: "",
   stockQty: "0",
   costPrice: "",
   salePrice: "",
@@ -113,7 +111,6 @@ export default function ProductsPage() {
     setEditing(row);
     setForm({
       sku: row.sku,
-      barcode: row.barcode ?? "",
       name: row.name,
       description: row.description ?? "",
       categoryId: row.categoryId ?? "",
@@ -136,7 +133,6 @@ export default function ProductsPage() {
     setError("");
     const payload = {
       sku: form.sku || undefined,
-      barcode: form.barcode || null,
       name: form.name,
       description: form.description || null,
       categoryId: form.categoryId || null,
@@ -192,7 +188,6 @@ export default function ProductsPage() {
       size: packForm.size,
       color: packForm.color,
       sku: packForm.sku || undefined,
-      barcode: packForm.barcode || null,
       stockQty: Number(packForm.stockQty),
       costPrice: packForm.costPrice === "" ? null : Number(packForm.costPrice),
       salePrice: packForm.salePrice === "" ? null : Number(packForm.salePrice),
@@ -220,7 +215,6 @@ export default function ProductsPage() {
       size: pack.size,
       color: pack.color,
       sku: pack.sku,
-      barcode: pack.barcode ?? "",
       stockQty: String(pack.stockQty),
       costPrice: pack.costPrice == null ? "" : String(pack.costPrice),
       salePrice: pack.salePrice == null ? "" : String(pack.salePrice),
@@ -352,18 +346,10 @@ export default function ProductsPage() {
       >
         {error ? <Alert>{error}</Alert> : null}
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Input
-              label="SKU"
-              value={form.sku}
-              onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))}
-            />
-            <p className="text-xs text-[var(--text-muted)]">Leave blank to generate automatically</p>
-          </div>
           <Input
-            label="Barcode"
-            value={form.barcode}
-            onChange={(e) => setForm((f) => ({ ...f, barcode: e.target.value }))}
+            label="SKU"
+            value={form.sku}
+            onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))}
           />
           <Input
             label="Name"
@@ -485,18 +471,10 @@ export default function ProductsPage() {
               value={packForm.color}
               onChange={(e) => setPackForm((f) => ({ ...f, color: e.target.value }))}
             />
-            <div className="space-y-1.5">
-              <Input
-                label="SKU"
-                value={packForm.sku}
-                onChange={(e) => setPackForm((f) => ({ ...f, sku: e.target.value }))}
-              />
-              <p className="text-xs text-[var(--text-muted)]">Leave blank to generate automatically</p>
-            </div>
             <Input
-              label="Barcode"
-              value={packForm.barcode}
-              onChange={(e) => setPackForm((f) => ({ ...f, barcode: e.target.value }))}
+              label="SKU"
+              value={packForm.sku}
+              onChange={(e) => setPackForm((f) => ({ ...f, sku: e.target.value }))}
             />
             {!editingPack ? (
               <Input
@@ -508,32 +486,22 @@ export default function ProductsPage() {
                 onChange={(e) => setPackForm((f) => ({ ...f, stockQty: e.target.value }))}
               />
             ) : null}
-            <div className="space-y-1.5">
-              <Input
-                label="Cost price for this pack"
-                type="number"
-                min={0}
-                step="0.01"
-                value={packForm.costPrice}
-                onChange={(e) => setPackForm((f) => ({ ...f, costPrice: e.target.value }))}
-              />
-              <p className="text-xs text-[var(--text-muted)]">
-                Leave blank to use the product cost price
-              </p>
-            </div>
-            <div className="space-y-1.5">
-              <Input
-                label="Sale price for this pack"
-                type="number"
-                min={0}
-                step="0.01"
-                value={packForm.salePrice}
-                onChange={(e) => setPackForm((f) => ({ ...f, salePrice: e.target.value }))}
-              />
-              <p className="text-xs text-[var(--text-muted)]">
-                Leave blank to use the product sale price
-              </p>
-            </div>
+            <Input
+              label="Cost price for this pack"
+              type="number"
+              min={0}
+              step="0.01"
+              value={packForm.costPrice}
+              onChange={(e) => setPackForm((f) => ({ ...f, costPrice: e.target.value }))}
+            />
+            <Input
+              label="Sale price for this pack"
+              type="number"
+              min={0}
+              step="0.01"
+              value={packForm.salePrice}
+              onChange={(e) => setPackForm((f) => ({ ...f, salePrice: e.target.value }))}
+            />
           </div>
           <div className="mt-3 flex items-center justify-between gap-2">
             <Checkbox

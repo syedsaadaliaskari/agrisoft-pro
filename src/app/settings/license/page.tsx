@@ -164,10 +164,6 @@ export default function LicenseInfoPage() {
             <span className="text-[11px] font-semibold uppercase tracking-[0.1em]">This install</span>
           </div>
           <h2 className="mt-2 text-lg font-semibold">Install ID</h2>
-          <p className="mt-1 text-xs text-[var(--text-muted)]">
-            Customer sends their Install ID. You activate below, then WhatsApp them the activation
-            code. They paste it on the lock screen — no passwords.
-          </p>
           <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--bg-soft)]/60 px-3 py-3 font-mono text-sm font-semibold">
             {status?.installId ?? "…"}
           </div>
@@ -212,10 +208,6 @@ export default function LicenseInfoPage() {
           className="grid max-w-3xl gap-3 rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5 sm:grid-cols-2"
         >
           <div className="sm:col-span-2 text-sm font-semibold">Activate a company</div>
-          <p className="sm:col-span-2 -mt-1 text-xs text-[var(--text-muted)]">
-            Paste their Install ID, choose plan, activate — then copy the activation code and send it
-            on WhatsApp.
-          </p>
           <Input
             label="Company / name"
             value={form.name}
@@ -245,7 +237,6 @@ export default function LicenseInfoPage() {
               label="Customer WhatsApp (for n8n auto-send)"
               value={form.phone}
               onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-              placeholder="92300…"
             />
           </div>
           <div className="sm:col-span-2">
@@ -265,9 +256,6 @@ export default function LicenseInfoPage() {
         {lastCode ? (
           <section className="max-w-3xl rounded-2xl border border-[var(--accent)]/40 bg-[var(--accent-soft)]/40 p-5">
             <div className="text-sm font-semibold text-[var(--text)]">Activation code — send on WhatsApp</div>
-            <p className="mt-1 text-xs text-[var(--text-muted)]">
-              Customer pastes this on their Activate Pro screen, then uses normal login.
-            </p>
             <div className="mt-3 break-all rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-3 font-mono text-xs leading-relaxed">
               {lastCode}
             </div>

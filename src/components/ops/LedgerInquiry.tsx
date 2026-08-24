@@ -91,7 +91,7 @@ export function LedgerInquiry({
   error: string;
   statement: LedgerStatement | null;
   exportFilename: string;
-  emptyHint: string;
+  emptyHint?: string;
   headerActions?: ReactNode;
 }) {
   const [query, setQuery] = useState("");
@@ -290,10 +290,7 @@ export function LedgerInquiry({
               />
 
               {statement.lines.length === 0 ? (
-                <OpsEmptyState
-                  title="No movements in this period"
-                  hint="Try widening the date range, or post a voucher that hits this ledger."
-                />
+                <OpsEmptyState title="No movements in this period" />
               ) : (
                 <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)]">
                   <div className="overflow-x-auto">

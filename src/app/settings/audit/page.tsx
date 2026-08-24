@@ -191,7 +191,6 @@ export default function AuditLogPage() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") applySearch();
                   }}
-                  placeholder="User, details, entity…"
                   className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] py-2 pe-3 ps-9 text-sm outline-none ring-[var(--accent)] focus:ring-1"
                 />
               </div>

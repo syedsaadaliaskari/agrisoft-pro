@@ -58,8 +58,6 @@ export const IPC = {
   // Inventory
   INVENTORY_LIST: "inventory:list",
   INVENTORY_ADJUST: "inventory:adjust",
-  INVENTORY_FIND_BARCODE: "inventory:findByBarcode",
-
   // Customers
   CUSTOMERS_LIST: "customers:list",
   CUSTOMERS_CREATE: "customers:create",
@@ -1424,8 +1422,6 @@ export type ElectronAPI = {
 
   listInventory: () => Promise<ActionResult<InventoryRow[]>>;
   adjustStock: (input: StockAdjustInput) => Promise<ActionResult<InventoryRow>>;
-  findInventoryByBarcode: (barcode: string) => Promise<ActionResult<InventoryRow>>;
-
   listCustomers: () => Promise<ActionResult<Customer[]>>;
   createCustomer: (input: CustomerInput) => Promise<ActionResult<Customer>>;
   updateCustomer: (id: string, input: CustomerInput) => Promise<ActionResult<Customer>>;
