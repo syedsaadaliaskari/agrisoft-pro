@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowUpRight, Ban, Pencil, Receipt } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
@@ -22,7 +22,7 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export default function MakePaymentPage() {
+function MakePaymentPageInner() {
   const searchParams = useSearchParams();
   const prefVendorId = searchParams.get("vendorId") || "";
   const user = useAuthStore((s) => s.user);
@@ -285,5 +285,13 @@ export default function MakePaymentPage() {
         }
       />
     </AppShell>
+  );
+}
+
+export default function MakePaymentPage() {
+  return (
+    <Suspense fallback={null}>
+      <MakePaymentPageInner />
+    </Suspense>
   );
 }

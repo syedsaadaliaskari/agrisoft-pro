@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Ban, Pencil, Receipt, Wallet } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
@@ -22,7 +22,7 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export default function ExpensePage() {
+function ExpensePageInner() {
   const searchParams = useSearchParams();
   const prefExpenseAccountId = searchParams.get("expenseAccountId") || "";
   const user = useAuthStore((s) => s.user);
@@ -277,5 +277,13 @@ export default function ExpensePage() {
         }
       />
     </AppShell>
+  );
+}
+
+export default function ExpensePage() {
+  return (
+    <Suspense fallback={null}>
+      <ExpensePageInner />
+    </Suspense>
   );
 }

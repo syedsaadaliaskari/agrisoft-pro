@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Ban, Pencil, Receipt, TrendingUp } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
@@ -22,7 +22,7 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export default function IncomePage() {
+function IncomePageInner() {
   const searchParams = useSearchParams();
   const prefIncomeAccountId = searchParams.get("incomeAccountId") || "";
   const user = useAuthStore((s) => s.user);
@@ -277,5 +277,13 @@ export default function IncomePage() {
         }
       />
     </AppShell>
+  );
+}
+
+export default function IncomePage() {
+  return (
+    <Suspense fallback={null}>
+      <IncomePageInner />
+    </Suspense>
   );
 }
