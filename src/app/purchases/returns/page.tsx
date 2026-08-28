@@ -6,14 +6,13 @@ import { AppShell } from "@/components/layout/AppShell";
 import { ExportMenu } from "@/components/ExportMenu";
 import { PrintMenu } from "@/components/PrintMenu";
 import {
-  ComposerSection,
+  ComposerShell,
   FilterChips,
   LineItemsTable,
   OpsEmptyState,
   OpsListSkeleton,
   OpsStatStrip,
   PaymentModePicker,
-  TotalsPanel,
   money,
 } from "@/components/ops/DocumentWorkspace";
 import {
@@ -24,7 +23,6 @@ import {
   Modal,
   PageToolbar,
   Select,
-  Textarea,
 } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
 import { buildPurchaseReturnPrintHtml } from "@/lib/print";
@@ -374,10 +372,10 @@ export default function PurchaseReturnsPage() {
         }
       >
         {error ? <Alert>{error}</Alert> : null}
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-          <div className="space-y-4">
-            <ComposerSection title="Return">
-              <div className="grid gap-3 sm:grid-cols-2">
+        <ComposerShell
+          header={
+            <div className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 <Input
                   label="Date"
                   type="date"
@@ -413,58 +411,64 @@ export default function PurchaseReturnsPage() {
                   value={taxAmount}
                   onChange={(e) => setTaxAmount(e.target.value)}
                 />
+                <Input
+                  label="Notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
               </div>
-            </ComposerSection>
-
-            <ComposerSection title="Refund">
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <div className="flex-1">
+                    <Select
+                      label="Product"
+                      value={pickVariantId}
+                      onChange={(e) => setPickVariantId(e.target.value)}
+                      options={[
+                        { value: "", label: "Select product" },
+                        ...inventory.map((r) => ({
+                          value: r.variantId,
+                          label: `${r.productName} (${r.size}/${r.color})`,
+                        })),
+                      ]}
+                    />
+                  </div>
+                  <Button size="sm" onClick={addLine} disabled={!pickVariantId}>
+                    <Plus size={14} /> Add
+                  </Button>
+                </div>
+                <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--bg-soft)] px-3 py-2 text-sm">
+                  <span className="text-[var(--text-muted)]">Total</span>
+                  <span className="font-semibold tabular-nums">{money(grand)}</span>
+                </div>
+              </div>
               {purchaseId ? (
                 <Select
-                  label="Cash/bank account (optional)"
+                  label="Refund account"
                   value={accountId}
                   onChange={(e) => setAccountId(e.target.value)}
                   options={[
-                    { value: "", label: "Use original purchase account" },
+                    { value: "", label: "Original purchase account" },
                     ...accounts.map((a) => ({ value: a.id, label: a.name })),
                   ]}
                 />
               ) : (
-                <>
+                <div className="grid gap-3 sm:grid-cols-2">
                   <PaymentModePicker value={refundMode} onChange={setRefundMode} />
                   {refundMode !== "credit" ? (
-                    <div className="mt-3">
-                      <Select
-                        label="Account"
-                        value={accountId}
-                        onChange={(e) => setAccountId(e.target.value)}
-                        options={accounts.map((a) => ({ value: a.id, label: a.name }))}
-                      />
-                    </div>
+                    <Select
+                      label="Account"
+                      value={accountId}
+                      onChange={(e) => setAccountId(e.target.value)}
+                      options={accounts.map((a) => ({ value: a.id, label: a.name }))}
+                    />
                   ) : null}
-                </>
-              )}
-            </ComposerSection>
-
-            <ComposerSection title="Products">
-              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end">
-                <div className="flex-1">
-                  <Select
-                    label="Product"
-                    value={pickVariantId}
-                    onChange={(e) => setPickVariantId(e.target.value)}
-                    options={[
-                      { value: "", label: "Select product" },
-                      ...inventory.map((r) => ({
-                        value: r.variantId,
-                        label: `${r.productName} (${r.size}/${r.color})`,
-                      })),
-                    ]}
-                  />
                 </div>
-                <Button size="sm" onClick={addLine} disabled={!pickVariantId}>
-                  <Plus size={14} /> Add
-                </Button>
-              </div>
-              <LineItemsTable
+              )}
+            </div>
+          }
+        >
+            <LineItemsTable
                 headers={["Product", "Qty", "Cost", "Total", ""]}
                 empty={lines.length === 0}
               >
@@ -519,29 +523,7 @@ export default function PurchaseReturnsPage() {
                   );
                 })}
               </LineItemsTable>
-            </ComposerSection>
-
-            <ComposerSection title="Notes">
-              <Textarea
-                label="Return reason / notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-              />
-            </ComposerSection>
-          </div>
-
-          <div className="space-y-4 lg:sticky lg:top-0 lg:self-start">
-            <TotalsPanel
-              accent
-              rows={[
-                { label: "Subtotal", value: money(subtotal), muted: true },
-                { label: "Tax", value: money(Number(taxAmount || 0)), muted: true },
-              ]}
-              grand={money(grand)}
-              grandLabel="Debit note total"
-            />
-          </div>
-        </div>
+        </ComposerShell>
       </Modal>
     </AppShell>
   );

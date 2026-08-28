@@ -18,7 +18,7 @@ import {
 } from "@/components/ops/DocumentWorkspace";
 import { Alert, Button, Input } from "@/components/ui/form";
 import { cn } from "@/lib/utils";
-import type { LedgerLine } from "@shared/ipc";
+import type { LedgerLine, PartyOpenDocument } from "@shared/ipc";
 
 export type LedgerPickItem = {
   id: string;
@@ -39,6 +39,7 @@ export type LedgerStatement = {
   totalDebit: number;
   totalCredit: number;
   lines: LedgerLine[];
+  documents?: PartyOpenDocument[];
 };
 
 function sideLabel(side: string) {
@@ -288,6 +289,49 @@ export function LedgerInquiry({
                   },
                 ]}
               />
+
+              {(statement.documents?.length ?? 0) > 0 ? (
+                <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)]">
+                  <div className="border-b border-[var(--border)] px-4 py-3">
+                    <h3 className="text-sm font-semibold">
+                      {statement.documents![0]?.kind === "purchase" ? "Purchases" : "Sales"}
+                    </h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-left text-sm">
+                      <thead className="border-b border-[var(--border)] bg-[var(--bg-soft)] text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                        <tr>
+                          <th className="px-4 py-3 font-semibold">Invoice</th>
+                          <th className="px-4 py-3 font-semibold">Date</th>
+                          <th className="px-4 py-3 text-right font-semibold">Total</th>
+                          <th className="px-4 py-3 text-right font-semibold">Collected</th>
+                          <th className="px-4 py-3 text-right font-semibold">Remaining</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {statement.documents!.map((d) => (
+                          <tr
+                            key={d.id}
+                            className="border-b border-[var(--border)] last:border-0"
+                          >
+                            <td className="px-4 py-2.5 font-mono text-xs font-semibold">{d.docNo}</td>
+                            <td className="px-4 py-2.5 text-[var(--text-muted)]">{d.docDate}</td>
+                            <td className="px-4 py-2.5 text-right tabular-nums">{money(d.total)}</td>
+                            <td className="px-4 py-2.5 text-right tabular-nums">{money(d.collected)}</td>
+                            <td
+                              className={`px-4 py-2.5 text-right font-semibold tabular-nums ${
+                                d.due > 0 ? "text-[var(--danger)]" : "text-[var(--success)]"
+                              }`}
+                            >
+                              {money(d.due)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : null}
 
               {statement.lines.length === 0 ? (
                 <OpsEmptyState title="No movements in this period" />

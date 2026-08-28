@@ -602,6 +602,16 @@ export type AccountLedger = {
   closingSide: BalanceType;
 };
 
+export type PartyOpenDocument = {
+  id: string;
+  docNo: string;
+  docDate: string;
+  kind: "sale" | "purchase";
+  total: number;
+  collected: number;
+  due: number;
+};
+
 export type PartyLedger = {
   partyType: PartyType;
   partyId: string;
@@ -616,6 +626,7 @@ export type PartyLedger = {
   totalCredit: number;
   closingBalance: number;
   closingSide: BalanceType;
+  documents: PartyOpenDocument[];
 };
 
 export type LedgerQuery = {

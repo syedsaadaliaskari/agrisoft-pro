@@ -386,6 +386,7 @@ create table if not exists public.sale_items (
   size text,
   color text,
   quantity double precision not null,
+  unit text,
   unit_price double precision not null,
   cost_price double precision not null default 0,
   discount_amount double precision not null default 0,
@@ -467,6 +468,7 @@ create table if not exists public.purchase_items (
   size text,
   color text,
   quantity double precision not null,
+  unit text,
   unit_cost double precision not null,
   discount_amount double precision not null default 0,
   tax_amount double precision not null default 0,
@@ -549,6 +551,7 @@ create table if not exists public.licenses (
   expires_at text,
   notes text,
   phone text,
+  tenant_id text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   deleted_at timestamptz

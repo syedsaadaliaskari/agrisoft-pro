@@ -5,8 +5,6 @@ import {
   PackagePlus,
   PackageMinus,
   Package,
-  Tags,
-  Ruler,
   Warehouse,
   Users,
   Truck,
@@ -98,8 +96,6 @@ export const navigation: NavGroup[] = [
     titleKey: "nav.catalog",
     icon: Package,
     items: [
-      { labelKey: "nav.units", href: "/units", icon: Ruler, permission: "products.view" },
-      { labelKey: "nav.categories", href: "/categories", icon: Tags, permission: "products.view" },
       { labelKey: "nav.products", href: "/products", icon: Package, permission: "products.view" },
       { labelKey: "nav.inventory", href: "/inventory", icon: Warehouse, permission: "inventory.view" },
     ],

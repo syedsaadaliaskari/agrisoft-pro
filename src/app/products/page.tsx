@@ -17,19 +17,18 @@ import {
   Textarea,
 } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
+import { formatMoney } from "@/lib/utils";
 import type { Category, Product, ProductVariant, Tax, Unit } from "@shared/ipc";
 
+type CatalogKind = "unit" | "category" | "tax";
+
 const emptyProduct = {
-  sku: "",
   name: "",
   description: "",
   categoryId: "",
   unitId: "",
-  brand: "",
-  season: "",
   costPrice: "0",
   salePrice: "0",
-  wholesalePrice: "",
   taxId: "",
   reorderLevel: "0",
   isActive: true,
@@ -38,7 +37,6 @@ const emptyProduct = {
 const emptyPack = {
   size: "",
   color: "",
-  sku: "",
   stockQty: "0",
   costPrice: "",
   salePrice: "",
@@ -65,6 +63,18 @@ export default function ProductsPage() {
   const [editingPack, setEditingPack] = useState<ProductVariant | null>(null);
   const [packSaving, setPackSaving] = useState(false);
   const [packError, setPackError] = useState("");
+
+  const [catalog, setCatalog] = useState<CatalogKind | null>(null);
+  const [catalogError, setCatalogError] = useState("");
+  const [catalogSaving, setCatalogSaving] = useState(false);
+  const [unitForm, setUnitForm] = useState({ name: "", shortName: "" });
+  const [categoryForm, setCategoryForm] = useState({ name: "" });
+  const [taxForm, setTaxForm] = useState({ name: "", rate: "0" });
+
+  const saleBelowCost =
+    Number(form.costPrice) > 0 &&
+    Number(form.salePrice) >= 0 &&
+    Number(form.salePrice) < Number(form.costPrice);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -95,7 +105,6 @@ export default function ProductsPage() {
       (r) =>
         r.name.toLowerCase().includes(q) ||
         r.sku.toLowerCase().includes(q) ||
-        (r.brand ?? "").toLowerCase().includes(q) ||
         (r.categoryName ?? "").toLowerCase().includes(q)
     );
   }, [rows, search]);
@@ -110,16 +119,12 @@ export default function ProductsPage() {
   const openEdit = (row: Product) => {
     setEditing(row);
     setForm({
-      sku: row.sku,
       name: row.name,
       description: row.description ?? "",
       categoryId: row.categoryId ?? "",
       unitId: row.unitId ?? "",
-      brand: row.brand ?? "",
-      season: row.season ?? "",
       costPrice: String(row.costPrice),
       salePrice: String(row.salePrice),
-      wholesalePrice: row.wholesalePrice == null ? "" : String(row.wholesalePrice),
       taxId: row.taxId ?? "",
       reorderLevel: String(row.reorderLevel),
       isActive: row.isActive,
@@ -132,16 +137,12 @@ export default function ProductsPage() {
     setSaving(true);
     setError("");
     const payload = {
-      sku: form.sku || undefined,
       name: form.name,
       description: form.description || null,
       categoryId: form.categoryId || null,
       unitId: form.unitId || null,
-      brand: form.brand || null,
-      season: form.season || null,
       costPrice: Number(form.costPrice),
       salePrice: Number(form.salePrice),
-      wholesalePrice: form.wholesalePrice === "" ? null : Number(form.wholesalePrice),
       taxId: form.taxId || null,
       reorderLevel: Number(form.reorderLevel),
       isActive: form.isActive,
@@ -187,7 +188,6 @@ export default function ProductsPage() {
     const payload = {
       size: packForm.size,
       color: packForm.color,
-      sku: packForm.sku || undefined,
       stockQty: Number(packForm.stockQty),
       costPrice: packForm.costPrice === "" ? null : Number(packForm.costPrice),
       salePrice: packForm.salePrice === "" ? null : Number(packForm.salePrice),
@@ -214,7 +214,6 @@ export default function ProductsPage() {
     setPackForm({
       size: pack.size,
       color: pack.color,
-      sku: pack.sku,
       stockQty: String(pack.stockQty),
       costPrice: pack.costPrice == null ? "" : String(pack.costPrice),
       salePrice: pack.salePrice == null ? "" : String(pack.salePrice),
@@ -236,6 +235,70 @@ export default function ProductsPage() {
     await load();
   };
 
+  const openCatalog = (kind: CatalogKind) => {
+    setCatalog(kind);
+    setCatalogError("");
+    setUnitForm({ name: "", shortName: "" });
+    setCategoryForm({ name: "" });
+    setTaxForm({ name: "", rate: "0" });
+  };
+
+  const refreshMasters = async () => {
+    const api = getApi();
+    const [unitsRes, catsRes, taxesRes] = await Promise.all([
+      api.listUnits(),
+      api.listCategories(),
+      api.listTaxes(),
+    ]);
+    if (unitsRes.ok) setUnits(unitsRes.data);
+    if (catsRes.ok) setCategories(catsRes.data);
+    if (taxesRes.ok) setTaxes(taxesRes.data);
+  };
+
+  const saveCatalog = async () => {
+    setCatalogSaving(true);
+    setCatalogError("");
+    const api = getApi();
+    if (catalog === "unit") {
+      const res = await api.createUnit({
+        name: unitForm.name.trim(),
+        shortName: unitForm.shortName.trim() || unitForm.name.trim(),
+      });
+      setCatalogSaving(false);
+      if (!res.ok) {
+        setCatalogError(res.error);
+        return;
+      }
+      await refreshMasters();
+      if (open) setForm((f) => ({ ...f, unitId: res.data.id }));
+    } else if (catalog === "category") {
+      const res = await api.createCategory({ name: categoryForm.name.trim() });
+      setCatalogSaving(false);
+      if (!res.ok) {
+        setCatalogError(res.error);
+        return;
+      }
+      await refreshMasters();
+      if (open) setForm((f) => ({ ...f, categoryId: res.data.id }));
+    } else if (catalog === "tax") {
+      const res = await api.createTax({
+        name: taxForm.name.trim(),
+        rate: Number(taxForm.rate),
+      });
+      setCatalogSaving(false);
+      if (!res.ok) {
+        setCatalogError(res.error);
+        return;
+      }
+      await refreshMasters();
+      if (open) setForm((f) => ({ ...f, taxId: res.data.id }));
+    } else {
+      setCatalogSaving(false);
+      return;
+    }
+    setCatalog(null);
+  };
+
   return (
     <AppShell title="Products" subtitle="Catalog, packs, and pricing" permission="products.view">
       {error && !open ? (
@@ -250,7 +313,17 @@ export default function ProductsPage() {
         onAdd={openCreate}
         addLabel="Add product"
         actions={
-          <ExportMenu
+          <>
+            <Button variant="secondary" size="sm" onClick={() => openCatalog("unit")}>
+              Units
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => openCatalog("category")}>
+              Categories
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => openCatalog("tax")}>
+              Taxes
+            </Button>
+            <ExportMenu
             filename="products"
             title="Products"
             columns={[
@@ -276,6 +349,7 @@ export default function ProductsPage() {
               status: r.isActive ? "Active" : "Inactive",
             }))}
           />
+          </>
         }
       />
 
@@ -345,6 +419,12 @@ export default function ProductsPage() {
         }
       >
         {error ? <Alert>{error}</Alert> : null}
+        {saleBelowCost ? (
+          <Alert>
+            Sale price is below cost. Selling this product will lose{" "}
+            {formatMoney(Number(form.costPrice) - Number(form.salePrice))} per unit.
+          </Alert>
+        ) : null}
         <div className="grid gap-4 sm:grid-cols-2">
           <Input
             label="SKU"
@@ -361,33 +441,66 @@ export default function ProductsPage() {
             value={form.brand}
             onChange={(e) => setForm((f) => ({ ...f, brand: e.target.value }))}
           />
-          <Select
-            label="Category"
-            value={form.categoryId}
-            onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}
-            options={[
-              { value: "", label: "None" },
-              ...categories.map((c) => ({ value: c.id, label: c.name })),
-            ]}
-          />
-          <Select
-            label="Unit"
-            value={form.unitId}
-            onChange={(e) => setForm((f) => ({ ...f, unitId: e.target.value }))}
-            options={[
-              { value: "", label: "None" },
-              ...units.map((u) => ({ value: u.id, label: `${u.name} (${u.shortName})` })),
-            ]}
-          />
-          <Select
-            label="Tax"
-            value={form.taxId}
-            onChange={(e) => setForm((f) => ({ ...f, taxId: e.target.value }))}
-            options={[
-              { value: "", label: "None" },
-              ...taxes.map((t) => ({ value: t.id, label: `${t.name} (${t.rate}%)` })),
-            ]}
-          />
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-[var(--text-muted)]">Category</span>
+              <button
+                type="button"
+                className="text-xs font-medium text-[var(--accent)] hover:underline"
+                onClick={() => openCatalog("category")}
+              >
+                + Add
+              </button>
+            </div>
+            <Select
+              value={form.categoryId}
+              onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}
+              options={[
+                { value: "", label: "None" },
+                ...categories.map((c) => ({ value: c.id, label: c.name })),
+              ]}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-[var(--text-muted)]">Unit</span>
+              <button
+                type="button"
+                className="text-xs font-medium text-[var(--accent)] hover:underline"
+                onClick={() => openCatalog("unit")}
+              >
+                + Add
+              </button>
+            </div>
+            <Select
+              value={form.unitId}
+              onChange={(e) => setForm((f) => ({ ...f, unitId: e.target.value }))}
+              options={[
+                { value: "", label: "None" },
+                ...units.map((u) => ({ value: u.id, label: `${u.name} (${u.shortName})` })),
+              ]}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-[var(--text-muted)]">Tax</span>
+              <button
+                type="button"
+                className="text-xs font-medium text-[var(--accent)] hover:underline"
+                onClick={() => openCatalog("tax")}
+              >
+                + Add
+              </button>
+            </div>
+            <Select
+              value={form.taxId}
+              onChange={(e) => setForm((f) => ({ ...f, taxId: e.target.value }))}
+              options={[
+                { value: "", label: "None" },
+                ...taxes.map((t) => ({ value: t.id, label: `${t.name} (${t.rate}%)` })),
+              ]}
+            />
+          </div>
           <Input
             label="Season / crop cycle"
             value={form.season}
@@ -436,10 +549,93 @@ export default function ProductsPage() {
           checked={form.isActive}
           onChange={(checked) => setForm((f) => ({ ...f, isActive: checked }))}
         />
-        {!editing ? (
-          <p className="text-xs text-[var(--text-muted)]">
-            A default pack is created automatically. Manage extra packs from the Layers button.
-          </p>
+      </Modal>
+
+      <Modal
+        nested
+        open={catalog !== null}
+        title={
+          catalog === "unit" ? "Add unit" : catalog === "category" ? "Add category" : "Add tax"
+        }
+        onClose={() => setCatalog(null)}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setCatalog(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => void saveCatalog()}
+              disabled={
+                catalogSaving ||
+                (catalog === "unit" && !unitForm.name.trim()) ||
+                (catalog === "category" && !categoryForm.name.trim()) ||
+                (catalog === "tax" && !taxForm.name.trim())
+              }
+            >
+              {catalogSaving ? "Saving..." : "Save"}
+            </Button>
+          </>
+        }
+      >
+        {catalogError ? <Alert>{catalogError}</Alert> : null}
+        {catalog === "unit" ? (
+          <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input
+                label="Name"
+                value={unitForm.name}
+                onChange={(e) => setUnitForm((f) => ({ ...f, name: e.target.value }))}
+              />
+              <Input
+                label="Short name"
+                value={unitForm.shortName}
+                onChange={(e) => setUnitForm((f) => ({ ...f, shortName: e.target.value }))}
+              />
+            </div>
+            {units.length > 0 ? (
+              <p className="text-xs text-[var(--text-muted)]">
+                Already added: {units.map((u) => u.shortName || u.name).join(", ")}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+        {catalog === "category" ? (
+          <div className="space-y-4">
+            <Input
+              label="Name"
+              value={categoryForm.name}
+              onChange={(e) => setCategoryForm((f) => ({ ...f, name: e.target.value }))}
+            />
+            {categories.length > 0 ? (
+              <p className="text-xs text-[var(--text-muted)]">
+                Already added: {categories.map((c) => c.name).join(", ")}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+        {catalog === "tax" ? (
+          <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input
+                label="Name"
+                value={taxForm.name}
+                onChange={(e) => setTaxForm((f) => ({ ...f, name: e.target.value }))}
+              />
+              <Input
+                label="Rate %"
+                type="number"
+                min={0}
+                step="0.01"
+                value={taxForm.rate}
+                onChange={(e) => setTaxForm((f) => ({ ...f, rate: e.target.value }))}
+              />
+            </div>
+            {taxes.length > 0 ? (
+              <p className="text-xs text-[var(--text-muted)]">
+                Already added: {taxes.map((t) => `${t.name} (${t.rate}%)`).join(", ")}
+              </p>
+            ) : null}
+          </div>
         ) : null}
       </Modal>
 

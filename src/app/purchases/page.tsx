@@ -17,7 +17,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { ExportMenu } from "@/components/ExportMenu";
 import { PrintMenu } from "@/components/PrintMenu";
 import {
-  ComposerSection,
+  ComposerShell,
   DocMetaGrid,
   DocStatusBadge,
   FilterChips,
@@ -38,7 +38,6 @@ import {
   Modal,
   PageToolbar,
   Select,
-  Textarea,
 } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
 import { buildPurchasePrintHtml } from "@/lib/print";
@@ -592,10 +591,10 @@ export default function PurchasesPage() {
         }
       >
         {error ? <Alert>{error}</Alert> : null}
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-          <div className="space-y-4">
-            <ComposerSection title="Bill">
-              <div className="grid gap-3 sm:grid-cols-2">
+        <ComposerShell
+          header={
+            <div className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
                 <Input
                   label="Date"
                   type="date"
@@ -611,41 +610,77 @@ export default function PurchasesPage() {
                     ...vendors.map((v) => ({ value: v.id, label: v.name })),
                   ]}
                 />
+                <Input
+                  label="Discount"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={discountAmount}
+                  onChange={(e) => setDiscountAmount(e.target.value)}
+                />
+                <Input
+                  label="Additions"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={additionAmount}
+                  onChange={(e) => setAdditionAmount(e.target.value)}
+                />
+                <Input
+                  label="Tax"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={taxAmount}
+                  onChange={(e) => setTaxAmount(e.target.value)}
+                />
+                <Input
+                  label="Notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
               </div>
-            </ComposerSection>
-
-            <ComposerSection title="Settlement">
-              <SettlementPanel
-                grandTotal={grand}
-                cashPaid={cashPaid}
-                bankPaid={bankPaid}
-                onCashPaid={setCashPaid}
-                onBankPaid={setBankPaid}
-              />
-            </ComposerSection>
-
-            <ComposerSection
-              title="Products"
-              action={
-                <span className="rounded-lg bg-[var(--bg-soft)] px-2 py-1 text-[11px] text-[var(--text-muted)]">
-                  {lines.length} item{lines.length === 1 ? "" : "s"}
-                </span>
-              }
-            >
-              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end">
-                <div className="flex-1">
-                  <Select
-                    label="Product"
-                    value={pickVariantId}
-                    onChange={(e) => setPickVariantId(e.target.value)}
-                    options={productOptions}
-                  />
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <div className="flex-1">
+                    <Select
+                      label="Product"
+                      value={pickVariantId}
+                      onChange={(e) => setPickVariantId(e.target.value)}
+                      options={productOptions}
+                    />
+                  </div>
+                  <Button size="sm" onClick={addLine} disabled={!pickVariantId}>
+                    <Plus size={14} /> Add
+                  </Button>
                 </div>
-                <Button size="sm" onClick={addLine} disabled={!pickVariantId}>
-                  <Plus size={14} /> Add
-                </Button>
+                <div className="space-y-2">
+                  <SettlementPanel
+                    compact
+                    grandTotal={grand}
+                    cashPaid={cashPaid}
+                    bankPaid={bankPaid}
+                    onCashPaid={setCashPaid}
+                    onBankPaid={setBankPaid}
+                  />
+                  <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--bg-soft)] px-3 py-2 text-sm">
+                    <span className="text-[var(--text-muted)]">Total</span>
+                    <span className="font-semibold tabular-nums">{money(grand)}</span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl border border-[var(--border)] px-3 py-2 text-sm">
+                    <span className="text-[var(--text-muted)]">Due</span>
+                    <span
+                      className={`font-semibold tabular-nums ${balanceDue > 0 ? "text-amber-700 dark:text-amber-300" : "text-[var(--success)]"}`}
+                    >
+                      {money(balanceDue)}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <LineItemsTable
+            </div>
+          }
+        >
+            <LineItemsTable
                 headers={["Product", "In stock", "Qty", "Unit", "Unit cost", "Line total", ""]}
                 empty={lines.length === 0}
               >
@@ -729,68 +764,7 @@ export default function PurchasesPage() {
                   );
                 })}
               </LineItemsTable>
-            </ComposerSection>
-
-            <ComposerSection title="Discount, tax & notes">
-              <div className="grid gap-3 sm:grid-cols-3">
-                <Input
-                  label="Discount"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={discountAmount}
-                  onChange={(e) => setDiscountAmount(e.target.value)}
-                />
-                <Input
-                  label="Additions"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={additionAmount}
-                  onChange={(e) => setAdditionAmount(e.target.value)}
-                />
-                <Input
-                  label="Tax"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={taxAmount}
-                  onChange={(e) => setTaxAmount(e.target.value)}
-                />
-              </div>
-              <div className="mt-3">
-                <Textarea
-                  label="Notes"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                />
-              </div>
-            </ComposerSection>
-          </div>
-
-          <div className="space-y-4 lg:sticky lg:top-0 lg:self-start">
-            <TotalsPanel
-              accent
-              rows={[
-                { label: "Subtotal", value: money(subtotal), muted: true },
-                {
-                  label: "Discount",
-                  value: `- ${money(Number(discountAmount || 0))}`,
-                  muted: true,
-                  negative: Number(discountAmount || 0) > 0,
-                },
-                { label: "Additions", value: money(Number(additionAmount || 0)), muted: true },
-                { label: "Tax", value: money(Number(taxAmount || 0)), muted: true },
-                { label: "Cash", value: money(cashNum), muted: true },
-                { label: "Bank", value: money(bankNum), muted: true },
-                { label: "Paid now", value: money(effectivePaid), muted: true },
-              ]}
-              grand={money(grand)}
-              due={money(balanceDue)}
-              dueLabel="Payable balance"
-            />
-          </div>
-        </div>
+        </ComposerShell>
       </Modal>
 
       <Modal

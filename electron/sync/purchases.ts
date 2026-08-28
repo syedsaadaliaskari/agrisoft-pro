@@ -50,6 +50,7 @@ export async function syncPurchases(): Promise<SyncCounts> {
         size: row.size,
         color: row.color,
         quantity: row.quantity,
+        unit: row.unit,
         unit_cost: row.unitCost,
         discount_amount: row.discountAmount,
         tax_amount: row.taxAmount,
@@ -121,6 +122,7 @@ export async function syncPurchases(): Promise<SyncCounts> {
     size: string | null;
     color: string | null;
     quantity: number;
+    unit: string | null;
     unit_cost: number;
     discount_amount: number;
     tax_amount: number;
@@ -139,6 +141,7 @@ export async function syncPurchases(): Promise<SyncCounts> {
       size: row.size,
       color: row.color,
       quantity: Number(row.quantity || 0),
+      unit: row.unit ?? null,
       unitCost: Number(row.unit_cost || 0),
       discountAmount: Number(row.discount_amount || 0),
       taxAmount: Number(row.tax_amount || 0),

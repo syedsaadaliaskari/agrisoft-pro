@@ -99,12 +99,33 @@ export async function supabaseUpsert(table: string, rows: unknown[]): Promise<nu
   if (!rows.length) return 0;
   const chunkSize = 200;
   for (let i = 0; i < rows.length; i += chunkSize) {
-    await supabaseRest(table, {
-      method: "POST",
-      query: "on_conflict=id",
-      prefer: "resolution=merge-duplicates,return=minimal",
-      body: rows.slice(i, i + chunkSize),
-    });
+    const chunk = rows.slice(i, i + chunkSize);
+    try {
+      await supabaseRest(table, {
+        method: "POST",
+        query: "on_conflict=id",
+        prefer: "resolution=merge-duplicates,return=minimal",
+        body: chunk,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "";
+      const duplicate = message.includes("23505") || message.includes("duplicate key");
+      if (!duplicate) throw err;
+      for (const row of chunk) {
+        try {
+          await supabaseRest(table, {
+            method: "POST",
+            query: "on_conflict=id",
+            prefer: "resolution=merge-duplicates,return=minimal",
+            body: [row],
+          });
+        } catch (rowErr) {
+          const rowMessage = rowErr instanceof Error ? rowErr.message : "";
+          if (rowMessage.includes("23505") || rowMessage.includes("duplicate key")) continue;
+          throw rowErr;
+        }
+      }
+    }
   }
   return rows.length;
 }

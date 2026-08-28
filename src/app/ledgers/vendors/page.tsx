@@ -107,6 +107,7 @@ export default function VendorLedgerPage() {
                 totalDebit: ledger.totalDebit,
                 totalCredit: ledger.totalCredit,
                 lines: ledger.lines,
+                documents: ledger.documents,
               }
             : null
         }

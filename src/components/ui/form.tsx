@@ -150,6 +150,7 @@ export function Modal({
   footer,
   wide,
   size,
+  nested,
 }: {
   open: boolean;
   title: string;
@@ -160,11 +161,17 @@ export function Modal({
   wide?: boolean;
   /** lg ≈ wide, xl = document composer, full = near-viewport sheet */
   size?: "md" | "lg" | "xl" | "full";
+  nested?: boolean;
 }) {
   if (!open) return null;
   const resolved = size ?? (wide ? "lg" : "md");
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
+    <div
+      className={cn(
+        "fixed inset-0 flex items-end justify-center p-0 sm:items-center sm:p-4",
+        nested ? "z-[70]" : "z-50"
+      )}
+    >
       <button
         type="button"
         className="absolute inset-0 bg-black/55 backdrop-blur-[2px] animate-[fadeIn_0.15s_ease]"
@@ -196,7 +203,16 @@ export function Modal({
             ✕
           </button>
         </div>
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">{children}</div>
+        <div
+          className={cn(
+            "min-h-0 flex-1 px-5 py-4",
+            resolved === "full"
+              ? "flex flex-col overflow-hidden"
+              : "space-y-4 overflow-y-auto"
+          )}
+        >
+          {children}
+        </div>
         {footer ? (
           <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-[var(--border)] bg-[var(--bg-soft)]/40 px-5 py-4">
             {footer}

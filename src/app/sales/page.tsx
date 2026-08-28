@@ -17,7 +17,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { ExportMenu } from "@/components/ExportMenu";
 import { PrintMenu } from "@/components/PrintMenu";
 import {
-  ComposerSection,
+  ComposerShell,
   DocMetaGrid,
   DocStatusBadge,
   FilterChips,
@@ -38,7 +38,6 @@ import {
   Modal,
   PageToolbar,
   Select,
-  Textarea,
 } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
 import { buildSalePrintHtml } from "@/lib/print";
@@ -183,7 +182,10 @@ export default function SalesPage() {
       { value: "", label: "Select product" },
       ...inventory.map((r) => ({
         value: r.variantId,
-        label: `${r.productName} (${r.size}/${r.color})`,
+        label:
+          r.costPrice > 0 && r.salePrice < r.costPrice
+            ? `${r.productName} (${r.size}/${r.color}) — selling at a loss`
+            : `${r.productName} (${r.size}/${r.color})`,
       })),
     ],
     [inventory]
@@ -304,6 +306,28 @@ export default function SalesPage() {
       }),
     [lines]
   );
+
+  const lossTotal = useMemo(
+    () =>
+      lines.reduce((sum, l) => {
+        const price = Number(l.unitPrice);
+        const qty = Number(l.quantity);
+        if (l.costPrice > 0 && !Number.isNaN(price) && price < l.costPrice && !Number.isNaN(qty)) {
+          return sum + (l.costPrice - price) * qty;
+        }
+        return sum;
+      }, 0),
+    [lines]
+  );
+
+  const pickedRow = useMemo(
+    () => inventory.find((r) => r.variantId === pickVariantId) ?? null,
+    [inventory, pickVariantId]
+  );
+  const pickedLossPerUnit =
+    pickedRow && pickedRow.costPrice > 0 && pickedRow.salePrice < pickedRow.costPrice
+      ? pickedRow.costPrice - pickedRow.salePrice
+      : 0;
 
   const unitChoices = useMemo(() => units.map((u) => u.shortName), [units]);
 
@@ -617,19 +641,20 @@ export default function SalesPage() {
         }
       >
         {error ? <Alert>{error}</Alert> : null}
-        {belowCostLines.length > 0 ? (
+        {lossTotal > 0 ? (
           <Alert>
-            <span className="text-red-600">
-              Sale price is below cost on {belowCostLines.length} line
-              {belowCostLines.length > 1 ? "s" : ""} — you can still save.
-            </span>
+            <div className="font-semibold">This sale will lose {money(lossTotal)}</div>
+            <div className="mt-0.5 text-xs opacity-90">
+              {belowCostLines.length} item{belowCostLines.length === 1 ? "" : "s"} selling below
+              what you paid. You can still save.
+            </div>
           </Alert>
         ) : null}
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-          <div className="space-y-4">
-            <ComposerSection title="Invoice">
-              <div className="grid gap-3 sm:grid-cols-2">
+        <ComposerShell
+          header={
+            <div className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
                 <Input
                   label="Date"
                   type="date"
@@ -645,42 +670,91 @@ export default function SalesPage() {
                     ...customers.map((c) => ({ value: c.id, label: c.name })),
                   ]}
                 />
+                <Input
+                  label="Discount"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={discountAmount}
+                  onChange={(e) => setDiscountAmount(e.target.value)}
+                />
+                <Input
+                  label="Additions"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={additionAmount}
+                  onChange={(e) => setAdditionAmount(e.target.value)}
+                />
+                <Input
+                  label="Tax"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={taxAmount}
+                  onChange={(e) => setTaxAmount(e.target.value)}
+                />
+                <Input
+                  label="Notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
               </div>
-            </ComposerSection>
-
-            <ComposerSection title="Settlement">
-              <SettlementPanel
-                grandTotal={grand}
-                cashPaid={cashPaid}
-                bankPaid={bankPaid}
-                onCashPaid={setCashPaid}
-                onBankPaid={setBankPaid}
-              />
-            </ComposerSection>
-
-            <ComposerSection
-              title="Products"
-              action={
-                <span className="rounded-lg bg-[var(--bg-soft)] px-2 py-1 text-[11px] tabular-nums text-[var(--text-muted)]">
-                  {lines.length} item{lines.length === 1 ? "" : "s"}
-                </span>
-              }
-            >
-              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end">
-                <div className="flex-1">
-                  <Select
-                    label="Product"
-                    value={pickVariantId}
-                    onChange={(e) => setPickVariantId(e.target.value)}
-                    options={productOptions}
-                  />
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
+                <div>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                    <div className="flex-1">
+                      <Select
+                        label="Product"
+                        value={pickVariantId}
+                        onChange={(e) => setPickVariantId(e.target.value)}
+                        options={productOptions}
+                      />
+                    </div>
+                    <Button size="sm" onClick={addLine} disabled={!pickVariantId}>
+                      <Plus size={14} /> Add
+                    </Button>
+                  </div>
+                  {pickedLossPerUnit > 0 && pickedRow ? (
+                    <div className="mt-2 rounded-lg border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-3 py-2 text-sm text-[var(--danger)]">
+                      Loss {money(pickedLossPerUnit)} per unit — bought at{" "}
+                      {money(pickedRow.costPrice)}, selling at {money(pickedRow.salePrice)}.
+                    </div>
+                  ) : null}
                 </div>
-                <Button size="sm" onClick={addLine} disabled={!pickVariantId}>
-                  <Plus size={14} /> Add
-                </Button>
+                <div className="space-y-2">
+                  <SettlementPanel
+                    compact
+                    grandTotal={grand}
+                    cashPaid={cashPaid}
+                    bankPaid={bankPaid}
+                    onCashPaid={setCashPaid}
+                    onBankPaid={setBankPaid}
+                  />
+                  <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--bg-soft)] px-3 py-2 text-sm">
+                    <span className="text-[var(--text-muted)]">Total</span>
+                    <span className="font-semibold tabular-nums">{money(grand)}</span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl border border-[var(--border)] px-3 py-2 text-sm">
+                    <span className="text-[var(--text-muted)]">Due</span>
+                    <span
+                      className={`font-semibold tabular-nums ${balanceDue > 0 ? "text-amber-700 dark:text-amber-300" : "text-[var(--success)]"}`}
+                    >
+                      {money(balanceDue)}
+                    </span>
+                  </div>
+                  {lossTotal > 0 ? (
+                    <div className="flex items-center justify-between px-1 text-sm text-[var(--danger)]">
+                      <span>Loss</span>
+                      <span className="font-semibold tabular-nums">{money(lossTotal)}</span>
+                    </div>
+                  ) : null}
+                </div>
               </div>
-
-              <LineItemsTable
+            </div>
+          }
+        >
+            <LineItemsTable
                 headers={["Product", "Stock", "Qty", "Unit", "Price", "Total", ""]}
                 empty={lines.length === 0}
               >
@@ -688,15 +762,18 @@ export default function SalesPage() {
                   const lineTotal = Number(line.quantity || 0) * Number(line.unitPrice || 0);
                   const overStock = Number(line.quantity || 0) > line.stockQty;
                   const price = Number(line.unitPrice);
+                  const qty = Number(line.quantity || 0);
                   const belowCost =
                     line.costPrice > 0 && !Number.isNaN(price) && price < line.costPrice;
+                  const lineLoss = belowCost ? (line.costPrice - price) * qty : 0;
                   return (
                     <tr key={line.key} className="align-middle">
                       <td className="px-3 py-2.5">
                         <div className="font-medium">{line.label}</div>
                         {belowCost ? (
-                          <div className="text-xs font-medium text-red-600">
-                            Below cost ({money(line.costPrice)})
+                          <div className="text-xs font-medium text-[var(--danger)]">
+                            Loss {money(lineLoss)} — bought at {money(line.costPrice)}, selling at{" "}
+                            {money(price)}
                           </div>
                         ) : null}
                       </td>
@@ -776,67 +853,7 @@ export default function SalesPage() {
                   );
                 })}
               </LineItemsTable>
-            </ComposerSection>
-
-            <ComposerSection title="Discount, tax & notes">
-              <div className="grid gap-3 sm:grid-cols-3">
-                <Input
-                  label="Discount"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={discountAmount}
-                  onChange={(e) => setDiscountAmount(e.target.value)}
-                />
-                <Input
-                  label="Additions"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={additionAmount}
-                  onChange={(e) => setAdditionAmount(e.target.value)}
-                />
-                <Input
-                  label="Tax"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={taxAmount}
-                  onChange={(e) => setTaxAmount(e.target.value)}
-                />
-              </div>
-              <div className="mt-3">
-                <Textarea
-                  label="Notes"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                />
-              </div>
-            </ComposerSection>
-          </div>
-
-          <div className="space-y-4 lg:sticky lg:top-0 lg:self-start">
-            <TotalsPanel
-              accent
-              rows={[
-                { label: "Subtotal", value: money(subtotal), muted: true },
-                {
-                  label: "Discount",
-                  value: `- ${money(Number(discountAmount || 0))}`,
-                  muted: true,
-                  negative: Number(discountAmount || 0) > 0,
-                },
-                { label: "Additions", value: money(Number(additionAmount || 0)), muted: true },
-                { label: "Tax", value: money(Number(taxAmount || 0)), muted: true },
-                { label: "Cash", value: money(cashNum), muted: true },
-                { label: "Bank", value: money(bankNum), muted: true },
-                { label: "Paid now", value: money(effectivePaid), muted: true },
-              ]}
-              grand={money(grand)}
-              due={money(balanceDue)}
-            />
-          </div>
-        </div>
+        </ComposerShell>
       </Modal>
 
       <Modal

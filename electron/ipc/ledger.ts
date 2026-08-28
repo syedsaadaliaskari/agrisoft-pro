@@ -1,5 +1,5 @@
 import { registerHandler } from "./register";
-import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, ne, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import {
   IPC,
@@ -37,7 +37,11 @@ import {
   accounts,
   customers,
   vendors,
+  sales,
+  purchases,
 } from "../db/schema";
+import { collectedAmountsForCustomer, collectedAmountsForVendor } from "../db/invoiceCollections";
+import { netAmount, returnedTotalForPurchase, returnedTotalForSale } from "../db/returnsNet";
 import { requirePermission, getCurrentSession, PermissionError } from "./session";
 
 function ok<T>(data: T): ActionResult<T> {
@@ -457,6 +461,53 @@ export function registerLedgerHandlers(): void {
         const totalDebit = money(lines.reduce((s, l) => s + l.debit, 0));
         const totalCredit = money(lines.reduce((s, l) => s + l.credit, 0));
 
+        const documents =
+          partyType === "customer"
+            ? (() => {
+                const collected = collectedAmountsForCustomer(db, partyId);
+                return db
+                  .select()
+                  .from(sales)
+                  .where(and(eq(sales.customerId, partyId), ne(sales.status, "deleted")))
+                  .orderBy(desc(sales.invoiceDate), desc(sales.createdAt))
+                  .all()
+                  .map((r) => {
+                    const net = netAmount(r.grandTotal, returnedTotalForSale(db, r.id));
+                    const got = collected.get(r.id) ?? money(Math.min(r.paidAmount, net));
+                    return {
+                      id: r.id,
+                      docNo: r.invoiceNo,
+                      docDate: r.invoiceDate,
+                      kind: "sale" as const,
+                      total: net,
+                      collected: got,
+                      due: money(Math.max(0, net - got)),
+                    };
+                  });
+              })()
+            : (() => {
+                const collected = collectedAmountsForVendor(db, partyId);
+                return db
+                  .select()
+                  .from(purchases)
+                  .where(and(eq(purchases.vendorId, partyId), ne(purchases.status, "deleted")))
+                  .orderBy(desc(purchases.invoiceDate), desc(purchases.createdAt))
+                  .all()
+                  .map((r) => {
+                    const net = netAmount(r.grandTotal, returnedTotalForPurchase(db, r.id));
+                    const got = collected.get(r.id) ?? money(Math.min(r.paidAmount, net));
+                    return {
+                      id: r.id,
+                      docNo: r.invoiceNo,
+                      docDate: r.invoiceDate,
+                      kind: "purchase" as const,
+                      total: net,
+                      collected: got,
+                      due: money(Math.max(0, net - got)),
+                    };
+                  });
+              })();
+
         return ok({
           partyType,
           partyId,
@@ -471,6 +522,7 @@ export function registerLedgerHandlers(): void {
           totalCredit,
           closingBalance: money(Math.abs(running)),
           closingSide: running >= 0 ? "debit" : "credit",
+          documents,
         });
       })
   );

@@ -213,14 +213,15 @@ export function SettlementPanel({
   onCashPaid,
   onBankPaid,
   dueHint,
+  compact,
 }: {
   grandTotal: number;
   cashPaid: string;
   bankPaid: string;
   onCashPaid: (v: string) => void;
   onBankPaid: (v: string) => void;
-  /** Shown when due &gt; 0, e.g. "Customer will owe this balance" */
   dueHint?: string;
+  compact?: boolean;
 }) {
   const cash = Number(cashPaid || 0);
   const bank = Number(bankPaid || 0);
@@ -241,37 +242,54 @@ export function SettlementPanel({
     onBankPaid("0");
   };
 
+  const buttons = (
+    <div className="flex flex-wrap gap-2">
+      <Button type="button" size="sm" variant="secondary" onClick={setFullCash}>
+        Full cash
+      </Button>
+      <Button type="button" size="sm" variant="secondary" onClick={setFullBank}>
+        Full bank
+      </Button>
+      <Button type="button" size="sm" variant="secondary" onClick={setCreditAll}>
+        Credit all
+      </Button>
+    </div>
+  );
+
+  const amounts = (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <Input
+        label="Cash"
+        type="number"
+        min={0}
+        step="0.01"
+        value={cashPaid}
+        onChange={(e) => onCashPaid(e.target.value)}
+      />
+      <Input
+        label="Bank"
+        type="number"
+        min={0}
+        step="0.01"
+        value={bankPaid}
+        onChange={(e) => onBankPaid(e.target.value)}
+      />
+    </div>
+  );
+
+  if (compact) {
+    return (
+      <div className="space-y-2">
+        {buttons}
+        {amounts}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
-        <Button type="button" size="sm" variant="secondary" onClick={setFullCash}>
-          Full cash
-        </Button>
-        <Button type="button" size="sm" variant="secondary" onClick={setFullBank}>
-          Full bank
-        </Button>
-        <Button type="button" size="sm" variant="secondary" onClick={setCreditAll}>
-          Credit all
-        </Button>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Input
-          label="Cash received"
-          type="number"
-          min={0}
-          step="0.01"
-          value={cashPaid}
-          onChange={(e) => onCashPaid(e.target.value)}
-        />
-        <Input
-          label="Bank received"
-          type="number"
-          min={0}
-          step="0.01"
-          value={bankPaid}
-          onChange={(e) => onBankPaid(e.target.value)}
-        />
-      </div>
+      {buttons}
+      {amounts}
       <div
         className={cn(
           "rounded-xl border px-3 py-2.5 text-sm",
@@ -300,9 +318,6 @@ export function SettlementPanel({
         {due > 0 && dueHint ? (
           <p className="mt-2 text-xs text-[var(--text-muted)]">{dueHint}</p>
         ) : null}
-        <p className="mt-2 text-[11px] text-[var(--text-muted)]">
-          One save posts cash, bank, and credit together — no separate receive/pay for this bill.
-        </p>
       </div>
     </div>
   );
@@ -337,6 +352,22 @@ export function ComposerSection({
       </div>
       {children}
     </section>
+  );
+}
+
+/** Header stays put. Only the product lines scroll. */
+export function ComposerShell({
+  header,
+  children,
+}: {
+  header: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+      <div className="shrink-0">{header}</div>
+      <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+    </div>
   );
 }
 
@@ -535,7 +566,7 @@ export function VoucherWorkspace({
             <h2 className="mt-1 text-lg font-semibold tracking-tight">{formTitle}</h2>
             {formHint ? <p className="mt-1 text-xs text-[var(--text-muted)]">{formHint}</p> : null}
           </div>
-          <div className="space-y-4">{form}</div>
+          <div className="grid gap-3 sm:grid-cols-2">{form}</div>
         </aside>
         <section className="min-w-0 space-y-3">
           <div className="flex items-end justify-between gap-3">
