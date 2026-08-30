@@ -25,7 +25,6 @@ import { getApi } from "@/lib/api";
 import type { Customer } from "@shared/ipc";
 
 const emptyForm = {
-  code: "",
   name: "",
   phone: "",
   email: "",
@@ -91,7 +90,6 @@ export default function CustomersPage() {
   const openEdit = (row: Customer) => {
     setEditing(row);
     setForm({
-      code: row.code,
       name: row.name,
       phone: row.phone ?? "",
       email: row.email ?? "",
@@ -111,7 +109,6 @@ export default function CustomersPage() {
     setError("");
     setOkMsg("");
     const payload = {
-      code: form.code || undefined,
       name: form.name,
       phone: form.phone || null,
       email: form.email || null,
@@ -131,7 +128,7 @@ export default function CustomersPage() {
       setError(res.error);
       return;
     }
-    setOkMsg(editing ? `Updated ${res.data.code}` : `Saved ${res.data.code}`);
+    setOkMsg(editing ? "Updated" : "Saved");
     resetForm();
     await load();
   };
@@ -162,7 +159,6 @@ export default function CustomersPage() {
 
       <VoucherWorkspace
         formTitle={editing ? "Edit customer" : "New customer"}
-        formHint="Party master for sales, receipts, and receivables"
         stats={
           <OpsStatStrip
             items={[
@@ -184,11 +180,6 @@ export default function CustomersPage() {
         }
         form={
           <>
-            <Input
-              label="Code"
-              value={form.code}
-              onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
-            />
             <Input
               label="Name"
               value={form.name}
@@ -221,8 +212,8 @@ export default function CustomersPage() {
               value={form.balanceType}
               onChange={(e) => setForm((f) => ({ ...f, balanceType: e.target.value }))}
               options={[
-                { value: "debit", label: "Debit (customer owes)" },
-                { value: "credit", label: "Credit (we owe)" },
+                { value: "debit", label: "Debit" },
+                { value: "credit", label: "Credit" },
               ]}
             />
             <div className="grid grid-cols-2 gap-3">

@@ -241,7 +241,7 @@ export default function LicenseInfoPage() {
           </div>
           <div className="sm:col-span-2">
             <Input
-              label="Notes (optional)"
+              label="Notes"
               value={form.notes}
               onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
             />

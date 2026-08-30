@@ -25,7 +25,6 @@ import { getApi } from "@/lib/api";
 import type { Vendor } from "@shared/ipc";
 
 const emptyForm = {
-  code: "",
   name: "",
   phone: "",
   email: "",
@@ -90,7 +89,6 @@ export default function VendorsPage() {
   const openEdit = (row: Vendor) => {
     setEditing(row);
     setForm({
-      code: row.code,
       name: row.name,
       phone: row.phone ?? "",
       email: row.email ?? "",
@@ -109,7 +107,6 @@ export default function VendorsPage() {
     setError("");
     setOkMsg("");
     const payload = {
-      code: form.code || undefined,
       name: form.name,
       phone: form.phone || null,
       email: form.email || null,
@@ -126,7 +123,7 @@ export default function VendorsPage() {
       setError(res.error);
       return;
     }
-    setOkMsg(editing ? `Updated ${res.data.code}` : `Saved ${res.data.code}`);
+    setOkMsg(editing ? "Updated" : "Saved");
     resetForm();
     await load();
   };
@@ -157,7 +154,6 @@ export default function VendorsPage() {
 
       <VoucherWorkspace
         formTitle={editing ? "Edit vendor" : "New vendor"}
-        formHint="Party master for purchases, payments, and payables"
         stats={
           <OpsStatStrip
             items={[
@@ -179,11 +175,6 @@ export default function VendorsPage() {
         }
         form={
           <>
-            <Input
-              label="Code"
-              value={form.code}
-              onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
-            />
             <Input
               label="Name"
               value={form.name}
@@ -216,8 +207,8 @@ export default function VendorsPage() {
               value={form.balanceType}
               onChange={(e) => setForm((f) => ({ ...f, balanceType: e.target.value }))}
               options={[
-                { value: "credit", label: "Credit (we owe)" },
-                { value: "debit", label: "Debit (vendor owes)" },
+                { value: "credit", label: "Credit" },
+                { value: "debit", label: "Debit" },
               ]}
             />
             <Input

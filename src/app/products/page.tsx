@@ -327,7 +327,6 @@ export default function ProductsPage() {
             filename="products"
             title="Products"
             columns={[
-              { key: "sku", label: "SKU" },
               { key: "name", label: "Name" },
               { key: "category", label: "Category" },
               { key: "unit", label: "Unit" },
@@ -338,7 +337,6 @@ export default function ProductsPage() {
               { key: "status", label: "Status" },
             ]}
             rows={filtered.map((r) => ({
-              sku: r.sku,
               name: r.name,
               category: r.categoryName ?? "",
               unit: r.unitName ?? "",
@@ -358,7 +356,6 @@ export default function ProductsPage() {
       ) : (
         <DataTable
           headers={[
-            "SKU",
             "Name",
             "Category",
             "Unit",
@@ -373,7 +370,6 @@ export default function ProductsPage() {
         >
           {filtered.map((row) => (
             <tr key={row.id} className="border-b border-[var(--border)] last:border-0">
-              <td className="px-4 py-3 font-mono text-xs">{row.sku}</td>
               <td className="px-4 py-3 font-medium">{row.name}</td>
               <td className="px-4 py-3 text-[var(--text-muted)]">{row.categoryName || "—"}</td>
               <td className="px-4 py-3 text-[var(--text-muted)]">{row.unitName || "—"}</td>
@@ -427,19 +423,9 @@ export default function ProductsPage() {
         ) : null}
         <div className="grid gap-4 sm:grid-cols-2">
           <Input
-            label="SKU"
-            value={form.sku}
-            onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))}
-          />
-          <Input
             label="Name"
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-          />
-          <Input
-            label="Brand"
-            value={form.brand}
-            onChange={(e) => setForm((f) => ({ ...f, brand: e.target.value }))}
           />
           <div className="space-y-1.5">
             <div className="flex items-center justify-between gap-2">
@@ -502,11 +488,6 @@ export default function ProductsPage() {
             />
           </div>
           <Input
-            label="Season / crop cycle"
-            value={form.season}
-            onChange={(e) => setForm((f) => ({ ...f, season: e.target.value }))}
-          />
-          <Input
             label="Cost price"
             type="number"
             min={0}
@@ -521,14 +502,6 @@ export default function ProductsPage() {
             step="0.01"
             value={form.salePrice}
             onChange={(e) => setForm((f) => ({ ...f, salePrice: e.target.value }))}
-          />
-          <Input
-            label="Wholesale price"
-            type="number"
-            min={0}
-            step="0.01"
-            value={form.wholesalePrice}
-            onChange={(e) => setForm((f) => ({ ...f, wholesalePrice: e.target.value }))}
           />
           <Input
             label="Reorder level"
@@ -592,11 +565,6 @@ export default function ProductsPage() {
                 onChange={(e) => setUnitForm((f) => ({ ...f, shortName: e.target.value }))}
               />
             </div>
-            {units.length > 0 ? (
-              <p className="text-xs text-[var(--text-muted)]">
-                Already added: {units.map((u) => u.shortName || u.name).join(", ")}
-              </p>
-            ) : null}
           </div>
         ) : null}
         {catalog === "category" ? (
@@ -606,11 +574,6 @@ export default function ProductsPage() {
               value={categoryForm.name}
               onChange={(e) => setCategoryForm((f) => ({ ...f, name: e.target.value }))}
             />
-            {categories.length > 0 ? (
-              <p className="text-xs text-[var(--text-muted)]">
-                Already added: {categories.map((c) => c.name).join(", ")}
-              </p>
-            ) : null}
           </div>
         ) : null}
         {catalog === "tax" ? (
@@ -630,11 +593,6 @@ export default function ProductsPage() {
                 onChange={(e) => setTaxForm((f) => ({ ...f, rate: e.target.value }))}
               />
             </div>
-            {taxes.length > 0 ? (
-              <p className="text-xs text-[var(--text-muted)]">
-                Already added: {taxes.map((t) => `${t.name} (${t.rate}%)`).join(", ")}
-              </p>
-            ) : null}
           </div>
         ) : null}
       </Modal>
@@ -654,7 +612,7 @@ export default function ProductsPage() {
 
         <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-soft)] p-3">
           <p className="mb-3 text-xs font-medium text-[var(--text-muted)]">
-            {editingPack ? "Edit pack" : "Add pack (size / grade)"}
+            {editingPack ? "Edit pack" : "Add pack"}
           </p>
           <div className="grid gap-3 sm:grid-cols-3">
             <Input
@@ -667,11 +625,6 @@ export default function ProductsPage() {
               value={packForm.color}
               onChange={(e) => setPackForm((f) => ({ ...f, color: e.target.value }))}
             />
-            <Input
-              label="SKU"
-              value={packForm.sku}
-              onChange={(e) => setPackForm((f) => ({ ...f, sku: e.target.value }))}
-            />
             {!editingPack ? (
               <Input
                 label="Initial stock"
@@ -683,7 +636,7 @@ export default function ProductsPage() {
               />
             ) : null}
             <Input
-              label="Cost price for this pack"
+              label="Cost"
               type="number"
               min={0}
               step="0.01"
@@ -691,7 +644,7 @@ export default function ProductsPage() {
               onChange={(e) => setPackForm((f) => ({ ...f, costPrice: e.target.value }))}
             />
             <Input
-              label="Sale price for this pack"
+              label="Sale"
               type="number"
               min={0}
               step="0.01"
@@ -727,14 +680,13 @@ export default function ProductsPage() {
         </div>
 
         <DataTable
-          headers={["Pack", "Grade", "SKU", "Stock", "Status", ""]}
+          headers={["Pack", "Grade", "Stock", "Status", ""]}
           empty={packs.length === 0}
         >
           {packs.map((pack) => (
             <tr key={pack.id} className="border-b border-[var(--border)] last:border-0">
               <td className="px-4 py-3 font-medium">{pack.size}</td>
               <td className="px-4 py-3">{pack.color}</td>
-              <td className="px-4 py-3 font-mono text-xs">{pack.sku}</td>
               <td className="px-4 py-3">{pack.stockQty.toLocaleString()}</td>
               <td className="px-4 py-3">
                 <StatusBadge active={pack.isActive} />

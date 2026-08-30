@@ -226,7 +226,7 @@ export default function UsersPage() {
             />
           ) : (
             <Input
-              label="New password (optional)"
+              label="New password"
               type="password"
               value={passwordOnly}
               onChange={(e) => setPasswordOnly(e.target.value)}

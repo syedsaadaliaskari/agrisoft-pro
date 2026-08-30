@@ -732,7 +732,7 @@ export default function DashboardPage() {
             ]}
           />
           <Textarea
-            label="Notes (optional)"
+            label="Notes"
             value={form.notes}
             onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
           />

@@ -106,10 +106,8 @@ export default function InventoryPage() {
               title="Inventory"
               columns={[
                 { key: "product", label: "Product" },
-                { key: "productSku", label: "Product SKU" },
                 { key: "size", label: "Pack" },
                 { key: "color", label: "Grade" },
-                { key: "variantSku", label: "SKU" },
                 { key: "stockQty", label: "Stock" },
                 { key: "reorderLevel", label: "Reorder" },
                 { key: "costPrice", label: "Cost" },
@@ -118,10 +116,8 @@ export default function InventoryPage() {
               ]}
               rows={filtered.map((r) => ({
                 product: r.productName,
-                productSku: r.productSku,
                 size: r.size,
                 color: r.color,
-                variantSku: r.variantSku,
                 stockQty: r.stockQty,
                 reorderLevel: r.reorderLevel,
                 costPrice: r.costPrice,
@@ -148,7 +144,6 @@ export default function InventoryPage() {
             "Product",
             "Pack",
             "Grade",
-            "SKU",
             "Stock",
             "Reorder",
             "Cost",
@@ -160,13 +155,9 @@ export default function InventoryPage() {
         >
           {filtered.map((row) => (
             <tr key={row.variantId} className="border-b border-[var(--border)] last:border-0">
-              <td className="px-4 py-3">
-                <div className="font-medium">{row.productName}</div>
-                <div className="font-mono text-[11px] text-[var(--text-muted)]">{row.productSku}</div>
-              </td>
+              <td className="px-4 py-3 font-medium">{row.productName}</td>
               <td className="px-4 py-3">{row.size}</td>
               <td className="px-4 py-3 text-[var(--text-muted)]">{row.color}</td>
-              <td className="px-4 py-3 font-mono text-xs">{row.variantSku}</td>
               <td
                 className={cn(
                   "px-4 py-3 font-semibold",

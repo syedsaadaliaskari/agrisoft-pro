@@ -131,7 +131,7 @@ function ReceivePaymentPageInner() {
       setError(res.error);
       return;
     }
-    setOkMsg(editingId ? `Updated ${res.data.voucherNo}` : `Saved ${res.data.voucherNo}`);
+    setOkMsg(editingId ? "Updated" : "Saved");
     resetForm();
     await load();
   };

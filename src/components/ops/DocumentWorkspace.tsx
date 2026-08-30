@@ -541,14 +541,12 @@ export function DocMetaGrid({
 
 export function VoucherWorkspace({
   formTitle,
-  formHint,
   form,
   listTitle,
   list,
   stats,
 }: {
   formTitle: string;
-  formHint?: string;
   form: React.ReactNode;
   listTitle: string;
   list: React.ReactNode;
@@ -560,21 +558,12 @@ export function VoucherWorkspace({
       <div className="grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
         <aside className="h-fit rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[0_1px_0_rgba(0,0,0,0.04)] xl:sticky xl:top-4">
           <div className="mb-4 border-b border-[var(--border)] pb-4">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--accent)]">
-              Entry desk
-            </div>
-            <h2 className="mt-1 text-lg font-semibold tracking-tight">{formTitle}</h2>
-            {formHint ? <p className="mt-1 text-xs text-[var(--text-muted)]">{formHint}</p> : null}
+            <h2 className="text-lg font-semibold tracking-tight">{formTitle}</h2>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">{form}</div>
         </aside>
         <section className="min-w-0 space-y-3">
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-semibold">{listTitle}</h2>
-              <p className="text-xs text-[var(--text-muted)]">Posted documents in this register</p>
-            </div>
-          </div>
+          <h2 className="text-sm font-semibold">{listTitle}</h2>
           {list}
         </section>
       </div>
