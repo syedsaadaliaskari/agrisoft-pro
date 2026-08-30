@@ -14,6 +14,12 @@ function money(n: number, currency = "Rs") {
   return `${currency} ${Number(n || 0).toFixed(2)}`;
 }
 
+/** Qty on print matches the screen: `5 kg`. Blank unit stays qty-only. */
+function qtyLabel(quantity: number, unit?: string | null) {
+  const u = (unit ?? "").trim();
+  return u ? `${quantity} ${esc(u)}` : String(quantity);
+}
+
 function baseStyles(size: ReceiptSize) {
   if (size === "thermal") {
     return `
@@ -104,7 +110,7 @@ export function buildSalePrintHtml(sale: Sale, size: ReceiptSize = "thermal", cu
     .map(
       (it) => `<tr>
       <td>${esc(it.productName)}<div class="muted">${esc([it.size, it.color].filter(Boolean).join(" / "))}</div></td>
-      <td class="num">${it.quantity}</td>
+      <td class="num">${qtyLabel(it.quantity, it.unit)}</td>
       <td class="num">${it.unitPrice.toFixed(2)}</td>
       <td class="num">${it.lineTotal.toFixed(2)}</td>
     </tr>`
@@ -175,7 +181,7 @@ export function buildPurchasePrintHtml(
     .map(
       (it) => `<tr>
       <td>${esc(it.productName)}<div class="muted">${esc([it.size, it.color].filter(Boolean).join(" / "))}</div></td>
-      <td class="num">${it.quantity}</td>
+      <td class="num">${qtyLabel(it.quantity, it.unit)}</td>
       <td class="num">${it.unitCost.toFixed(2)}</td>
       <td class="num">${it.lineTotal.toFixed(2)}</td>
     </tr>`
@@ -246,7 +252,7 @@ export function buildSaleReturnPrintHtml(
     .map(
       (it) => `<tr>
       <td>Variant ${esc(it.variantId.slice(0, 8))}</td>
-      <td class="num">${it.quantity}</td>
+      <td class="num">${qtyLabel(it.quantity, it.unit)}</td>
       <td class="num">${it.unitPrice.toFixed(2)}</td>
       <td class="num">${it.lineTotal.toFixed(2)}</td>
     </tr>`
@@ -292,7 +298,7 @@ export function buildPurchaseReturnPrintHtml(
     .map(
       (it) => `<tr>
       <td>Variant ${esc(it.variantId.slice(0, 8))}</td>
-      <td class="num">${it.quantity}</td>
+      <td class="num">${qtyLabel(it.quantity, it.unit)}</td>
       <td class="num">${it.unitCost.toFixed(2)}</td>
       <td class="num">${it.lineTotal.toFixed(2)}</td>
     </tr>`

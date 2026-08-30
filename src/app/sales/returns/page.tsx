@@ -237,7 +237,16 @@ export default function SaleReturnsPage() {
       }
       toPrint = res.data;
     }
-    const html = buildSaleReturnPrintHtml(toPrint, size);
+    const html = buildSaleReturnPrintHtml(
+      {
+        ...toPrint,
+        items: (toPrint.items ?? []).map((it) => ({
+          ...it,
+          unit: it.unit ?? inventory.find((row) => row.variantId === it.variantId)?.unit ?? null,
+        })),
+      },
+      size
+    );
     const res = await getApi().printHtml(html);
     if (!res.ok) setError(res.error);
   };

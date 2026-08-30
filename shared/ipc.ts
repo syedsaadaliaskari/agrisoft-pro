@@ -796,6 +796,7 @@ export type PurchaseReturnItem = {
   purchaseReturnId: string;
   variantId: string;
   quantity: number;
+  unit?: string | null;
   unitCost: number;
   lineTotal: number;
 };
@@ -931,6 +932,7 @@ export type SaleReturnItem = {
   saleReturnId: string;
   variantId: string;
   quantity: number;
+  unit?: string | null;
   unitPrice: number;
   lineTotal: number;
 };

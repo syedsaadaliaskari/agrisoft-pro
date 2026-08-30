@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 — 2026-08-30
+
+### Print
+- Sale, purchase, and return receipts (thermal + A4) show quantity with unit (`5 kg`), matching the on-screen invoice.
 
 ### Removed
 - Multi-PC (LAN) mode — multi-device will use cloud sync instead of Wi‑Fi peer sharing.
