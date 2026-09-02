@@ -8,6 +8,8 @@ import {
   type SalesReport,
   type PurchasesReport,
   type ProfitReport,
+  type ProductProfitPoint,
+  type ProductProfitRow,
   type StockReport,
   type TaxReport,
   type DeletedDocumentsReport,
@@ -29,6 +31,7 @@ import {
   users,
   vouchers,
   saleReturns,
+  saleReturnItems,
   purchaseReturns,
 } from "../db/schema";
 import {
@@ -569,42 +572,220 @@ export function registerDashboardHandlers(): void {
       })
   );
 
+type DayAgg = { revenue: number; cogs: number; qty: number };
+
+function bumpDay(map: Map<string, DayAgg>, date: string, revenue: number, cogs: number, qty: number) {
+  const cur = map.get(date) ?? { revenue: 0, cogs: 0, qty: 0 };
+  cur.revenue += revenue;
+  cur.cogs += cogs;
+  cur.qty += qty;
+  map.set(date, cur);
+}
+
+function eachDateInclusive(from: string, to: string): string[] {
+  const out: string[] = [];
+  const start = new Date(`${from}T00:00:00`);
+  const end = new Date(`${to}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) return out;
+  const cursor = new Date(start);
+  let guard = 0;
+  while (cursor <= end && guard < 400) {
+    const y = cursor.getFullYear();
+    const m = String(cursor.getMonth() + 1).padStart(2, "0");
+    const d = String(cursor.getDate()).padStart(2, "0");
+    out.push(`${y}-${m}-${d}`);
+    cursor.setDate(cursor.getDate() + 1);
+    guard += 1;
+  }
+  return out;
+}
+
+function seriesFromDays(days: Map<string, DayAgg>, dateKeys: string[]): ProductProfitPoint[] {
+  return dateKeys.map((date) => {
+    const d = days.get(date) ?? { revenue: 0, cogs: 0, qty: 0 };
+    const revenue = money(d.revenue);
+    const cogs = money(d.cogs);
+    return { date, revenue, cogs, profit: money(revenue - cogs) };
+  });
+}
+
   registerHandler(IPC.REPORTS_PROFIT, async (_e, query?: ReportDateRange): Promise<ActionResult<ProfitReport>> =>
     guarded(() => requirePermission("reports.view"), async () => {
       const db = getDb();
+      const settings = getSettingsMap(db);
+      const inRange = (date: string | null | undefined) => {
+        if (!date) return false;
+        if (query?.fromDate && date < query.fromDate) return false;
+        if (query?.toDate && date > query.toDate) return false;
+        return true;
+      };
+
       const saleCond = [ne(sales.status, "deleted")];
       if (query?.fromDate) saleCond.push(gte(sales.invoiceDate, query.fromDate));
       if (query?.toDate) saleCond.push(lte(sales.invoiceDate, query.toDate));
 
-      const salesRevenueGross = Number(
-        db
-          .select({ t: sql<number>`coalesce(sum(${sales.grandTotal} - ${sales.taxAmount}), 0)` })
-          .from(sales)
-          .where(and(...saleCond))
-          .get()?.t ?? 0
-      );
-      const saleReturnsGross = sumSaleReturnsInRange(db, query?.fromDate, query?.toDate);
-      const saleReturnsTax = sumSaleReturnTaxInRange(db, query?.fromDate, query?.toDate);
-      const salesRevenue = money(salesRevenueGross - (saleReturnsGross - saleReturnsTax));
+      const saleLines = db
+        .select({
+          productId: products.id,
+          productName: products.name,
+          categoryName: categories.name,
+          date: sales.invoiceDate,
+          revenue: sql<number>`coalesce(sum(${saleItems.lineTotal} - ${saleItems.taxAmount}), 0)`,
+          cogs: sql<number>`coalesce(sum(${saleItems.costPrice} * ${saleItems.quantity}), 0)`,
+          qty: sql<number>`coalesce(sum(${saleItems.quantity}), 0)`,
+        })
+        .from(saleItems)
+        .innerJoin(sales, eq(saleItems.saleId, sales.id))
+        .innerJoin(productVariants, eq(saleItems.variantId, productVariants.id))
+        .innerJoin(products, eq(productVariants.productId, products.id))
+        .leftJoin(categories, eq(products.categoryId, categories.id))
+        .where(and(...saleCond))
+        .groupBy(products.id, products.name, categories.name, sales.invoiceDate)
+        .all();
 
-      // Approximate COGS from sale items, net of returned COGS
-      const cogsGross = Number(
-        db
-          .select({
-            t: sql<number>`coalesce(sum(${saleItems.costPrice} * ${saleItems.quantity}), 0)`,
-          })
-          .from(saleItems)
-          .innerJoin(sales, eq(saleItems.saleId, sales.id))
-          .where(and(...saleCond))
-          .get()?.t ?? 0
-      );
-      const cogs = money(cogsGross - sumSaleReturnCogsInRange(db, query?.fromDate, query?.toDate));
+      const costBySaleVariant = new Map<string, number>();
+      for (const row of db
+        .select({
+          saleId: saleItems.saleId,
+          variantId: saleItems.variantId,
+          unitCost: sql<number>`coalesce(sum(${saleItems.costPrice} * ${saleItems.quantity}) / nullif(sum(${saleItems.quantity}), 0), 0)`,
+        })
+        .from(saleItems)
+        .groupBy(saleItems.saleId, saleItems.variantId)
+        .all()) {
+        costBySaleVariant.set(`${row.saleId}:${row.variantId}`, Number(row.unitCost || 0));
+      }
 
+      const returnLines = db
+        .select({
+          productId: products.id,
+          productName: products.name,
+          categoryName: categories.name,
+          returnDate: saleReturns.returnDate,
+          saleId: saleReturns.saleId,
+          saleInvoiceDate: sales.invoiceDate,
+          variantId: saleReturnItems.variantId,
+          revenue: sql<number>`coalesce(sum(${saleReturnItems.lineTotal}), 0)`,
+          fallbackCogs: sql<number>`coalesce(sum(${saleReturnItems.quantity} * coalesce(${productVariants.costPrice}, ${products.costPrice}, 0)), 0)`,
+          qty: sql<number>`coalesce(sum(${saleReturnItems.quantity}), 0)`,
+        })
+        .from(saleReturnItems)
+        .innerJoin(saleReturns, eq(saleReturnItems.saleReturnId, saleReturns.id))
+        .innerJoin(productVariants, eq(saleReturnItems.variantId, productVariants.id))
+        .innerJoin(products, eq(productVariants.productId, products.id))
+        .leftJoin(categories, eq(products.categoryId, categories.id))
+        .leftJoin(sales, eq(saleReturns.saleId, sales.id))
+        .groupBy(
+          products.id,
+          products.name,
+          categories.name,
+          saleReturns.returnDate,
+          saleReturns.saleId,
+          sales.invoiceDate,
+          saleReturnItems.variantId
+        )
+        .all();
+
+      type ProductBucket = {
+        productId: string;
+        productName: string;
+        categoryName: string | null;
+        days: Map<string, DayAgg>;
+      };
+      const productsMap = new Map<string, ProductBucket>();
+      const shopDays = new Map<string, DayAgg>();
+
+      const take = (
+        productId: string,
+        productName: string,
+        categoryName: string | null,
+        date: string,
+        revenue: number,
+        lineCogs: number,
+        qty: number
+      ) => {
+        let bucket = productsMap.get(productId);
+        if (!bucket) {
+          bucket = { productId, productName, categoryName, days: new Map() };
+          productsMap.set(productId, bucket);
+        }
+        bumpDay(bucket.days, date, revenue, lineCogs, qty);
+        bumpDay(shopDays, date, revenue, lineCogs, qty);
+      };
+
+      let grossSalesRevenue = 0;
+      let grossCogs = 0;
+      for (const r of saleLines) {
+        const revenue = Number(r.revenue);
+        const lineCogs = Number(r.cogs);
+        grossSalesRevenue += revenue;
+        grossCogs += lineCogs;
+        take(r.productId, r.productName, r.categoryName ?? null, r.date, revenue, lineCogs, Number(r.qty));
+      }
+
+      let saleReturnsRevenue = 0;
+      let saleReturnsCogs = 0;
+      for (const r of returnLines) {
+        const qty = Number(r.qty);
+        const revenue = Number(r.revenue);
+        const unitCost = r.saleId ? costBySaleVariant.get(`${r.saleId}:${r.variantId}`) : undefined;
+        const lineCogs = unitCost != null ? unitCost * qty : Number(r.fallbackCogs);
+
+        const originalDate = r.saleInvoiceDate ?? null;
+        let applyDate: string | null = null;
+        if (originalDate && inRange(originalDate)) {
+          applyDate = originalDate;
+        } else if (inRange(r.returnDate)) {
+          applyDate = r.returnDate;
+        }
+        if (!applyDate) continue;
+
+        saleReturnsRevenue += revenue;
+        saleReturnsCogs += lineCogs;
+        take(r.productId, r.productName, r.categoryName ?? null, applyDate, -revenue, -lineCogs, -qty);
+      }
+
+      const dataDates = [...shopDays.keys()].sort();
+      const from = query?.fromDate || dataDates[0];
+      const to = query?.toDate || dataDates[dataDates.length - 1];
+      const dateKeys =
+        from && to ? eachDateInclusive(from, to) : dataDates.length ? dataDates : [];
+      const keys = dateKeys.length ? dateKeys : dataDates;
+
+      const byProduct: ProductProfitRow[] = [...productsMap.values()]
+        .map((p) => {
+          const series = seriesFromDays(p.days, keys);
+          const revenue = money(series.reduce((s, d) => s + d.revenue, 0));
+          const lineCogs = money(series.reduce((s, d) => s + d.cogs, 0));
+          const profit = money(revenue - lineCogs);
+          const qtySold = money([...p.days.values()].reduce((s, d) => s + d.qty, 0));
+          return {
+            productId: p.productId,
+            productName: p.productName,
+            categoryName: p.categoryName,
+            qtySold,
+            revenue,
+            cogs: lineCogs,
+            profit,
+            marginPct: revenue === 0 ? 0 : money((profit / revenue) * 100),
+            series,
+          };
+        })
+        .sort((a, b) => b.profit - a.profit);
+
+      const byDay = seriesFromDays(shopDays, keys);
+      const salesRevenue = money(grossSalesRevenue - saleReturnsRevenue);
+      const cogs = money(grossCogs - saleReturnsCogs);
       const grossProfit = money(salesRevenue - cogs);
       return ok({
         fromDate: query?.fromDate ?? null,
         toDate: query?.toDate ?? null,
+        currencySymbol: settings.currency_symbol || "Rs",
+        grossSalesRevenue: money(grossSalesRevenue),
+        saleReturnsRevenue: money(saleReturnsRevenue),
         salesRevenue,
+        grossCogs: money(grossCogs),
+        saleReturnsCogs: money(saleReturnsCogs),
         cogs,
         grossProfit,
         otherIncome: 0,
@@ -612,6 +793,8 @@ export function registerDashboardHandlers(): void {
         netProfit: grossProfit,
         incomeLines: [{ accountCode: "4100", accountName: "Sales Revenue (net of returns)", amount: salesRevenue }],
         expenseLines: [{ accountCode: "5100", accountName: "Cost of Goods Sold (net)", amount: cogs }],
+        byDay,
+        byProduct,
       });
     })
   );

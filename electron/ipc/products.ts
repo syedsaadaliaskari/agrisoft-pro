@@ -227,6 +227,11 @@ export function registerProductHandlers(): void {
         })
         .run();
 
+      const initialStock = Number(input.initialStock ?? 0);
+      if (Number.isNaN(initialStock) || initialStock < 0) {
+        return fail("Initial stock must be a non-negative number");
+      }
+
       // Default pack so inventory/sales can attach stock immediately
       const variantId = randomUUID();
       db.insert(productVariants)
@@ -238,10 +243,25 @@ export function registerProductHandlers(): void {
           color: "Standard",
           costPrice: Number(input.costPrice),
           salePrice: Number(input.salePrice),
-          stockQty: 0,
+          stockQty: initialStock,
           isActive: true,
         })
         .run();
+
+      if (initialStock > 0) {
+        const session = getCurrentSession();
+        db.insert(stockMovements)
+          .values({
+            id: randomUUID(),
+            variantId,
+            movementType: "in",
+            quantity: initialStock,
+            referenceType: "adjustment",
+            notes: "Opening stock when product created",
+            createdBy: session?.id ?? null,
+          })
+          .run();
+      }
 
       return ok(enrichProduct(id)!);
     })

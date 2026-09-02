@@ -9,13 +9,17 @@ import {
   OpsListSkeleton,
   OpsStatStrip,
   VoucherWorkspace,
+  MoneySplitFields,
+  cashBankSummary,
+  legsFromVoucher,
+  splitCoversAmount,
   money,
 } from "@/components/ops/DocumentWorkspace";
-import { Alert, Button, DataTable, Input, Select, Textarea } from "@/components/ui/form";
+import { Alert, Button, DataTable, Input, Textarea } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
 import { hasPermission } from "@/lib/permissions";
 import { useAuthStore } from "@/store/auth";
-import type { Account, Voucher } from "@shared/ipc";
+import type { Voucher } from "@shared/ipc";
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -25,12 +29,12 @@ export default function OwnerDrawPage() {
   const user = useAuthStore((s) => s.user);
   const canCreate = hasPermission(user, "transactions.create");
 
-  const [cashAccounts, setCashAccounts] = useState<Account[]>([]);
   const [rows, setRows] = useState<Voucher[]>([]);
   const [loading, setLoading] = useState(true);
   const [voucherDate, setVoucherDate] = useState(today());
-  const [accountId, setAccountId] = useState("");
   const [amount, setAmount] = useState("");
+  const [cashPaid, setCashPaid] = useState("");
+  const [bankPaid, setBankPaid] = useState("0");
   const [notes, setNotes] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -40,14 +44,7 @@ export default function OwnerDrawPage() {
   const load = useCallback(async () => {
     setLoading(true);
     const api = getApi();
-    const [c, v] = await Promise.all([
-      api.listAccounts({ cashBankOnly: true }),
-      api.listVouchers({ voucherType: "owner_draw", includeCancelled: true }),
-    ]);
-    if (c.ok) {
-      setCashAccounts(c.data);
-      if (c.data[0]) setAccountId((prev) => prev || c.data[0].id);
-    }
+    const v = await api.listVouchers({ voucherType: "owner_draw", includeCancelled: true });
     if (v.ok) setRows(v.data);
     setLoading(false);
   }, []);
@@ -71,18 +68,21 @@ export default function OwnerDrawPage() {
   const resetForm = () => {
     setVoucherDate(today());
     setAmount("");
+    setCashPaid("");
+    setBankPaid("0");
     setNotes("");
     setEditingId(null);
     setError("");
-    if (cashAccounts[0]) setAccountId(cashAccounts[0].id);
   };
 
   const openEdit = (row: Voucher) => {
     if (row.status === "cancelled") return;
     setEditingId(row.id);
     setVoucherDate(row.voucherDate);
-    if (row.accountId) setAccountId(row.accountId);
     setAmount(String(row.grandTotal));
+    const legs = legsFromVoucher(row);
+    setCashPaid(legs.cashPaid);
+    setBankPaid(legs.bankPaid);
     setNotes(row.notes ?? "");
     setError("");
     setOkMsg("");
@@ -94,8 +94,9 @@ export default function OwnerDrawPage() {
     setOkMsg("");
     const payload = {
       voucherDate,
-      accountId,
-      amount: Number(amount),
+      amount: Number(amount) || Number(cashPaid || 0) + Number(bankPaid || 0),
+      cashPaid: Number(cashPaid || 0),
+      bankPaid: Number(bankPaid || 0),
       notes: notes || null,
     };
     const res = editingId
@@ -126,7 +127,7 @@ export default function OwnerDrawPage() {
   return (
     <AppShell
       title="Owner Draw"
-      subtitle="Take cash/bank for personal use — does not count as expense"
+      subtitle="Take cash, bank, or both for personal use — does not count as expense"
       permission="transactions.create"
     >
       {error ? (
@@ -169,19 +170,13 @@ export default function OwnerDrawPage() {
               value={voucherDate}
               onChange={(e) => setVoucherDate(e.target.value)}
             />
-            <Select
-              label="Taken from"
-              value={accountId}
-              onChange={(e) => setAccountId(e.target.value)}
-              options={cashAccounts.map((a) => ({ value: a.id, label: a.name }))}
-            />
-            <Input
-              label="Amount"
-              type="number"
-              min={0.01}
-              step="0.01"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+            <MoneySplitFields
+              amount={amount}
+              cashPaid={cashPaid}
+              bankPaid={bankPaid}
+              onAmount={setAmount}
+              onCashPaid={setCashPaid}
+              onBankPaid={setBankPaid}
             />
             <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
             <div className="flex flex-wrap gap-2 pt-1">
@@ -192,7 +187,7 @@ export default function OwnerDrawPage() {
               ) : null}
               <Button
                 onClick={() => void onSave()}
-                disabled={saving || !amount || !accountId || !canCreate}
+                disabled={saving || !splitCoversAmount(amount, cashPaid, bankPaid) || !canCreate}
               >
                 {saving ? "Saving..." : editingId ? "Update draw" : "Post owner draw"}
               </Button>
@@ -216,7 +211,7 @@ export default function OwnerDrawPage() {
                     <div className="font-mono text-xs font-semibold">{row.voucherNo}</div>
                     <div className="text-[11px] text-[var(--text-muted)]">{row.voucherDate}</div>
                   </td>
-                  <td className="px-4 py-3.5 text-[var(--text-muted)]">{row.accountName || "—"}</td>
+                  <td className="px-4 py-3.5 text-[var(--text-muted)]">{cashBankSummary(row)}</td>
                   <td className="px-4 py-3.5 font-semibold tabular-nums">{money(row.grandTotal)}</td>
                   <td className="px-4 py-3.5">
                     <DocStatusBadge status={row.status} />

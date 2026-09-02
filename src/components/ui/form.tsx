@@ -33,9 +33,10 @@ export function Button({
 type InputProps = React.InputHTMLAttributes<HTMLInputElement> & {
   label?: string;
   error?: string;
+  hint?: string;
 };
 
-export function Input({ label, error, className, id, ...props }: InputProps) {
+export function Input({ label, error, hint, className, id, ...props }: InputProps) {
   const inputId = id ?? props.name;
   return (
     <div className="space-y-1.5">
@@ -53,6 +54,7 @@ export function Input({ label, error, className, id, ...props }: InputProps) {
         )}
         {...props}
       />
+      {hint && !error ? <p className="text-[11px] leading-snug text-[var(--text-muted)]">{hint}</p> : null}
       {error ? <p className="text-xs text-[var(--danger)]">{error}</p> : null}
     </div>
   );

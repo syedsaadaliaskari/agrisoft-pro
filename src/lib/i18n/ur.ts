@@ -137,7 +137,7 @@ export const ur: Dict = {
   "pages.reportsPurchases.title": "پرچیز رپورٹ",
   "pages.reportsPurchases.subtitle": "مدت کے مطابق خریداری کل",
   "pages.reportsProfit.title": "منافع و نقصان",
-  "pages.reportsProfit.subtitle": "فروخت آمدنی بمقابلہ لاگت",
+  "pages.reportsProfit.subtitle": "فصل کے حساب سے منافع — ہر مصنوع کا گراف",
   "pages.reportsStock.title": "اسٹاک رپورٹ",
   "pages.reportsStock.subtitle": "پیک کے مطابق انوینٹری قیمت",
   "pages.reportsTax.title": "ٹیکس رپورٹ",

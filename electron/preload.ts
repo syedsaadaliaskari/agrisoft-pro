@@ -64,6 +64,7 @@ const api: ElectronAPI = {
 
   listAccounts: (filter) => ipcRenderer.invoke(IPC.ACCOUNTS_LIST, filter),
   getAccount: (id) => ipcRenderer.invoke(IPC.ACCOUNTS_GET, id),
+  setCashBankOpenings: (input) => ipcRenderer.invoke(IPC.ACCOUNTS_SET_CASH_BANK_OPENING, input),
   postVoucher: (input) => ipcRenderer.invoke(IPC.VOUCHERS_POST, input),
   updateVoucher: (id, input) => ipcRenderer.invoke(IPC.VOUCHERS_UPDATE, id, input),
   getVoucher: (id) => ipcRenderer.invoke(IPC.VOUCHERS_GET, id),
@@ -132,6 +133,7 @@ const api: ElectronAPI = {
     ipcRenderer.invoke(IPC.ROLES_SET_PERMISSIONS, roleId, permissionCodes),
   listAuditLogs: (query) => ipcRenderer.invoke(IPC.AUDIT_LIST, query),
   printHtml: (html) => ipcRenderer.invoke(IPC.APP_PRINT_HTML, html),
+  receiptImage: (input) => ipcRenderer.invoke(IPC.APP_RECEIPT_IMAGE, input),
   saveFile: (input) => ipcRenderer.invoke(IPC.APP_SAVE_FILE, input),
 
   getBackupStatus: () => ipcRenderer.invoke(IPC.BACKUP_STATUS),

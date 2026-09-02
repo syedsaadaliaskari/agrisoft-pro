@@ -203,12 +203,12 @@ export default function VendorsPage() {
               onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
             />
             <Select
-              label="Opening balance type"
+              label="Type"
               value={form.balanceType}
               onChange={(e) => setForm((f) => ({ ...f, balanceType: e.target.value }))}
               options={[
-                { value: "credit", label: "Credit" },
-                { value: "debit", label: "Debit" },
+                { value: "credit", label: "Payable" },
+                { value: "debit", label: "Receivable" },
               ]}
             />
             <Input
@@ -261,7 +261,7 @@ export default function VendorsPage() {
                   name: r.name,
                   phone: r.phone ?? "",
                   city: r.city ?? "",
-                  opening: `${r.openingBalance} ${r.balanceType === "debit" ? "Dr" : "Cr"}`,
+                  opening: `${r.openingBalance} ${r.balanceType === "credit" ? "Payable" : "Receivable"}`,
                   status: r.isActive ? "Active" : "Inactive",
                 }))}
               />
@@ -288,7 +288,7 @@ export default function VendorsPage() {
                     <td className="px-4 py-3.5 tabular-nums text-sm">
                       {money(row.openingBalance)}{" "}
                       <span className="text-[var(--text-muted)]">
-                        {row.balanceType === "debit" ? "Dr" : "Cr"}
+                        {row.balanceType === "credit" ? "Payable" : "Receivable"}
                       </span>
                     </td>
                     <td className="px-4 py-3.5">

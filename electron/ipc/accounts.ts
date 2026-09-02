@@ -8,7 +8,10 @@ import {
 } from "../../shared/ipc";
 import { getDb } from "../db";
 import { accounts } from "../db/schema";
-import { requirePermission, requireSession, PermissionError } from "./session";
+import { requireAccountByCode } from "../db/accounts";
+import { money } from "../db/ledger";
+import { writeAuditLog } from "../db/audit";
+import { requirePermission, requireSession, PermissionError, getCurrentSession } from "./session";
 
 function ok<T>(data: T): ActionResult<T> {
   return { ok: true, data };
@@ -76,5 +79,50 @@ export function registerAccountHandlers(): void {
       if (!row) return fail("Account not found");
       return ok(mapAccount(row));
     })
+  );
+
+  registerHandler(
+    IPC.ACCOUNTS_SET_CASH_BANK_OPENING,
+    async (
+      _e,
+      input: { cashOpening: number; bankOpening: number }
+    ): Promise<ActionResult<{ cashOpening: number; bankOpening: number }>> =>
+      guarded(() => requirePermission("settings.manage"), async () => {
+        const cashAmt = money(Number(input.cashOpening) || 0);
+        const bankAmt = money(Number(input.bankOpening) || 0);
+        if (cashAmt < 0 || bankAmt < 0) return fail("Opening cash and bank cannot be negative");
+
+        const db = getDb();
+        const cash = requireAccountByCode(db, "1100", "Cash");
+        const bank = requireAccountByCode(db, "1200", "Bank");
+        const equity = requireAccountByCode(db, "3100", "Owner Equity");
+        const now = new Date().toISOString();
+        const delta = money(cashAmt - cash.openingBalance + (bankAmt - bank.openingBalance));
+
+        db.update(accounts)
+          .set({ openingBalance: cashAmt, updatedAt: now })
+          .where(eq(accounts.id, cash.id))
+          .run();
+        db.update(accounts)
+          .set({ openingBalance: bankAmt, updatedAt: now })
+          .where(eq(accounts.id, bank.id))
+          .run();
+        if (delta !== 0) {
+          db.update(accounts)
+            .set({ openingBalance: money(equity.openingBalance + delta), updatedAt: now })
+            .where(eq(accounts.id, equity.id))
+            .run();
+        }
+
+        writeAuditLog(db, {
+          userId: getCurrentSession()?.id ?? null,
+          action: "update",
+          module: "settings",
+          entityId: cash.id,
+          details: `Opening cash ${cashAmt}, bank ${bankAmt}`,
+        });
+
+        return ok({ cashOpening: cashAmt, bankOpening: bankAmt });
+      })
   );
 }

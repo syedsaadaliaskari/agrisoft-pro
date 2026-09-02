@@ -32,6 +32,11 @@ import {
   partySignedBalance,
 } from "../db/ledger";
 import {
+  cashBankFromVoucher,
+  resolveMoneySplit,
+  type ResolvedMoneySplit,
+} from "../db/settlement";
+import {
   vouchers,
   voucherEntries,
   accounts,
@@ -123,10 +128,18 @@ function enrichVoucher(id: string): Voucher | null {
       return mapEntry(e, a);
     });
 
+  const vType = row.voucherType as Voucher["voucherType"];
+  const moneyIn = vType === "receipt" || vType === "income";
+  const moneyOut = vType === "payment" || vType === "expense" || vType === "owner_draw";
+  const legs =
+    moneyIn || moneyOut
+      ? cashBankFromVoucher(db, id, moneyIn ? "debit" : "credit")
+      : { cashPaid: 0, bankPaid: 0 };
+
   return {
     id: row.id,
     voucherNo: row.voucherNo,
-    voucherType: row.voucherType as Voucher["voucherType"],
+    voucherType: vType,
     voucherDate: row.voucherDate,
     partyType: row.partyType as Voucher["partyType"],
     partyId: row.partyId,
@@ -146,6 +159,8 @@ function enrichVoucher(id: string): Voucher | null {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     entries,
+    cashPaid: legs.cashPaid,
+    bankPaid: legs.bankPaid,
   };
 }
 
@@ -154,6 +169,68 @@ function validateBalanced(entries: { debit: number; credit: number }[]) {
   const c = money(entries.reduce((s, e) => s + Number(e.credit || 0), 0));
   if (d !== c) throw new Error(`Voucher not balanced: debit ${d} vs credit ${c}`);
   if (d === 0) throw new Error("Voucher has no amounts");
+}
+
+function applyMoneySplit(
+  db: ReturnType<typeof getDb>,
+  input: {
+    amount?: number | null;
+    cashPaid?: number | null;
+    bankPaid?: number | null;
+    accountId?: string | null;
+    cashAccountId?: string | null;
+    bankAccountId?: string | null;
+  },
+  opts?: { cashBankCodesOnly?: boolean }
+): ResolvedMoneySplit | { error: string } {
+  const split = resolveMoneySplit(db, input);
+  if ("error" in split) return split;
+  for (const [id, label] of [
+    [split.cashAccountId, "Cash"] as const,
+    [split.bankAccountId, "Bank"] as const,
+  ]) {
+    if (!id) continue;
+    const a = db.select().from(accounts).where(eq(accounts.id, id)).get();
+    if (!a) return { error: `${label} account not found` };
+    if (opts?.cashBankCodesOnly && a.code !== "1100" && a.code !== "1200") {
+      return { error: "Owner draw must come from Cash or Bank" };
+    }
+  }
+  return split;
+}
+
+function postCashBankLegs(
+  db: ReturnType<typeof getDb>,
+  voucherId: string,
+  narration: string,
+  split: ResolvedMoneySplit,
+  side: "debit" | "credit",
+  startOrder: number
+): number {
+  let order = startOrder;
+  if (split.cashPaid > 0 && split.cashAccountId) {
+    insertVoucherEntry(
+      db,
+      voucherId,
+      split.cashAccountId,
+      side === "debit" ? split.cashPaid : 0,
+      side === "credit" ? split.cashPaid : 0,
+      narration,
+      order++
+    );
+  }
+  if (split.bankPaid > 0 && split.bankAccountId) {
+    insertVoucherEntry(
+      db,
+      voucherId,
+      split.bankAccountId,
+      side === "debit" ? split.bankPaid : 0,
+      side === "credit" ? split.bankPaid : 0,
+      narration,
+      order++
+    );
+  }
+  return order;
 }
 
 export function registerLedgerHandlers(): void {
@@ -529,13 +606,12 @@ export function registerLedgerHandlers(): void {
 
   registerHandler(IPC.TX_RECEIVE, async (_e, input: ReceivePaymentInput): Promise<ActionResult<Voucher>> =>
     guarded(() => requirePermission("transactions.create"), async () => {
-      const amount = money(Number(input.amount));
-      if (amount <= 0) return fail("Amount must be positive");
       const db = getDb();
+      const split = applyMoneySplit(db, input);
+      if ("error" in split) return fail(split.error);
+      const amount = split.amount;
       const customer = db.select().from(customers).where(eq(customers.id, input.customerId)).get();
       if (!customer) return fail("Customer not found");
-      const cash = db.select().from(accounts).where(eq(accounts.id, input.accountId)).get();
-      if (!cash) return fail("Account not found");
       const ar = requireAccountByCode(db, "1300", "Accounts Receivable");
       const session = getCurrentSession();
       const voucherNo = nextDocumentNumber(db, "receipt");
@@ -549,7 +625,7 @@ export function registerLedgerHandlers(): void {
           voucherDate: input.voucherDate,
           partyType: "customer",
           partyId: input.customerId,
-          accountId: input.accountId,
+          accountId: split.headerAccountId,
           referenceNo: input.referenceNo?.trim() || null,
           notes: input.notes?.trim() || null,
           grandTotal: amount,
@@ -560,8 +636,9 @@ export function registerLedgerHandlers(): void {
           updatedAt: ts,
         })
         .run();
-      insertVoucherEntry(db, id, input.accountId, amount, 0, `Receipt ${voucherNo}`, 0);
-      insertVoucherEntry(db, id, ar.id, 0, amount, `Receipt ${voucherNo}`, 1);
+      let order = 0;
+      order = postCashBankLegs(db, id, `Receipt ${voucherNo}`, split, "debit", order);
+      insertVoucherEntry(db, id, ar.id, 0, amount, `Receipt ${voucherNo}`, order);
       writeAuditLog(db, {
         userId: session?.id ?? null,
         action: "create",
@@ -577,17 +654,16 @@ export function registerLedgerHandlers(): void {
     IPC.TX_RECEIVE_UPDATE,
     async (_e, id: string, input: ReceivePaymentInput): Promise<ActionResult<Voucher>> =>
       guarded(() => requirePermission("transactions.create"), async () => {
-        const amount = money(Number(input.amount));
-        if (amount <= 0) return fail("Amount must be positive");
         const db = getDb();
+        const split = applyMoneySplit(db, input);
+        if ("error" in split) return fail(split.error);
+        const amount = split.amount;
         const existing = db.select().from(vouchers).where(eq(vouchers.id, id)).get();
         if (!existing || existing.voucherType !== "receipt") return fail("Receipt not found");
         if (existing.status === "cancelled") return fail("Cannot edit cancelled receipt");
 
         const customer = db.select().from(customers).where(eq(customers.id, input.customerId)).get();
         if (!customer) return fail("Customer not found");
-        const cash = db.select().from(accounts).where(eq(accounts.id, input.accountId)).get();
-        if (!cash) return fail("Account not found");
         const ar = requireAccountByCode(db, "1300", "Accounts Receivable");
         const session = getCurrentSession();
         const ts = nowIso();
@@ -598,7 +674,7 @@ export function registerLedgerHandlers(): void {
             voucherDate: input.voucherDate,
             partyType: "customer",
             partyId: input.customerId,
-            accountId: input.accountId,
+            accountId: split.headerAccountId,
             referenceNo: input.referenceNo?.trim() || null,
             notes: input.notes?.trim() || null,
             grandTotal: amount,
@@ -608,8 +684,9 @@ export function registerLedgerHandlers(): void {
           })
           .where(eq(vouchers.id, id))
           .run();
-        insertVoucherEntry(db, id, input.accountId, amount, 0, `Receipt ${existing.voucherNo}`, 0);
-        insertVoucherEntry(db, id, ar.id, 0, amount, `Receipt ${existing.voucherNo}`, 1);
+        let order = 0;
+        order = postCashBankLegs(db, id, `Receipt ${existing.voucherNo}`, split, "debit", order);
+        insertVoucherEntry(db, id, ar.id, 0, amount, `Receipt ${existing.voucherNo}`, order);
         writeAuditLog(db, {
           userId: session?.id ?? null,
           action: "update",
@@ -623,13 +700,12 @@ export function registerLedgerHandlers(): void {
 
   registerHandler(IPC.TX_PAY, async (_e, input: MakePaymentInput): Promise<ActionResult<Voucher>> =>
     guarded(() => requirePermission("transactions.create"), async () => {
-      const amount = money(Number(input.amount));
-      if (amount <= 0) return fail("Amount must be positive");
       const db = getDb();
+      const split = applyMoneySplit(db, input);
+      if ("error" in split) return fail(split.error);
+      const amount = split.amount;
       const vendor = db.select().from(vendors).where(eq(vendors.id, input.vendorId)).get();
       if (!vendor) return fail("Vendor not found");
-      const cash = db.select().from(accounts).where(eq(accounts.id, input.accountId)).get();
-      if (!cash) return fail("Account not found");
       const ap = requireAccountByCode(db, "2100", "Accounts Payable");
       const session = getCurrentSession();
       const voucherNo = nextDocumentNumber(db, "payment");
@@ -643,7 +719,7 @@ export function registerLedgerHandlers(): void {
           voucherDate: input.voucherDate,
           partyType: "vendor",
           partyId: input.vendorId,
-          accountId: input.accountId,
+          accountId: split.headerAccountId,
           referenceNo: input.referenceNo?.trim() || null,
           notes: input.notes?.trim() || null,
           grandTotal: amount,
@@ -655,7 +731,7 @@ export function registerLedgerHandlers(): void {
         })
         .run();
       insertVoucherEntry(db, id, ap.id, amount, 0, `Payment ${voucherNo}`, 0);
-      insertVoucherEntry(db, id, input.accountId, 0, amount, `Payment ${voucherNo}`, 1);
+      postCashBankLegs(db, id, `Payment ${voucherNo}`, split, "credit", 1);
       writeAuditLog(db, {
         userId: session?.id ?? null,
         action: "create",
@@ -671,17 +747,16 @@ export function registerLedgerHandlers(): void {
     IPC.TX_PAY_UPDATE,
     async (_e, id: string, input: MakePaymentInput): Promise<ActionResult<Voucher>> =>
       guarded(() => requirePermission("transactions.create"), async () => {
-        const amount = money(Number(input.amount));
-        if (amount <= 0) return fail("Amount must be positive");
         const db = getDb();
+        const split = applyMoneySplit(db, input);
+        if ("error" in split) return fail(split.error);
+        const amount = split.amount;
         const existing = db.select().from(vouchers).where(eq(vouchers.id, id)).get();
         if (!existing || existing.voucherType !== "payment") return fail("Payment not found");
         if (existing.status === "cancelled") return fail("Cannot edit cancelled payment");
 
         const vendor = db.select().from(vendors).where(eq(vendors.id, input.vendorId)).get();
         if (!vendor) return fail("Vendor not found");
-        const cash = db.select().from(accounts).where(eq(accounts.id, input.accountId)).get();
-        if (!cash) return fail("Account not found");
         const ap = requireAccountByCode(db, "2100", "Accounts Payable");
         const session = getCurrentSession();
         const ts = nowIso();
@@ -692,7 +767,7 @@ export function registerLedgerHandlers(): void {
             voucherDate: input.voucherDate,
             partyType: "vendor",
             partyId: input.vendorId,
-            accountId: input.accountId,
+            accountId: split.headerAccountId,
             referenceNo: input.referenceNo?.trim() || null,
             notes: input.notes?.trim() || null,
             grandTotal: amount,
@@ -703,7 +778,7 @@ export function registerLedgerHandlers(): void {
           .where(eq(vouchers.id, id))
           .run();
         insertVoucherEntry(db, id, ap.id, amount, 0, `Payment ${existing.voucherNo}`, 0);
-        insertVoucherEntry(db, id, input.accountId, 0, amount, `Payment ${existing.voucherNo}`, 1);
+        postCashBankLegs(db, id, `Payment ${existing.voucherNo}`, split, "credit", 1);
         writeAuditLog(db, {
           userId: session?.id ?? null,
           action: "update",
@@ -717,13 +792,12 @@ export function registerLedgerHandlers(): void {
 
   registerHandler(IPC.TX_EXPENSE, async (_e, input: ExpenseVoucherInput): Promise<ActionResult<Voucher>> =>
     guarded(() => requirePermission("transactions.create"), async () => {
-      const amount = money(Number(input.amount));
-      if (amount <= 0) return fail("Amount must be positive");
       const db = getDb();
+      const split = applyMoneySplit(db, input);
+      if ("error" in split) return fail(split.error);
+      const amount = split.amount;
       const exp = db.select().from(accounts).where(eq(accounts.id, input.expenseAccountId)).get();
       if (!exp || exp.accountType !== "expense") return fail("Expense account required");
-      const cash = db.select().from(accounts).where(eq(accounts.id, input.accountId)).get();
-      if (!cash) return fail("Cash/Bank account not found");
       const session = getCurrentSession();
       const voucherNo = nextDocumentNumber(db, "expense");
       const id = randomUUID();
@@ -736,7 +810,7 @@ export function registerLedgerHandlers(): void {
           voucherDate: input.voucherDate,
           partyType: input.vendorId ? "vendor" : null,
           partyId: input.vendorId ?? null,
-          accountId: input.accountId,
+          accountId: split.headerAccountId,
           referenceNo: input.referenceNo?.trim() || null,
           notes: input.notes?.trim() || null,
           grandTotal: amount,
@@ -748,7 +822,7 @@ export function registerLedgerHandlers(): void {
         })
         .run();
       insertVoucherEntry(db, id, input.expenseAccountId, amount, 0, `Expense ${voucherNo}`, 0);
-      insertVoucherEntry(db, id, input.accountId, 0, amount, `Expense ${voucherNo}`, 1);
+      postCashBankLegs(db, id, `Expense ${voucherNo}`, split, "credit", 1);
       writeAuditLog(db, {
         userId: session?.id ?? null,
         action: "create",
@@ -764,17 +838,16 @@ export function registerLedgerHandlers(): void {
     IPC.TX_EXPENSE_UPDATE,
     async (_e, id: string, input: ExpenseVoucherInput): Promise<ActionResult<Voucher>> =>
       guarded(() => requirePermission("transactions.create"), async () => {
-        const amount = money(Number(input.amount));
-        if (amount <= 0) return fail("Amount must be positive");
         const db = getDb();
+        const split = applyMoneySplit(db, input);
+        if ("error" in split) return fail(split.error);
+        const amount = split.amount;
         const existing = db.select().from(vouchers).where(eq(vouchers.id, id)).get();
         if (!existing || existing.voucherType !== "expense") return fail("Expense not found");
         if (existing.status === "cancelled") return fail("Cannot edit cancelled expense");
 
         const exp = db.select().from(accounts).where(eq(accounts.id, input.expenseAccountId)).get();
         if (!exp || exp.accountType !== "expense") return fail("Expense account required");
-        const cash = db.select().from(accounts).where(eq(accounts.id, input.accountId)).get();
-        if (!cash) return fail("Cash/Bank account not found");
         const session = getCurrentSession();
         const ts = nowIso();
 
@@ -784,7 +857,7 @@ export function registerLedgerHandlers(): void {
             voucherDate: input.voucherDate,
             partyType: input.vendorId ? "vendor" : null,
             partyId: input.vendorId ?? null,
-            accountId: input.accountId,
+            accountId: split.headerAccountId,
             referenceNo: input.referenceNo?.trim() || null,
             notes: input.notes?.trim() || null,
             grandTotal: amount,
@@ -795,7 +868,7 @@ export function registerLedgerHandlers(): void {
           .where(eq(vouchers.id, id))
           .run();
         insertVoucherEntry(db, id, input.expenseAccountId, amount, 0, `Expense ${existing.voucherNo}`, 0);
-        insertVoucherEntry(db, id, input.accountId, 0, amount, `Expense ${existing.voucherNo}`, 1);
+        postCashBankLegs(db, id, `Expense ${existing.voucherNo}`, split, "credit", 1);
         writeAuditLog(db, {
           userId: session?.id ?? null,
           action: "update",
@@ -809,13 +882,12 @@ export function registerLedgerHandlers(): void {
 
   registerHandler(IPC.TX_INCOME, async (_e, input: IncomeVoucherInput): Promise<ActionResult<Voucher>> =>
     guarded(() => requirePermission("transactions.create"), async () => {
-      const amount = money(Number(input.amount));
-      if (amount <= 0) return fail("Amount must be positive");
       const db = getDb();
+      const split = applyMoneySplit(db, input);
+      if ("error" in split) return fail(split.error);
+      const amount = split.amount;
       const inc = db.select().from(accounts).where(eq(accounts.id, input.incomeAccountId)).get();
       if (!inc || inc.accountType !== "income") return fail("Income account required");
-      const cash = db.select().from(accounts).where(eq(accounts.id, input.accountId)).get();
-      if (!cash) return fail("Cash/Bank account not found");
       const session = getCurrentSession();
       const voucherNo = nextDocumentNumber(db, "income");
       const id = randomUUID();
@@ -828,7 +900,7 @@ export function registerLedgerHandlers(): void {
           voucherDate: input.voucherDate,
           partyType: input.customerId ? "customer" : null,
           partyId: input.customerId ?? null,
-          accountId: input.accountId,
+          accountId: split.headerAccountId,
           referenceNo: input.referenceNo?.trim() || null,
           notes: input.notes?.trim() || null,
           grandTotal: amount,
@@ -839,8 +911,9 @@ export function registerLedgerHandlers(): void {
           updatedAt: ts,
         })
         .run();
-      insertVoucherEntry(db, id, input.accountId, amount, 0, `Income ${voucherNo}`, 0);
-      insertVoucherEntry(db, id, input.incomeAccountId, 0, amount, `Income ${voucherNo}`, 1);
+      let order = 0;
+      order = postCashBankLegs(db, id, `Income ${voucherNo}`, split, "debit", order);
+      insertVoucherEntry(db, id, input.incomeAccountId, 0, amount, `Income ${voucherNo}`, order);
       writeAuditLog(db, {
         userId: session?.id ?? null,
         action: "create",
@@ -856,17 +929,16 @@ export function registerLedgerHandlers(): void {
     IPC.TX_INCOME_UPDATE,
     async (_e, id: string, input: IncomeVoucherInput): Promise<ActionResult<Voucher>> =>
       guarded(() => requirePermission("transactions.create"), async () => {
-        const amount = money(Number(input.amount));
-        if (amount <= 0) return fail("Amount must be positive");
         const db = getDb();
+        const split = applyMoneySplit(db, input);
+        if ("error" in split) return fail(split.error);
+        const amount = split.amount;
         const existing = db.select().from(vouchers).where(eq(vouchers.id, id)).get();
         if (!existing || existing.voucherType !== "income") return fail("Income not found");
         if (existing.status === "cancelled") return fail("Cannot edit cancelled income");
 
         const inc = db.select().from(accounts).where(eq(accounts.id, input.incomeAccountId)).get();
         if (!inc || inc.accountType !== "income") return fail("Income account required");
-        const cash = db.select().from(accounts).where(eq(accounts.id, input.accountId)).get();
-        if (!cash) return fail("Cash/Bank account not found");
         const session = getCurrentSession();
         const ts = nowIso();
 
@@ -876,7 +948,7 @@ export function registerLedgerHandlers(): void {
             voucherDate: input.voucherDate,
             partyType: input.customerId ? "customer" : null,
             partyId: input.customerId ?? null,
-            accountId: input.accountId,
+            accountId: split.headerAccountId,
             referenceNo: input.referenceNo?.trim() || null,
             notes: input.notes?.trim() || null,
             grandTotal: amount,
@@ -886,8 +958,9 @@ export function registerLedgerHandlers(): void {
           })
           .where(eq(vouchers.id, id))
           .run();
-        insertVoucherEntry(db, id, input.accountId, amount, 0, `Income ${existing.voucherNo}`, 0);
-        insertVoucherEntry(db, id, input.incomeAccountId, 0, amount, `Income ${existing.voucherNo}`, 1);
+        let order = 0;
+        order = postCashBankLegs(db, id, `Income ${existing.voucherNo}`, split, "debit", order);
+        insertVoucherEntry(db, id, input.incomeAccountId, 0, amount, `Income ${existing.voucherNo}`, order);
         writeAuditLog(db, {
           userId: session?.id ?? null,
           action: "update",
@@ -901,14 +974,10 @@ export function registerLedgerHandlers(): void {
 
   registerHandler(IPC.TX_OWNER_DRAW, async (_e, input: OwnerDrawInput): Promise<ActionResult<Voucher>> =>
     guarded(() => requirePermission("transactions.create"), async () => {
-      const amount = money(Number(input.amount));
-      if (amount <= 0) return fail("Amount must be positive");
       const db = getDb();
-      const cash = db.select().from(accounts).where(eq(accounts.id, input.accountId)).get();
-      if (!cash) return fail("Cash/Bank account not found");
-      if (cash.code !== "1100" && cash.code !== "1200") {
-        return fail("Owner draw must come from Cash or Bank");
-      }
+      const split = applyMoneySplit(db, input, { cashBankCodesOnly: true });
+      if ("error" in split) return fail(split.error);
+      const amount = split.amount;
       const drawAcct = requireAccountByCode(db, "3200", "Owner Draw");
       const session = getCurrentSession();
       const voucherNo = nextDocumentNumber(db, "owner_draw");
@@ -922,7 +991,7 @@ export function registerLedgerHandlers(): void {
           voucherDate: input.voucherDate,
           partyType: null,
           partyId: null,
-          accountId: input.accountId,
+          accountId: split.headerAccountId,
           referenceNo: input.referenceNo?.trim() || null,
           notes: input.notes?.trim() || null,
           grandTotal: amount,
@@ -933,9 +1002,8 @@ export function registerLedgerHandlers(): void {
           updatedAt: ts,
         })
         .run();
-      // Debit Owner Draw (reduces equity), credit Cash/Bank (money leaves shop)
       insertVoucherEntry(db, id, drawAcct.id, amount, 0, `Owner draw ${voucherNo}`, 0);
-      insertVoucherEntry(db, id, input.accountId, 0, amount, `Owner draw ${voucherNo}`, 1);
+      postCashBankLegs(db, id, `Owner draw ${voucherNo}`, split, "credit", 1);
       writeAuditLog(db, {
         userId: session?.id ?? null,
         action: "create",
@@ -951,18 +1019,14 @@ export function registerLedgerHandlers(): void {
     IPC.TX_OWNER_DRAW_UPDATE,
     async (_e, id: string, input: OwnerDrawInput): Promise<ActionResult<Voucher>> =>
       guarded(() => requirePermission("transactions.create"), async () => {
-        const amount = money(Number(input.amount));
-        if (amount <= 0) return fail("Amount must be positive");
         const db = getDb();
+        const split = applyMoneySplit(db, input, { cashBankCodesOnly: true });
+        if ("error" in split) return fail(split.error);
+        const amount = split.amount;
         const existing = db.select().from(vouchers).where(eq(vouchers.id, id)).get();
         if (!existing || existing.voucherType !== "owner_draw") return fail("Owner draw not found");
         if (existing.status === "cancelled") return fail("Cannot edit cancelled owner draw");
 
-        const cash = db.select().from(accounts).where(eq(accounts.id, input.accountId)).get();
-        if (!cash) return fail("Cash/Bank account not found");
-        if (cash.code !== "1100" && cash.code !== "1200") {
-          return fail("Owner draw must come from Cash or Bank");
-        }
         const drawAcct = requireAccountByCode(db, "3200", "Owner Draw");
         const session = getCurrentSession();
         const ts = nowIso();
@@ -971,7 +1035,7 @@ export function registerLedgerHandlers(): void {
         db.update(vouchers)
           .set({
             voucherDate: input.voucherDate,
-            accountId: input.accountId,
+            accountId: split.headerAccountId,
             referenceNo: input.referenceNo?.trim() || null,
             notes: input.notes?.trim() || null,
             grandTotal: amount,
@@ -982,7 +1046,7 @@ export function registerLedgerHandlers(): void {
           .where(eq(vouchers.id, id))
           .run();
         insertVoucherEntry(db, id, drawAcct.id, amount, 0, `Owner draw ${existing.voucherNo}`, 0);
-        insertVoucherEntry(db, id, input.accountId, 0, amount, `Owner draw ${existing.voucherNo}`, 1);
+        postCashBankLegs(db, id, `Owner draw ${existing.voucherNo}`, split, "credit", 1);
         writeAuditLog(db, {
           userId: session?.id ?? null,
           action: "update",

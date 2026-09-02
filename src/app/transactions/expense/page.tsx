@@ -10,6 +10,10 @@ import {
   OpsListSkeleton,
   OpsStatStrip,
   VoucherWorkspace,
+  MoneySplitFields,
+  cashBankSummary,
+  legsFromVoucher,
+  splitCoversAmount,
   money,
 } from "@/components/ops/DocumentWorkspace";
 import { Alert, Button, DataTable, Input, Select, Textarea } from "@/components/ui/form";
@@ -29,13 +33,13 @@ function ExpensePageInner() {
   const canCreate = hasPermission(user, "transactions.create");
 
   const [expenseAccounts, setExpenseAccounts] = useState<Account[]>([]);
-  const [cashAccounts, setCashAccounts] = useState<Account[]>([]);
   const [rows, setRows] = useState<Voucher[]>([]);
   const [loading, setLoading] = useState(true);
   const [voucherDate, setVoucherDate] = useState(today());
   const [expenseAccountId, setExpenseAccountId] = useState(prefExpenseAccountId);
-  const [accountId, setAccountId] = useState("");
   const [amount, setAmount] = useState("");
+  const [cashPaid, setCashPaid] = useState("");
+  const [bankPaid, setBankPaid] = useState("0");
   const [notes, setNotes] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -45,9 +49,8 @@ function ExpensePageInner() {
   const load = useCallback(async () => {
     setLoading(true);
     const api = getApi();
-    const [e, c, v] = await Promise.all([
+    const [e, v] = await Promise.all([
       api.listAccounts({ accountType: "expense", activeOnly: true }),
-      api.listAccounts({ cashBankOnly: true }),
       api.listVouchers({ voucherType: "expense", includeCancelled: true }),
     ]);
     if (e.ok) {
@@ -58,10 +61,6 @@ function ExpensePageInner() {
         }
         return prev || e.data[0]?.id || "";
       });
-    }
-    if (c.ok) {
-      setCashAccounts(c.data);
-      if (c.data[0]) setAccountId((prev) => prev || c.data[0].id);
     }
     if (v.ok) setRows(v.data);
     setLoading(false);
@@ -90,21 +89,24 @@ function ExpensePageInner() {
   const resetForm = () => {
     setVoucherDate(today());
     setAmount("");
+    setCashPaid("");
+    setBankPaid("0");
     setNotes("");
     setEditingId(null);
     setError("");
     if (expenseAccounts[0]) setExpenseAccountId(expenseAccounts[0].id);
-    if (cashAccounts[0]) setAccountId(cashAccounts[0].id);
   };
 
   const openEdit = (row: Voucher) => {
     if (row.status === "cancelled") return;
     setEditingId(row.id);
     setVoucherDate(row.voucherDate);
-    if (row.accountId) setAccountId(row.accountId);
     const expLine = row.entries?.find((e) => e.debit > 0);
     if (expLine?.accountId) setExpenseAccountId(expLine.accountId);
     setAmount(String(row.grandTotal));
+    const legs = legsFromVoucher(row);
+    setCashPaid(legs.cashPaid);
+    setBankPaid(legs.bankPaid);
     setNotes(row.notes ?? "");
     setError("");
     setOkMsg("");
@@ -117,8 +119,9 @@ function ExpensePageInner() {
     const payload = {
       voucherDate,
       expenseAccountId,
-      accountId,
-      amount: Number(amount),
+      amount: Number(amount) || Number(cashPaid || 0) + Number(bankPaid || 0),
+      cashPaid: Number(cashPaid || 0),
+      bankPaid: Number(bankPaid || 0),
       notes: notes || null,
     };
     const res = editingId
@@ -147,7 +150,7 @@ function ExpensePageInner() {
   };
 
   return (
-    <AppShell title="Expense" subtitle="Operating expenses from cash or bank" permission="transactions.create">
+    <AppShell title="Expense" subtitle="Operating expenses from cash, bank, or both" permission="transactions.create">
       {error ? (
         <div className="mb-4">
           <Alert>{error}</Alert>
@@ -194,19 +197,13 @@ function ExpensePageInner() {
               onChange={(e) => setExpenseAccountId(e.target.value)}
               options={expenseAccounts.map((a) => ({ value: a.id, label: `${a.name}` }))}
             />
-            <Select
-              label="Paid from"
-              value={accountId}
-              onChange={(e) => setAccountId(e.target.value)}
-              options={cashAccounts.map((a) => ({ value: a.id, label: `${a.name}` }))}
-            />
-            <Input
-              label="Amount"
-              type="number"
-              min={0.01}
-              step="0.01"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+            <MoneySplitFields
+              amount={amount}
+              cashPaid={cashPaid}
+              bankPaid={bankPaid}
+              onAmount={setAmount}
+              onCashPaid={setCashPaid}
+              onBankPaid={setBankPaid}
             />
             <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
             <div className="flex flex-wrap gap-2 pt-1">
@@ -217,7 +214,9 @@ function ExpensePageInner() {
               ) : null}
               <Button
                 onClick={() => void onSave()}
-                disabled={saving || !amount || !expenseAccountId || !accountId || !canCreate}
+                disabled={
+                  saving || !expenseAccountId || !splitCoversAmount(amount, cashPaid, bankPaid) || !canCreate
+                }
               >
                 {saving ? "Saving..." : editingId ? "Update expense" : "Post expense"}
               </Button>
@@ -247,7 +246,7 @@ function ExpensePageInner() {
                       <div className="text-[11px] text-[var(--text-muted)]">{row.voucherDate}</div>
                     </td>
                     <td className="px-4 py-3.5 text-sm">{expLine?.accountName || "—"}</td>
-                    <td className="px-4 py-3.5 text-[var(--text-muted)]">{row.accountName || "—"}</td>
+                    <td className="px-4 py-3.5 text-[var(--text-muted)]">{cashBankSummary(row)}</td>
                     <td className="px-4 py-3.5 font-semibold tabular-nums">{money(row.grandTotal)}</td>
                     <td className="px-4 py-3.5">
                       <DocStatusBadge status={row.status} />

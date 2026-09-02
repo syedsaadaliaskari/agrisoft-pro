@@ -50,7 +50,7 @@ export function OpsStatStrip({
                 <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
                   {item.label}
                 </div>
-                <div className="mt-1.5 truncate text-xl font-semibold tracking-tight text-[var(--text)]">
+                <div className="mt-1.5 text-xl font-semibold tracking-tight text-[var(--text)] break-all tabular-nums">
                   {item.value}
                 </div>
                 {item.hint ? (
@@ -205,6 +205,92 @@ export function PaymentModePicker({
   );
 }
 
+export function cashBankSummary(row: {
+  cashPaid?: number | null;
+  bankPaid?: number | null;
+  accountName?: string | null;
+}) {
+  const cash = Number(row.cashPaid || 0);
+  const bank = Number(row.bankPaid || 0);
+  if (cash > 0 && bank > 0) return `${money(cash)} cash + ${money(bank)} bank`;
+  if (bank > 0 && cash <= 0) return row.accountName || "Bank";
+  if (cash > 0) return row.accountName || "Cash";
+  return row.accountName || "—";
+}
+
+export function splitCoversAmount(amount: string, cashPaid: string, bankPaid: string) {
+  const total = Math.round(Number(amount || 0) * 100) / 100;
+  const paid = Math.round((Number(cashPaid || 0) + Number(bankPaid || 0)) * 100) / 100;
+  return total > 0 && Math.abs(total - paid) < 0.009;
+}
+
+export function legsFromVoucher(row: {
+  cashPaid?: number | null;
+  bankPaid?: number | null;
+  grandTotal: number;
+}) {
+  const cash = Number(row.cashPaid || 0);
+  const bank = Number(row.bankPaid || 0);
+  if (cash > 0 || bank > 0) {
+    return { cashPaid: String(cash), bankPaid: String(bank) };
+  }
+  return { cashPaid: String(row.grandTotal || ""), bankPaid: "0" };
+}
+
+function nextSplitForAmount(nextAmount: string, cashPaid: string, bankPaid: string) {
+  const bankN = Number(bankPaid || 0);
+  const cashN = Number(cashPaid || 0);
+  if (bankN === 0) return { cashPaid: nextAmount, bankPaid: bankPaid || "0" };
+  if (cashN === 0) return { cashPaid: cashPaid || "0", bankPaid: nextAmount };
+  return { cashPaid, bankPaid };
+}
+
+/** Amount + cash/bank split for money vouchers (no credit remainder). */
+export function MoneySplitFields({
+  amount,
+  cashPaid,
+  bankPaid,
+  onAmount,
+  onCashPaid,
+  onBankPaid,
+  amountLabel = "Amount",
+}: {
+  amount: string;
+  cashPaid: string;
+  bankPaid: string;
+  onAmount: (v: string) => void;
+  onCashPaid: (v: string) => void;
+  onBankPaid: (v: string) => void;
+  amountLabel?: string;
+}) {
+  return (
+    <>
+      <Input
+        label={amountLabel}
+        type="number"
+        min={0.01}
+        step="0.01"
+        value={amount}
+        onChange={(e) => {
+          const v = e.target.value;
+          const next = nextSplitForAmount(v, cashPaid, bankPaid);
+          onAmount(v);
+          onCashPaid(next.cashPaid);
+          onBankPaid(next.bankPaid);
+        }}
+      />
+      <SettlementPanel
+        grandTotal={Number(amount || 0)}
+        cashPaid={cashPaid}
+        bankPaid={bankPaid}
+        onCashPaid={onCashPaid}
+        onBankPaid={onBankPaid}
+        allowCredit={false}
+      />
+    </>
+  );
+}
+
 /** Cash + bank + credit on one bill — shows due live so ledger stays correct. */
 export function SettlementPanel({
   grandTotal,
@@ -213,7 +299,9 @@ export function SettlementPanel({
   onCashPaid,
   onBankPaid,
   dueHint,
+  dueLabel = "Receivable",
   compact,
+  allowCredit = true,
 }: {
   grandTotal: number;
   cashPaid: string;
@@ -221,7 +309,10 @@ export function SettlementPanel({
   onCashPaid: (v: string) => void;
   onBankPaid: (v: string) => void;
   dueHint?: string;
+  dueLabel?: string;
   compact?: boolean;
+  /** When false (receipts, payments, income, expense, owner draw) hide Credit all — cash+bank must equal the amount. */
+  allowCredit?: boolean;
 }) {
   const cash = Number(cashPaid || 0);
   const bank = Number(bankPaid || 0);
@@ -250,9 +341,11 @@ export function SettlementPanel({
       <Button type="button" size="sm" variant="secondary" onClick={setFullBank}>
         Full bank
       </Button>
-      <Button type="button" size="sm" variant="secondary" onClick={setCreditAll}>
-        Credit all
-      </Button>
+      {allowCredit ? (
+        <Button type="button" size="sm" variant="secondary" onClick={setCreditAll}>
+          Credit all
+        </Button>
+      ) : null}
     </div>
   );
 
@@ -301,11 +394,11 @@ export function SettlementPanel({
         )}
       >
         <div className="flex items-center justify-between gap-3">
-          <span className="text-[var(--text-muted)]">Paid now</span>
+          <span className="text-[var(--text-muted)]">{allowCredit ? "Paid now" : "Cash + bank"}</span>
           <span className="font-semibold tabular-nums">{money(paid)}</span>
         </div>
         <div className="mt-1.5 flex items-center justify-between gap-3">
-          <span className="text-[var(--text-muted)]">Balance due</span>
+          <span className="text-[var(--text-muted)]">{allowCredit ? dueLabel : "Remaining"}</span>
           <span
             className={cn(
               "font-semibold tabular-nums",
@@ -315,7 +408,7 @@ export function SettlementPanel({
             {over ? `Over by ${money(paid - grandTotal)}` : money(due)}
           </span>
         </div>
-        {due > 0 && dueHint ? (
+        {(due > 0 || (!allowCredit && over)) && dueHint ? (
           <p className="mt-2 text-xs text-[var(--text-muted)]">{dueHint}</p>
         ) : null}
       </div>
@@ -376,7 +469,7 @@ export function TotalsPanel({
   grandLabel = "Grand total",
   grand,
   due,
-  dueLabel = "Balance due",
+  dueLabel = "Receivable",
   accent,
 }: {
   rows: { label: string; value: string; muted?: boolean; negative?: boolean }[];

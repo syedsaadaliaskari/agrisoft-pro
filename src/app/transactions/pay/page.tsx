@@ -10,13 +10,17 @@ import {
   OpsListSkeleton,
   OpsStatStrip,
   VoucherWorkspace,
+  MoneySplitFields,
+  cashBankSummary,
+  legsFromVoucher,
+  splitCoversAmount,
   money,
 } from "@/components/ops/DocumentWorkspace";
 import { Alert, Button, DataTable, Input, Select, Textarea } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
 import { hasPermission } from "@/lib/permissions";
 import { useAuthStore } from "@/store/auth";
-import type { Account, Vendor, Voucher } from "@shared/ipc";
+import type { Vendor, Voucher } from "@shared/ipc";
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -29,13 +33,13 @@ function MakePaymentPageInner() {
   const canCreate = hasPermission(user, "transactions.create");
 
   const [vendors, setVendors] = useState<Vendor[]>([]);
-  const [accounts, setAccounts] = useState<Account[]>([]);
   const [rows, setRows] = useState<Voucher[]>([]);
   const [loading, setLoading] = useState(true);
   const [voucherDate, setVoucherDate] = useState(today());
   const [vendorId, setVendorId] = useState(prefVendorId);
-  const [accountId, setAccountId] = useState("");
   const [amount, setAmount] = useState("");
+  const [cashPaid, setCashPaid] = useState("");
+  const [bankPaid, setBankPaid] = useState("0");
   const [referenceNo, setReferenceNo] = useState("");
   const [notes, setNotes] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -46,9 +50,8 @@ function MakePaymentPageInner() {
   const load = useCallback(async () => {
     setLoading(true);
     const api = getApi();
-    const [v, a, list] = await Promise.all([
+    const [v, list] = await Promise.all([
       api.listVendors(),
-      api.listAccounts({ cashBankOnly: true }),
       api.listVouchers({ voucherType: "payment" }),
     ]);
     if (v.ok) {
@@ -58,10 +61,6 @@ function MakePaymentPageInner() {
         if (prefVendorId && active.some((x) => x.id === prefVendorId)) return prefVendorId;
         return prev || active[0]?.id || "";
       });
-    }
-    if (a.ok) {
-      setAccounts(a.data);
-      if (a.data[0]) setAccountId((prev) => prev || a.data[0].id);
     }
     if (list.ok) setRows(list.data);
     setLoading(false);
@@ -91,11 +90,12 @@ function MakePaymentPageInner() {
     setVoucherDate(today());
     setVendorId(vendors[0]?.id ?? "");
     setAmount("");
+    setCashPaid("");
+    setBankPaid("0");
     setReferenceNo("");
     setNotes("");
     setEditingId(null);
     setError("");
-    if (accounts[0]) setAccountId(accounts[0].id);
   };
 
   const openEdit = (row: Voucher) => {
@@ -103,8 +103,10 @@ function MakePaymentPageInner() {
     setEditingId(row.id);
     setVoucherDate(row.voucherDate);
     setVendorId(row.partyId ?? "");
-    if (row.accountId) setAccountId(row.accountId);
     setAmount(String(row.grandTotal));
+    const legs = legsFromVoucher(row);
+    setCashPaid(legs.cashPaid);
+    setBankPaid(legs.bankPaid);
     setReferenceNo(row.referenceNo ?? "");
     setNotes(row.notes ?? "");
     setError("");
@@ -118,8 +120,9 @@ function MakePaymentPageInner() {
     const payload = {
       voucherDate,
       vendorId,
-      accountId,
-      amount: Number(amount),
+      amount: Number(amount) || Number(cashPaid || 0) + Number(bankPaid || 0),
+      cashPaid: Number(cashPaid || 0),
+      bankPaid: Number(bankPaid || 0),
       referenceNo: referenceNo || null,
       notes: notes || null,
     };
@@ -151,7 +154,7 @@ function MakePaymentPageInner() {
   return (
     <AppShell
       title="Make Payment"
-      subtitle="Vendor payments from cash or bank"
+      subtitle="Vendor payments from cash, bank, or both"
       permission="transactions.create"
     >
       {error ? (
@@ -200,19 +203,13 @@ function MakePaymentPageInner() {
               onChange={(e) => setVendorId(e.target.value)}
               options={vendors.map((v) => ({ value: v.id, label: `${v.name}` }))}
             />
-            <Select
-              label="Pay from"
-              value={accountId}
-              onChange={(e) => setAccountId(e.target.value)}
-              options={accounts.map((a) => ({ value: a.id, label: `${a.name}` }))}
-            />
-            <Input
-              label="Amount"
-              type="number"
-              min={0.01}
-              step="0.01"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+            <MoneySplitFields
+              amount={amount}
+              cashPaid={cashPaid}
+              bankPaid={bankPaid}
+              onAmount={setAmount}
+              onCashPaid={setCashPaid}
+              onBankPaid={setBankPaid}
             />
             <Input
               label="Reference"
@@ -228,7 +225,7 @@ function MakePaymentPageInner() {
               ) : null}
               <Button
                 onClick={() => void onSave()}
-                disabled={saving || !vendorId || !accountId || !amount || !canCreate}
+                disabled={saving || !vendorId || !splitCoversAmount(amount, cashPaid, bankPaid) || !canCreate}
               >
                 {saving ? "Saving..." : editingId ? "Update payment" : "Post payment"}
               </Button>
@@ -243,7 +240,7 @@ function MakePaymentPageInner() {
             <OpsEmptyState title="No payments yet" />
           ) : (
             <DataTable
-              headers={["Voucher", "Vendor", "Account", "Amount", "Status", ""]}
+              headers={["Voucher", "Vendor", "Cash / bank", "Amount", "Status", ""]}
               empty={false}
             >
               {rows.map((row) => (
@@ -256,7 +253,7 @@ function MakePaymentPageInner() {
                     <div className="text-[11px] text-[var(--text-muted)]">{row.voucherDate}</div>
                   </td>
                   <td className="px-4 py-3.5 font-medium">{row.partyName || "—"}</td>
-                  <td className="px-4 py-3.5 text-[var(--text-muted)]">{row.accountName || "—"}</td>
+                  <td className="px-4 py-3.5 text-[var(--text-muted)]">{cashBankSummary(row)}</td>
                   <td className="px-4 py-3.5 font-semibold tabular-nums">{money(row.grandTotal)}</td>
                   <td className="px-4 py-3.5">
                     <DocStatusBadge status={row.status} />

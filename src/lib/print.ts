@@ -124,7 +124,7 @@ export function buildSalePrintHtml(sale: Sale, size: ReceiptSize = "thermal", cu
     <div><span>Tax</span><span>${money(sale.taxAmount, currency)}</span></div>
     <div class="grand"><span>Grand total</span><span>${money(sale.grandTotal, currency)}</span></div>
     <div><span>Paid</span><span>${money(sale.paidAmount, currency)}</span></div>
-    <div><span>Balance</span><span>${money(sale.grandTotal - sale.paidAmount, currency)}</span></div>`;
+    <div><span>Receivable</span><span>${money(sale.grandTotal - sale.paidAmount, currency)}</span></div>`;
 
   if (size === "thermal") {
     return wrap(
@@ -195,7 +195,7 @@ export function buildPurchasePrintHtml(
     <div><span>Tax</span><span>${money(purchase.taxAmount, currency)}</span></div>
     <div class="grand"><span>Grand total</span><span>${money(purchase.grandTotal, currency)}</span></div>
     <div><span>Paid</span><span>${money(purchase.paidAmount, currency)}</span></div>
-    <div><span>Balance</span><span>${money(purchase.grandTotal - purchase.paidAmount, currency)}</span></div>`;
+    <div><span>Payable</span><span>${money(purchase.grandTotal - purchase.paidAmount, currency)}</span></div>`;
 
   if (size === "thermal") {
     return wrap(

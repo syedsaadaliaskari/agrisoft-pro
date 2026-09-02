@@ -137,7 +137,7 @@ export const en: Dict = {
   "pages.reportsPurchases.title": "Purchase Report",
   "pages.reportsPurchases.subtitle": "Purchase totals by period",
   "pages.reportsProfit.title": "Profit & Loss",
-  "pages.reportsProfit.subtitle": "Sales revenue vs COGS",
+  "pages.reportsProfit.subtitle": "Profit by crop — graphs for each product",
   "pages.reportsStock.title": "Stock Report",
   "pages.reportsStock.subtitle": "Inventory valuation by pack",
   "pages.reportsTax.title": "Tax Report",

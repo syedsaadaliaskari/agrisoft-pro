@@ -208,12 +208,12 @@ export default function CustomersPage() {
               onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
             />
             <Select
-              label="Opening balance type"
+              label="Type"
               value={form.balanceType}
               onChange={(e) => setForm((f) => ({ ...f, balanceType: e.target.value }))}
               options={[
-                { value: "debit", label: "Debit" },
-                { value: "credit", label: "Credit" },
+                { value: "debit", label: "Receivable" },
+                { value: "credit", label: "Payable" },
               ]}
             />
             <div className="grid grid-cols-2 gap-3">
@@ -277,7 +277,7 @@ export default function CustomersPage() {
                   name: r.name,
                   phone: r.phone ?? "",
                   city: r.city ?? "",
-                  opening: `${r.openingBalance} ${r.balanceType === "debit" ? "Dr" : "Cr"}`,
+                  opening: `${r.openingBalance} ${r.balanceType === "debit" ? "Receivable" : "Payable"}`,
                   creditLimit: r.creditLimit,
                   status: r.isActive ? "Active" : "Inactive",
                 }))}
@@ -308,7 +308,7 @@ export default function CustomersPage() {
                     <td className="px-4 py-3.5 tabular-nums text-sm">
                       {money(row.openingBalance)}{" "}
                       <span className="text-[var(--text-muted)]">
-                        {row.balanceType === "debit" ? "Dr" : "Cr"}
+                        {row.balanceType === "debit" ? "Receivable" : "Payable"}
                       </span>
                     </td>
                     <td className="px-4 py-3.5 tabular-nums text-sm">{money(row.creditLimit)}</td>

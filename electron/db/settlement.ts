@@ -121,6 +121,88 @@ export function resolveSettlement(db: Db, input: SettlementInput): ResolvedSettl
   };
 }
 
+export type MoneySplitInput = {
+  amount?: number | null;
+  cashPaid?: number | null;
+  bankPaid?: number | null;
+  accountId?: string | null;
+  cashAccountId?: string | null;
+  bankAccountId?: string | null;
+};
+
+export type ResolvedMoneySplit = {
+  amount: number;
+  cashPaid: number;
+  bankPaid: number;
+  cashAccountId: string | null;
+  bankAccountId: string | null;
+  headerAccountId: string;
+};
+
+/**
+ * Fully allocated cash/bank split for money vouchers (receipt, payment, income, expense, owner draw).
+ * Unlike bill settlement, there is no credit remainder — cash + bank must equal the amount.
+ * Omit cashPaid/bankPaid to keep the legacy single-account path (accountId + amount).
+ */
+export function resolveMoneySplit(db: Db, input: MoneySplitInput): ResolvedMoneySplit | { error: string } {
+  const hasSplitFields = input.cashPaid != null || input.bankPaid != null;
+  let cashPaid = 0;
+  let bankPaid = 0;
+  let amount = money(Number(input.amount ?? 0));
+
+  if (hasSplitFields) {
+    cashPaid = money(Number(input.cashPaid ?? 0));
+    bankPaid = money(Number(input.bankPaid ?? 0));
+    if (Number.isNaN(cashPaid) || Number.isNaN(bankPaid)) return { error: "Invalid cash or bank amount" };
+    if (cashPaid < 0 || bankPaid < 0) return { error: "Amounts cannot be negative" };
+    const splitTotal = money(cashPaid + bankPaid);
+    if (splitTotal <= 0) return { error: "Amount must be positive" };
+    if (amount > 0 && amount !== splitTotal) {
+      return { error: "Cash plus bank must equal the amount" };
+    }
+    amount = splitTotal;
+  } else {
+    if (Number.isNaN(amount) || amount <= 0) return { error: "Amount must be positive" };
+    if (!input.accountId) return { error: "Cash or bank account required" };
+  }
+
+  const defaultCash = requireAccountByCode(db, "1100", "Cash").id;
+  const defaultBank = requireAccountByCode(db, "1200", "Bank").id;
+
+  if (!hasSplitFields && input.accountId) {
+    if (input.accountId === defaultBank) {
+      bankPaid = amount;
+      cashPaid = 0;
+    } else {
+      cashPaid = amount;
+      bankPaid = 0;
+    }
+  }
+
+  let cashAccountId: string | null = null;
+  let bankAccountId: string | null = null;
+  if (cashPaid > 0) {
+    cashAccountId = input.cashAccountId || defaultCash;
+  }
+  if (bankPaid > 0) {
+    bankAccountId = input.bankAccountId || defaultBank;
+  }
+  if (cashPaid > 0 && bankPaid === 0 && input.accountId) cashAccountId = input.accountId;
+  if (bankPaid > 0 && cashPaid === 0 && input.accountId) bankAccountId = input.accountId;
+
+  const headerAccountId = cashAccountId || bankAccountId;
+  if (!headerAccountId) return { error: "Cash or bank account required" };
+
+  return {
+    amount,
+    cashPaid,
+    bankPaid,
+    cashAccountId,
+    bankAccountId,
+    headerAccountId,
+  };
+}
+
 /** Read cash/bank legs already posted on a voucher (sales debit, purchases credit). */
 export function cashBankFromVoucher(
   db: Db,

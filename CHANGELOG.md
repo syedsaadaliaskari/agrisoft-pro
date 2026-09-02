@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Transactions
+- Receive payment, make payment, income, expense, and owner draw can split one amount across cash and bank (same as sales/purchases). Cash plus bank must equal the amount — no credit remainder.
+
 ## 0.2.0 — 2026-08-30
 
 ### Print

@@ -45,6 +45,9 @@ export default function SettingsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [saving, setSaving] = useState(false);
+  const [cashOpening, setCashOpening] = useState("0");
+  const [bankOpening, setBankOpening] = useState("0");
+  const [openingBusy, setOpeningBusy] = useState(false);
   const [audit, setAudit] = useState<AuditLogRow[]>([]);
   const hydrate = useAuthStore((s) => s.hydrate);
   const isSuperAdmin = user?.roleName === "Super Admin";
@@ -111,6 +114,26 @@ export default function SettingsPage() {
     }
     applyMap(res.data);
     setSuccess("Settings saved");
+    void loadAudit();
+  };
+
+  const onSaveOpenings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setOpeningBusy(true);
+    setError("");
+    setSuccess("");
+    const res = await getApi().setCashBankOpenings({
+      cashOpening: Number(cashOpening || 0),
+      bankOpening: Number(bankOpening || 0),
+    });
+    setOpeningBusy(false);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    setCashOpening(String(res.data.cashOpening));
+    setBankOpening(String(res.data.bankOpening));
+    setSuccess("Opening cash and bank saved — dashboard and ledgers use these as the starting amounts");
     void loadAudit();
   };
 
@@ -475,6 +498,42 @@ export default function SettingsPage() {
           <div className="sm:col-span-2">
             <Button type="submit" disabled={saving}>
               {saving ? "Saving…" : "Save settings"}
+            </Button>
+          </div>
+        </form>
+
+        <form
+          onSubmit={(e) => void onSaveOpenings(e)}
+          className="grid max-w-3xl gap-4 rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5 sm:grid-cols-2"
+        >
+          <div className="sm:col-span-2">
+            <div className="text-sm font-semibold">Opening cash & bank</div>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              Cash and bank the shop already had when you started this software. Dashboard, day book,
+              and cash/bank ledgers start from these amounts.
+            </p>
+          </div>
+          <Input
+            label="Opening cash in hand"
+            type="number"
+            min={0}
+            step="0.01"
+            value={cashOpening}
+            onChange={(e) => setCashOpening(e.target.value)}
+            hint="Physical cash in the drawer / till on day one"
+          />
+          <Input
+            label="Opening bank balance"
+            type="number"
+            min={0}
+            step="0.01"
+            value={bankOpening}
+            onChange={(e) => setBankOpening(e.target.value)}
+            hint="Bank / account balance on day one"
+          />
+          <div className="sm:col-span-2">
+            <Button type="submit" disabled={openingBusy}>
+              {openingBusy ? "Saving…" : "Save opening cash & bank"}
             </Button>
           </div>
         </form>

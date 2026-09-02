@@ -94,6 +94,7 @@ export const IPC = {
   // Ledger / vouchers
   ACCOUNTS_LIST: "accounts:list",
   ACCOUNTS_GET: "accounts:get",
+  ACCOUNTS_SET_CASH_BANK_OPENING: "accounts:setCashBankOpening",
   VOUCHERS_POST: "vouchers:post",
   VOUCHERS_GET: "vouchers:get",
   VOUCHERS_LIST: "vouchers:list",
@@ -145,6 +146,7 @@ export const IPC = {
 
   // App utilities
   APP_PRINT_HTML: "app:printHtml",
+  APP_RECEIPT_IMAGE: "app:receiptImage",
   APP_SAVE_FILE: "app:saveFile",
 
   // Backup / restore
@@ -353,6 +355,8 @@ export type ProductInput = {
   taxId?: string | null;
   reorderLevel?: number;
   isActive?: boolean;
+  /** Opening qty on the default pack when creating a product (already in the shop). */
+  initialStock?: number;
 };
 
 export type ProductVariant = {
@@ -576,6 +580,9 @@ export type Voucher = {
   createdAt: string;
   updatedAt: string;
   entries?: VoucherEntry[];
+  /** Cash leg posted on this voucher (receipts/income debit, payments/expenses/draws credit). */
+  cashPaid?: number;
+  bankPaid?: number;
 };
 
 export type LedgerLine = {
@@ -642,9 +649,13 @@ export type VoucherListFilter = {
 export type ReceivePaymentInput = {
   voucherDate: string;
   customerId: string;
-  /** Cash or Bank account */
-  accountId: string;
+  /** Cash or Bank account — required unless cashPaid/bankPaid are sent */
+  accountId?: string;
   amount: number;
+  cashPaid?: number;
+  bankPaid?: number;
+  cashAccountId?: string | null;
+  bankAccountId?: string | null;
   referenceNo?: string | null;
   notes?: string | null;
 };
@@ -652,8 +663,12 @@ export type ReceivePaymentInput = {
 export type MakePaymentInput = {
   voucherDate: string;
   vendorId: string;
-  accountId: string;
+  accountId?: string;
   amount: number;
+  cashPaid?: number;
+  bankPaid?: number;
+  cashAccountId?: string | null;
+  bankAccountId?: string | null;
   referenceNo?: string | null;
   notes?: string | null;
 };
@@ -661,8 +676,12 @@ export type MakePaymentInput = {
 export type ExpenseVoucherInput = {
   voucherDate: string;
   expenseAccountId: string;
-  accountId: string;
+  accountId?: string;
   amount: number;
+  cashPaid?: number;
+  bankPaid?: number;
+  cashAccountId?: string | null;
+  bankAccountId?: string | null;
   vendorId?: string | null;
   referenceNo?: string | null;
   notes?: string | null;
@@ -670,9 +689,13 @@ export type ExpenseVoucherInput = {
 
 export type OwnerDrawInput = {
   voucherDate: string;
-  /** Cash or Bank account money is taken from */
-  accountId: string;
+  /** Cash or Bank account money is taken from — required unless cashPaid/bankPaid are sent */
+  accountId?: string;
   amount: number;
+  cashPaid?: number;
+  bankPaid?: number;
+  cashAccountId?: string | null;
+  bankAccountId?: string | null;
   referenceNo?: string | null;
   notes?: string | null;
 };
@@ -680,8 +703,12 @@ export type OwnerDrawInput = {
 export type IncomeVoucherInput = {
   voucherDate: string;
   incomeAccountId: string;
-  accountId: string;
+  accountId?: string;
   amount: number;
+  cashPaid?: number;
+  bankPaid?: number;
+  cashAccountId?: string | null;
+  bankAccountId?: string | null;
   customerId?: string | null;
   referenceNo?: string | null;
   notes?: string | null;
@@ -1131,10 +1158,38 @@ export type ProfitReportLine = {
   amount: number;
 };
 
+export type ProductProfitPoint = {
+  date: string;
+  revenue: number;
+  cogs: number;
+  profit: number;
+};
+
+export type ProductProfitRow = {
+  productId: string;
+  productName: string;
+  categoryName: string | null;
+  qtySold: number;
+  revenue: number;
+  cogs: number;
+  profit: number;
+  marginPct: number;
+  series: ProductProfitPoint[];
+};
+
 export type ProfitReport = {
   fromDate: string | null;
   toDate: string | null;
+  currencySymbol: string;
+  /** Sales before returns (ex tax, from lines). */
+  grossSalesRevenue: number;
+  /** Sale-return amount taken off revenue (positive). */
+  saleReturnsRevenue: number;
   salesRevenue: number;
+  /** COGS before returns. */
+  grossCogs: number;
+  /** COGS reversed by sale returns (positive). */
+  saleReturnsCogs: number;
   cogs: number;
   grossProfit: number;
   otherIncome: number;
@@ -1142,6 +1197,10 @@ export type ProfitReport = {
   netProfit: number;
   incomeLines: ProfitReportLine[];
   expenseLines: ProfitReportLine[];
+  /** Shop-wide daily profit (net of sale returns). */
+  byDay: ProductProfitPoint[];
+  /** One row per crop / product with its own daily series. */
+  byProduct: ProductProfitRow[];
 };
 
 export type StockReportRow = {
@@ -1447,6 +1506,10 @@ export type ElectronAPI = {
 
   listAccounts: (filter?: AccountListFilter) => Promise<ActionResult<Account[]>>;
   getAccount: (id: string) => Promise<ActionResult<Account>>;
+  setCashBankOpenings: (input: {
+    cashOpening: number;
+    bankOpening: number;
+  }) => Promise<ActionResult<{ cashOpening: number; bankOpening: number }>>;
   postVoucher: (input: PostVoucherInput) => Promise<ActionResult<Voucher>>;
   updateVoucher: (id: string, input: PostVoucherInput) => Promise<ActionResult<Voucher>>;
   getVoucher: (id: string) => Promise<ActionResult<Voucher>>;
@@ -1520,6 +1583,13 @@ export type ElectronAPI = {
 
   /** Print self-contained HTML via a dedicated Electron print window. */
   printHtml: (html: string) => Promise<ActionResult>;
+  /** Capture a receipt as PNG — save to Pictures/gallery, or copy and open WhatsApp. */
+  receiptImage: (input: {
+    html: string;
+    size?: ReceiptSize;
+    mode: "save" | "whatsapp";
+    defaultFileName: string;
+  }) => Promise<ActionResult<{ path: string | null; copied?: boolean }>>;
   /** Save file bytes via native Save dialog (real download). */
   saveFile: (input: {
     defaultPath: string;

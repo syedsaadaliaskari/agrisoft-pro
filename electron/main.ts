@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, protocol, dialog } from "electron";
+import { app, BrowserWindow, shell, protocol, dialog, nativeImage, clipboard } from "electron";
 import path from "path";
 import fs from "fs";
 import { initDatabase, closeDatabase } from "./db";
@@ -150,6 +150,94 @@ async function printHtmlDocument(html: string): Promise<ActionResult> {
   }
 }
 
+function safeReceiptFileName(name: string) {
+  const cleaned = String(name || "receipt")
+    .replace(/[^\w.-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  return cleaned || "receipt";
+}
+
+async function htmlToPng(html: string, size: "thermal" | "a4"): Promise<Buffer> {
+  const width = size === "a4" ? 860 : 340;
+  const win = new BrowserWindow({
+    width,
+    height: 900,
+    show: false,
+    frame: false,
+    autoHideMenuBar: true,
+    backgroundColor: "#ffffff",
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+
+  try {
+    await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+    const height = await win.webContents.executeJavaScript(`
+      (async () => {
+        const imgs = Array.from(document.images || []);
+        await Promise.all(imgs.map((img) => {
+          if (img.complete) return Promise.resolve();
+          return new Promise((resolve) => {
+            img.onload = resolve;
+            img.onerror = resolve;
+          });
+        }));
+        return Math.ceil(Math.max(document.documentElement.scrollHeight, document.body.scrollHeight, 200));
+      })()
+    `);
+    const h = Math.min(Math.max(Number(height) || 400, 200), 14000);
+    win.setContentSize(width, h);
+    await new Promise((r) => setTimeout(r, 120));
+    const image = await win.webContents.capturePage();
+    return image.toPNG();
+  } finally {
+    if (!win.isDestroyed()) win.destroy();
+  }
+}
+
+async function receiptImageAction(input: {
+  html: string;
+  size?: "thermal" | "a4";
+  mode: "save" | "whatsapp";
+  defaultFileName: string;
+}): Promise<ActionResult<{ path: string | null; copied?: boolean }>> {
+  const png = await htmlToPng(input.html, input.size === "a4" ? "a4" : "thermal");
+  const fileName = `${safeReceiptFileName(input.defaultFileName)}.png`;
+
+  if (input.mode === "save") {
+    const pictures = app.getPath("pictures");
+    const result = await dialog.showSaveDialog({
+      defaultPath: path.join(pictures, fileName),
+      filters: [{ name: "PNG image", extensions: ["png"] }],
+    });
+    if (result.canceled || !result.filePath) {
+      return { ok: true, data: { path: null } };
+    }
+    fs.writeFileSync(result.filePath, png);
+    return { ok: true, data: { path: result.filePath } };
+  }
+
+  const dir = path.join(app.getPath("pictures"), "Agri Soft Pro");
+  fs.mkdirSync(dir, { recursive: true });
+  const dest = path.join(dir, fileName);
+  fs.writeFileSync(dest, png);
+  clipboard.writeImage(nativeImage.createFromBuffer(png));
+  try {
+    await shell.openExternal("whatsapp://send");
+  } catch {
+    try {
+      await shell.openExternal("https://web.whatsapp.com/");
+    } catch {
+      /* WhatsApp not installed — picture is still saved and copied */
+    }
+  }
+  return { ok: true, data: { path: dest, copied: true } };
+}
+
 async function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -242,6 +330,32 @@ app.whenReady().then(async () => {
         return { ok: false, error: "Nothing to print" };
       }
       return printHtmlDocument(html);
+    },
+    { localOnly: true }
+  );
+
+  registerHandler(
+    IPC.APP_RECEIPT_IMAGE,
+    async (
+      _event,
+      input: {
+        html: string;
+        size?: "thermal" | "a4";
+        mode: "save" | "whatsapp";
+        defaultFileName: string;
+      }
+    ): Promise<ActionResult<{ path: string | null; copied?: boolean }>> => {
+      if (!input?.html || typeof input.html !== "string") {
+        return { ok: false, error: "Nothing to save" };
+      }
+      try {
+        return await receiptImageAction(input);
+      } catch (err) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : "Could not save image",
+        };
+      }
     },
     { localOnly: true }
   );

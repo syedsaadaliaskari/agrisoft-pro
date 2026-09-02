@@ -360,8 +360,8 @@ export default function DashboardPage() {
                       <p className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
                         {kpi.label}
                       </p>
-                      <p className="mt-1.5 truncate text-xl font-semibold tracking-tight">{kpi.value}</p>
-                      <p className="mt-1 truncate text-[11px] text-[var(--text-muted)]">{kpi.sub}</p>
+                      <p className="mt-1.5 text-xl font-semibold tracking-tight break-all tabular-nums">{kpi.value}</p>
+                      <p className="mt-1 text-[11px] text-[var(--text-muted)] break-words">{kpi.sub}</p>
                     </div>
                     <div
                       className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
