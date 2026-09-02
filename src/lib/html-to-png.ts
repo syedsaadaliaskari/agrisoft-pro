@@ -16,7 +16,7 @@ export async function htmlToPngBase64(html: string, width: number): Promise<stri
   doc.write(html);
   doc.close();
 
-  await new Promise((r) => setTimeout(r, 80));
+  await new Promise((r) => setTimeout(r, 120));
   await Promise.all(
     [...doc.images].map((img) => (img.complete ? Promise.resolve() : img.decode().catch(() => undefined)))
   );
@@ -24,7 +24,7 @@ export async function htmlToPngBase64(html: string, width: number): Promise<stri
   const node = doc.body;
   const height = Math.min(Math.max(node.scrollHeight || doc.documentElement.scrollHeight || 400, 200), 14000);
   iframe.style.height = `${height}px`;
-  await new Promise((r) => setTimeout(r, 40));
+  await new Promise((r) => setTimeout(r, 80));
 
   try {
     const dataUrl = await toPng(node, {
@@ -34,7 +34,11 @@ export async function htmlToPngBase64(html: string, width: number): Promise<stri
       backgroundColor: "#ffffff",
       cacheBust: false,
     });
-    return dataUrl.replace(/^data:image\/png;base64,/, "");
+    const prefix = "data:image/png;base64,";
+    if (!dataUrl.startsWith(prefix) || dataUrl.length < prefix.length + 200) {
+      throw new Error("Could not create picture");
+    }
+    return dataUrl.slice(prefix.length);
   } finally {
     iframe.remove();
   }

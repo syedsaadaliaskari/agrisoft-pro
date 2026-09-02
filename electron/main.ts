@@ -1,4 +1,5 @@
 import { app, BrowserWindow, shell, protocol, dialog, nativeImage, clipboard } from "electron";
+import { execFile } from "child_process";
 import path from "path";
 import fs from "fs";
 import { initDatabase, closeDatabase } from "./db";
@@ -182,8 +183,82 @@ function safeReceiptFileName(name: string) {
   return cleaned || "receipt";
 }
 
+function isPngBuffer(buf: Buffer) {
+  return (
+    Buffer.isBuffer(buf) &&
+    buf.length > 200 &&
+    buf[0] === 0x89 &&
+    buf[1] === 0x50 &&
+    buf[2] === 0x4e &&
+    buf[3] === 0x47
+  );
+}
+
+function runPowerShell(command: string, extraEnv?: Record<string, string>): Promise<boolean> {
+  return new Promise((resolve) => {
+    execFile(
+      "powershell.exe",
+      ["-NoProfile", "-STA", "-ExecutionPolicy", "Bypass", "-Command", command],
+      {
+        windowsHide: true,
+        timeout: 20_000,
+        env: extraEnv ? { ...process.env, ...extraEnv } : process.env,
+      },
+      (err) => resolve(!err)
+    );
+  });
+}
+
+/** Windows Share sheet — user picks WhatsApp, then a chat, with the file already attached. */
+async function showWindowsShareDialog(filePath: string): Promise<boolean> {
+  if (process.platform !== "win32") return false;
+  const ok = await runPowerShell(
+    `
+$path = $env:AGRI_SHARE_FILE
+if (-not $path -or -not (Test-Path -LiteralPath $path)) { exit 1 }
+try {
+  Start-Process -LiteralPath $path -Verb Share -ErrorAction Stop
+  Start-Sleep -Milliseconds 600
+  exit 0
+} catch { }
+$shell = New-Object -ComObject Shell.Application
+$folder = Split-Path -LiteralPath $path
+$name = Split-Path -LiteralPath $path -Leaf
+$item = $shell.NameSpace($folder).ParseName($name)
+if (-not $item) { exit 1 }
+$done = $false
+foreach ($verb in $item.Verbs()) {
+  $label = (($verb.Name -replace '&','') + '').Trim()
+  if ($label -match '(?i)^share') { $verb.DoIt(); $done = $true; break }
+}
+if (-not $done) {
+  try { $item.InvokeVerb('Share') ; $done = $true } catch { }
+}
+if (-not $done) { exit 1 }
+Start-Sleep -Milliseconds 600
+exit 0
+`,
+    { AGRI_SHARE_FILE: filePath }
+  );
+  return ok;
+}
+
+async function putFileOnClipboard(filePath: string): Promise<boolean> {
+  if (process.platform !== "win32") return false;
+  return runPowerShell(
+    `
+$path = $env:AGRI_SHARE_FILE
+if (-not $path -or -not (Test-Path -LiteralPath $path)) { exit 1 }
+Set-Clipboard -LiteralPath $path
+exit 0
+`,
+    { AGRI_SHARE_FILE: filePath }
+  );
+}
+
 async function htmlToPng(html: string, size: "thermal" | "a4"): Promise<Buffer> {
   const width = size === "a4" ? 860 : 340;
+  const scale = 2;
   const win = new BrowserWindow({
     width,
     height: 900,
@@ -191,36 +266,86 @@ async function htmlToPng(html: string, size: "thermal" | "a4"): Promise<Buffer> 
     frame: false,
     skipTaskbar: true,
     autoHideMenuBar: true,
+    paintWhenInitiallyHidden: true,
     backgroundColor: "#ffffff",
     webPreferences: {
+      offscreen: true,
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true,
+      sandbox: false,
     },
   });
 
+  const captureCdp = async (h: number): Promise<Buffer | null> => {
+    const wc = win.webContents;
+    try {
+      if (!wc.debugger.isAttached()) wc.debugger.attach("1.3");
+      await wc.debugger.sendCommand("Emulation.setDeviceMetricsOverride", {
+        width,
+        height: h,
+        deviceScaleFactor: scale,
+        mobile: false,
+      });
+      await new Promise((r) => setTimeout(r, 160));
+      const shot = (await wc.debugger.sendCommand("Page.captureScreenshot", {
+        format: "png",
+        fromSurface: true,
+        captureBeyondViewport: true,
+      })) as { data?: string };
+      const buf = shot?.data ? Buffer.from(shot.data, "base64") : null;
+      return buf && isPngBuffer(buf) ? buf : null;
+    } catch {
+      return null;
+    } finally {
+      try {
+        if (wc.debugger.isAttached()) wc.debugger.detach();
+      } catch {
+        /* ignore */
+      }
+    }
+  };
+
   try {
-    win.setPosition(-20000, -20000);
-    win.showInactive();
     await loadReceiptHtml(win, html);
+    win.webContents.setFrameRate(30);
+    await new Promise<void>((resolve) => {
+      const t = setTimeout(() => resolve(), 1500);
+      win.webContents.once("paint", () => {
+        clearTimeout(t);
+        resolve();
+      });
+    });
     const height = await win.webContents.executeJavaScript(`
       (async () => {
         const imgs = Array.from(document.images || []);
         await Promise.all(imgs.map((img) => {
           if (img.complete) return Promise.resolve();
-          return new Promise((resolve) => {
+          return img.decode ? img.decode().catch(() => undefined) : new Promise((resolve) => {
             img.onload = resolve;
             img.onerror = resolve;
           });
         }));
-        return Math.ceil(Math.max(document.documentElement.scrollHeight, document.body.scrollHeight, 200));
+        return Math.ceil(Math.max(
+          document.documentElement.scrollHeight,
+          document.body.scrollHeight,
+          document.documentElement.offsetHeight,
+          200
+        ));
       })()
     `);
     const h = Math.min(Math.max(Number(height) || 400, 200), 14000);
     win.setContentSize(width, h);
-    await new Promise((r) => setTimeout(r, 120));
-    const image = await win.webContents.capturePage();
-    return image.toPNG();
+    await new Promise((r) => setTimeout(r, 160));
+
+    const fromCdp = await captureCdp(h);
+    if (fromCdp) return fromCdp;
+
+    const image = await win.webContents.capturePage({ x: 0, y: 0, width, height: h });
+    if (!image.isEmpty()) {
+      const buf = image.toPNG();
+      if (isPngBuffer(buf)) return buf;
+    }
+    throw new Error("Could not create picture");
   } finally {
     if (!win.isDestroyed()) win.destroy();
   }
@@ -231,35 +356,49 @@ async function receiptImageAction(input: {
   size?: "thermal" | "a4";
   mode: "save" | "whatsapp";
   defaultFileName: string;
-}): Promise<ActionResult<{ path: string | null; copied?: boolean }>> {
+}): Promise<ActionResult<{ path: string | null; copied?: boolean; shared?: boolean }>> {
   const png = await htmlToPng(input.html, input.size === "a4" ? "a4" : "thermal");
-  const fileName = `${safeReceiptFileName(input.defaultFileName)}.png`;
+  if (!isPngBuffer(png)) {
+    return { ok: false, error: "Could not create picture" };
+  }
+  const baseName = safeReceiptFileName(input.defaultFileName);
 
   if (input.mode === "save") {
     const pictures = app.getPath("pictures");
     const result = await dialog.showSaveDialog({
-      defaultPath: path.join(pictures, fileName),
+      defaultPath: path.join(pictures, `${baseName}.png`),
       filters: [{ name: "PNG image", extensions: ["png"] }],
     });
     if (result.canceled || !result.filePath) {
       return { ok: true, data: { path: null } };
     }
-    fs.writeFileSync(result.filePath, png);
-    return { ok: true, data: { path: result.filePath } };
+    const out = result.filePath.toLowerCase().endsWith(".png")
+      ? result.filePath
+      : `${result.filePath}.png`;
+    fs.writeFileSync(out, png);
+    return { ok: true, data: { path: out } };
   }
 
   const dir = path.join(app.getPath("pictures"), "Agri Soft Pro");
   fs.mkdirSync(dir, { recursive: true });
-  const dest = path.join(dir, fileName);
+  const dest = path.join(dir, `${baseName}-${Date.now()}.png`);
   fs.writeFileSync(dest, png);
-  clipboard.writeImage(nativeImage.createFromBuffer(png));
+
+  const shared = await showWindowsShareDialog(dest);
+  const filed = await putFileOnClipboard(dest);
+  if (shared) {
+    return { ok: true, data: { path: dest, shared: true } };
+  }
+  if (!filed) {
+    clipboard.writeImage(nativeImage.createFromBuffer(png));
+  }
   try {
     await shell.openExternal("whatsapp://send");
   } catch {
     try {
       await shell.openExternal("https://web.whatsapp.com/");
     } catch {
-      /* WhatsApp not installed — picture is still saved and copied */
+      /* WhatsApp not installed — picture is still saved */
     }
   }
   return { ok: true, data: { path: dest, copied: true } };
@@ -371,7 +510,7 @@ app.whenReady().then(async () => {
         mode: "save" | "whatsapp";
         defaultFileName: string;
       }
-    ): Promise<ActionResult<{ path: string | null; copied?: boolean }>> => {
+    ): Promise<ActionResult<{ path: string | null; copied?: boolean; shared?: boolean }>> => {
       if (!input?.html || typeof input.html !== "string") {
         return { ok: false, error: "Nothing to save" };
       }

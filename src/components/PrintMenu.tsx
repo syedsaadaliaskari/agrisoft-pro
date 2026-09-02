@@ -15,6 +15,9 @@ async function receiptImageFallback(
 ) {
   const width = size === "a4" ? 860 : 340;
   const base64 = await htmlToPngBase64(html, width);
+  if (base64.length < 200) {
+    return { ok: false as const, error: "Could not create picture" };
+  }
   const api = getApi();
 
   if (mode === "save") {
@@ -30,13 +33,26 @@ async function receiptImageFallback(
     return { ok: true as const, data: { path: res.data?.path ?? null } };
   }
 
+  const blob = pngBase64ToBlob(base64);
+  const file = new File([blob], `${fileName}.png`, { type: "image/png" });
   try {
-    await navigator.clipboard.write([new ClipboardItem({ "image/png": pngBase64ToBlob(base64) })]);
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], title: fileName });
+      return { ok: true as const, data: { path: null as string | null, shared: true } };
+    }
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      return { ok: true as const, data: { path: null as string | null, shared: true } };
+    }
+  }
+
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
   } catch {
     /* still try WhatsApp */
   }
   window.open("whatsapp://send", "_blank", "noopener,noreferrer");
-  return { ok: true as const, data: { path: null, copied: true } };
+  return { ok: true as const, data: { path: null as string | null, copied: true } };
 }
 
 type Props = {
@@ -140,8 +156,10 @@ export function PrintMenu({
       }
       if (mode === "save") {
         if (res.data?.path) onNotice?.(`Saved ${res.data.path}`);
+      } else if (res.data?.shared) {
+        onNotice?.("Pick WhatsApp, then a chat");
       } else {
-        onNotice?.("Picture copied. Open the WhatsApp chat and paste.");
+        onNotice?.("Open a WhatsApp chat and press Ctrl+V");
       }
       setOpen(false);
     } catch (err) {
@@ -197,7 +215,7 @@ export function PrintMenu({
                 className="block w-full px-3 py-2 text-left text-sm text-[var(--text)] hover:bg-[var(--bg-soft)]"
                 onClick={() => void runImage("whatsapp")}
               >
-                WhatsApp picture
+                Share on WhatsApp
               </button>
             </>
           ) : null}

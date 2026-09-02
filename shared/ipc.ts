@@ -1614,13 +1614,13 @@ export type ElectronAPI = {
 
   /** Print self-contained HTML via a dedicated Electron print window. */
   printHtml: (html: string) => Promise<ActionResult>;
-  /** Capture a receipt as PNG — save to Pictures/gallery, or copy and open WhatsApp. */
+  /** Capture a receipt as PNG — save, or share to WhatsApp. */
   receiptImage: (input: {
     html: string;
     size?: ReceiptSize;
     mode: "save" | "whatsapp";
     defaultFileName: string;
-  }) => Promise<ActionResult<{ path: string | null; copied?: boolean }>>;
+  }) => Promise<ActionResult<{ path: string | null; copied?: boolean; shared?: boolean }>>;
   /** Save file bytes via native Save dialog (real download). */
   saveFile: (input: {
     defaultPath: string;
