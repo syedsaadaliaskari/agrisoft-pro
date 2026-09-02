@@ -101,7 +101,7 @@ export default function DiscountsPage() {
   };
 
   return (
-    <AppShell title="Discounts" subtitle="Preset discounts for POS and invoices" permission="settings.manage">
+    <AppShell title="Discounts" permission="settings.manage">
       {error && !open ? (
         <div className="mb-4">
           <Alert>{error}</Alert>

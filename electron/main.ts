@@ -101,6 +101,30 @@ function registerStaticAppProtocol() {
   });
 }
 
+function writeTempReceiptHtml(html: string): string {
+  const dir = path.join(app.getPath("temp"), "agri-soft-pro-print");
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, `receipt-${Date.now()}-${Math.random().toString(36).slice(2)}.html`);
+  fs.writeFileSync(file, html, "utf8");
+  return file;
+}
+
+function removeTempFileLater(file: string) {
+  setTimeout(() => {
+    try {
+      fs.unlinkSync(file);
+    } catch {
+      /* ignore */
+    }
+  }, 30_000);
+}
+
+async function loadReceiptHtml(win: BrowserWindow, html: string): Promise<void> {
+  const file = writeTempReceiptHtml(html);
+  removeTempFileLater(file);
+  await win.loadFile(file);
+}
+
 async function printHtmlDocument(html: string): Promise<ActionResult> {
   const printWin = new BrowserWindow({
     width: 420,
@@ -119,8 +143,8 @@ async function printHtmlDocument(html: string): Promise<ActionResult> {
   });
 
   try {
-    await printWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-    await new Promise((r) => setTimeout(r, 150));
+    await loadReceiptHtml(printWin, html);
+    await new Promise((r) => setTimeout(r, 200));
 
     const success = await new Promise<boolean>((resolve) => {
       printWin.webContents.print(
@@ -165,6 +189,7 @@ async function htmlToPng(html: string, size: "thermal" | "a4"): Promise<Buffer> 
     height: 900,
     show: false,
     frame: false,
+    skipTaskbar: true,
     autoHideMenuBar: true,
     backgroundColor: "#ffffff",
     webPreferences: {
@@ -175,7 +200,9 @@ async function htmlToPng(html: string, size: "thermal" | "a4"): Promise<Buffer> 
   });
 
   try {
-    await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+    win.setPosition(-20000, -20000);
+    win.showInactive();
+    await loadReceiptHtml(win, html);
     const height = await win.webContents.executeJavaScript(`
       (async () => {
         const imgs = Array.from(document.images || []);

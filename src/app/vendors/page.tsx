@@ -140,7 +140,7 @@ export default function VendorsPage() {
   };
 
   return (
-    <AppShell title="Vendors" subtitle="Suppliers and payables parties" permission="vendors.view">
+    <AppShell title="Vendors" permission="vendors.view">
       {error ? (
         <div className="mb-4">
           <Alert>{error}</Alert>
@@ -167,7 +167,6 @@ export default function VendorsPage() {
               {
                 label: "Opening balances",
                 value: money(stats.opening),
-                hint: "Across active suppliers",
                 icon: Warehouse,
               },
             ]}

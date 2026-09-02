@@ -17,7 +17,8 @@ import {
 import { getDb } from "../db";
 import { getSettingsMap } from "../db/settings";
 import { requireAccountByCode } from "../db/accounts";
-import { computeAccountOpening, money, sumAccountEntries } from "../db/ledger";
+import { getCashBankSnapshot } from "../db/cashBank";
+import { computeAccountOpening, money } from "../db/ledger";
 import {
   sales,
   saleItems,
@@ -174,32 +175,25 @@ export function registerDashboardHandlers(): void {
       );
       const monthCogsReturned = sumSaleReturnCogsInRange(db, monthStart, t);
 
-      const cash = requireAccountByCode(db, "1100", "Cash");
-      const bank = requireAccountByCode(db, "1200", "Bank");
+      const books = getCashBankSnapshot(db, t);
       const ar = requireAccountByCode(db, "1300", "AR");
       const ap = requireAccountByCode(db, "2100", "AP");
       const fullBal = (accountId: string) => computeAccountOpening(db, accountId, "9999-99-99")!.signed;
 
-      // Today's money day book (local date): cash + bank opening / in / out / closing
-      const cashOpeningToday = money(computeAccountOpening(db, cash.id, t)!.signed);
-      const cashDayMove = sumAccountEntries(db, cash.id, { fromDate: t, toDate: t });
-      const cashInToday = money(cashDayMove.debit);
-      const cashOutToday = money(cashDayMove.credit);
-      const cashClosingToday = money(cashOpeningToday + cashInToday - cashOutToday);
-
-      const bankOpeningToday = money(computeAccountOpening(db, bank.id, t)!.signed);
-      const bankDayMove = sumAccountEntries(db, bank.id, { fromDate: t, toDate: t });
-      const bankInToday = money(bankDayMove.debit);
-      const bankOutToday = money(bankDayMove.credit);
-      const bankClosingToday = money(bankOpeningToday + bankInToday - bankOutToday);
-
+      const cashOpeningToday = books.cash.openingToday;
+      const cashInToday = books.cash.inToday;
+      const cashOutToday = books.cash.outToday;
+      const cashClosingToday = books.cash.closingToday;
+      const bankOpeningToday = books.bank.openingToday;
+      const bankInToday = books.bank.inToday;
+      const bankOutToday = books.bank.outToday;
+      const bankClosingToday = books.bank.closingToday;
       const moneyOpeningToday = money(cashOpeningToday + bankOpeningToday);
       const moneyInToday = money(cashInToday + bankInToday);
       const moneyOutToday = money(cashOutToday + bankOutToday);
       const moneyClosingToday = money(cashClosingToday + bankClosingToday);
-
-      const cashBalance = money(fullBal(cash.id));
-      const bankBalance = money(fullBal(bank.id));
+      const cashBalance = books.cash.closingToday;
+      const bankBalance = books.bank.closingToday;
 
       const voucherTotalOnDate = (voucherType: "receipt" | "payment", onDate: string) =>
         money(
@@ -324,10 +318,15 @@ export function registerDashboardHandlers(): void {
         cashInToday,
         cashOutToday,
         cashClosingToday,
+        bankOpeningToday,
+        bankInToday,
+        bankOutToday,
+        bankClosingToday,
         moneyOpeningToday,
         moneyInToday,
         moneyOutToday,
         moneyClosingToday,
+        cashBankMovesToday: books.todayMoves,
         receivedToday,
         paidOutToday,
         arBalance: money(Math.abs(fullBal(ar.id))),

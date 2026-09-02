@@ -15,6 +15,7 @@ import {
   PaymentModePicker,
   money,
 } from "@/components/ops/DocumentWorkspace";
+import { CashBankEffect, refundCashBank, signedMoneyFlow } from "@/components/ops/CashBankEffect";
 import {
   Alert,
   Button,
@@ -69,6 +70,7 @@ export default function PurchaseReturnsPage() {
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [pickVariantId, setPickVariantId] = useState("");
+  const [linkedPurchase, setLinkedPurchase] = useState<Purchase | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -131,6 +133,10 @@ export default function PurchaseReturnsPage() {
     () => Math.round((subtotal + Number(taxAmount || 0)) * 100) / 100,
     [subtotal, taxAmount]
   );
+  const refundLegs = useMemo(
+    () => refundCashBank(grand, refundMode, purchaseId ? linkedPurchase : null),
+    [grand, refundMode, purchaseId, linkedPurchase]
+  );
 
   const openCreate = () => {
     setError("");
@@ -142,18 +148,23 @@ export default function PurchaseReturnsPage() {
     setNotes("");
     setLines([]);
     setPickVariantId("");
+    setLinkedPurchase(null);
     if (accounts[0]) setAccountId(accounts[0].id);
     setOpen(true);
   };
 
   const onPurchaseLink = async (id: string) => {
     setPurchaseId(id);
-    if (!id) return;
+    if (!id) {
+      setLinkedPurchase(null);
+      return;
+    }
     const res = await getApi().getPurchase(id);
     if (!res.ok) {
       setError(res.error);
       return;
     }
+    setLinkedPurchase(res.data);
     setVendorId(res.data.vendorId ?? "");
     setLines(
       (res.data.items ?? []).map((it) => ({
@@ -187,7 +198,7 @@ export default function PurchaseReturnsPage() {
     setError("");
   };
 
-  const onSave = async () => {
+  const onSave = async (andPrint = false) => {
     setSaving(true);
     setError("");
     const res = await getApi().createPurchaseReturn({
@@ -211,36 +222,41 @@ export default function PurchaseReturnsPage() {
     }
     setOpen(false);
     await load();
+    if (andPrint) await printReturn(res.data);
   };
 
-  const printReturn = async (row: PurchaseReturn, size: ReceiptSize = "a4") => {
+  const returnHtml = async (row: PurchaseReturn, size: ReceiptSize = "a4") => {
     let toPrint = row;
     if (!row.items?.length) {
       const res = await getApi().getPurchaseReturn(row.id);
-      if (!res.ok) {
-        setError(res.error);
-        return;
-      }
+      if (!res.ok) throw new Error(res.error);
       toPrint = res.data;
     }
-    const html = buildPurchaseReturnPrintHtml(
+    return buildPurchaseReturnPrintHtml(
       {
         ...toPrint,
         items: (toPrint.items ?? []).map((it) => ({
           ...it,
-          unit: it.unit ?? inventory.find((row) => row.variantId === it.variantId)?.unit ?? null,
+          unit: it.unit ?? inventory.find((inv) => inv.variantId === it.variantId)?.unit ?? null,
         })),
       },
       size
     );
-    const res = await getApi().printHtml(html);
-    if (!res.ok) setError(res.error);
+  };
+
+  const printReturn = async (row: PurchaseReturn, size: ReceiptSize = "a4") => {
+    try {
+      const html = await returnHtml(row, size);
+      const res = await getApi().printHtml(html);
+      if (!res.ok) setError(res.error);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Print failed");
+    }
   };
 
   return (
     <AppShell
       title="Purchase Return"
-      subtitle="Vendor returns — stock out and reverse payables"
       permission="purchases.return"
     >
       {error && !open ? (
@@ -261,18 +277,16 @@ export default function PurchaseReturnsPage() {
           {
             label: "All returns",
             value: String(stats.count),
-            hint: money(stats.total) + " lifetime",
+            hint: money(stats.total),
             icon: RotateCcw,
           },
           {
             label: "Linked to bill",
             value: String(stats.linked),
-            hint: "Pulled from purchase",
           },
           {
             label: "Avg return",
             value: money(stats.count ? stats.total / stats.count : 0),
-            hint: "Mean debit note",
           },
         ]}
       />
@@ -352,7 +366,12 @@ export default function PurchaseReturnsPage() {
               </td>
               <td className="px-4 py-3.5">
                 <div className="flex justify-end">
-                  <PrintMenu defaultSize="a4" onPrint={(size) => printReturn(row, size)} />
+                  <PrintMenu
+                    defaultSize="a4"
+                    fileName={row.returnNo}
+                    getHtml={(size) => returnHtml(row, size)}
+                    onError={setError}
+                  />
                 </div>
               </td>
             </tr>
@@ -364,7 +383,6 @@ export default function PurchaseReturnsPage() {
         open={open}
         size="full"
         title="New purchase return"
-        subtitle="Send goods back and reverse vendor payable / cash"
         onClose={() => setOpen(false)}
         footer={
           <>
@@ -374,7 +392,14 @@ export default function PurchaseReturnsPage() {
             <Button variant="secondary" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={() => void onSave()} disabled={saving || !vendorId || lines.length === 0}>
+            <Button
+              variant="secondary"
+              onClick={() => void onSave(true)}
+              disabled={saving || !vendorId || lines.length === 0}
+            >
+              {saving ? "Saving..." : "Save & print"}
+            </Button>
+            <Button onClick={() => void onSave(false)} disabled={saving || !vendorId || lines.length === 0}>
               {saving ? "Saving..." : "Post return"}
             </Button>
           </>
@@ -474,6 +499,10 @@ export default function PurchaseReturnsPage() {
                   ) : null}
                 </div>
               )}
+              <CashBankEffect
+                cashDelta={signedMoneyFlow("in", refundLegs.cash)}
+                bankDelta={signedMoneyFlow("in", refundLegs.bank)}
+              />
             </div>
           }
         >

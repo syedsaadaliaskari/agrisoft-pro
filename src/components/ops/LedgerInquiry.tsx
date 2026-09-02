@@ -78,7 +78,7 @@ export function LedgerInquiry({
   headerActions,
 }: {
   title: string;
-  subtitle: string;
+  subtitle?: string;
   pickerLabel: string;
   items: LedgerPickItem[];
   selectedId: string;
@@ -122,14 +122,10 @@ export function LedgerInquiry({
       {error ? <Alert>{error}</Alert> : null}
 
       <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
-        {/* Inquiry desk — left */}
         <aside className="flex h-fit flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] shadow-[0_1px_0_rgba(0,0,0,0.04)] xl:sticky xl:top-4 xl:max-h-[calc(100vh-7rem)]">
           <div className="border-b border-[var(--border)] px-4 py-4">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--accent)]">
-              Ledger desk
-            </div>
-            <h2 className="mt-1 text-lg font-semibold tracking-tight">{title}</h2>
-            <p className="mt-1 text-xs text-[var(--text-muted)]">{subtitle}</p>
+            <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+            {subtitle ? <p className="mt-1 text-xs text-[var(--text-muted)]">{subtitle}</p> : null}
           </div>
 
           <div className="space-y-3 border-b border-[var(--border)] px-4 py-3">
@@ -264,7 +260,6 @@ export function LedgerInquiry({
                   {
                     label: "Opening",
                     value: `${money(statement.openingBalance)} ${sideLabel(statement.openingSide)}`,
-                    hint: "Brought forward",
                     icon: Scale,
                   },
                   {
@@ -283,7 +278,6 @@ export function LedgerInquiry({
                   {
                     label: "Closing",
                     value: `${money(statement.closingBalance)} ${sideLabel(statement.closingSide)}`,
-                    hint: "Carry forward",
                     tone: "success",
                     icon: Scale,
                   },

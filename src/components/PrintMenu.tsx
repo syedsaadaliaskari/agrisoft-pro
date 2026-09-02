@@ -4,7 +4,40 @@ import { useEffect, useRef, useState } from "react";
 import { Printer } from "lucide-react";
 import { Button } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
+import { htmlToPngBase64, pngBase64ToBlob } from "@/lib/html-to-png";
 import type { ReceiptSize } from "@shared/ipc";
+
+async function receiptImageFallback(
+  html: string,
+  size: ReceiptSize,
+  mode: "save" | "whatsapp",
+  fileName: string
+) {
+  const width = size === "a4" ? 860 : 340;
+  const base64 = await htmlToPngBase64(html, width);
+  const api = getApi();
+
+  if (mode === "save") {
+    if (typeof api.saveFile !== "function") {
+      return { ok: false as const, error: "Restart the desktop app to save images" };
+    }
+    const res = await api.saveFile({
+      defaultPath: `${fileName}.png`,
+      dataBase64: base64,
+      filters: [{ name: "PNG image", extensions: ["png"] }],
+    });
+    if (!res.ok) return res;
+    return { ok: true as const, data: { path: res.data?.path ?? null } };
+  }
+
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": pngBase64ToBlob(base64) })]);
+  } catch {
+    /* still try WhatsApp */
+  }
+  window.open("whatsapp://send", "_blank", "noopener,noreferrer");
+  return { ok: true as const, data: { path: null, copied: true } };
+}
 
 type Props = {
   /** Used when getHtml is omitted (legacy). */
@@ -78,6 +111,8 @@ export function PrintMenu({
         if (!res.ok) onError?.(res.error);
       }
       setOpen(false);
+    } catch (err) {
+      onError?.(err instanceof Error ? err.message : "Print failed");
     } finally {
       setBusy(false);
     }
@@ -89,22 +124,28 @@ export function PrintMenu({
     try {
       const html = await htmlFor(defaultSize);
       if (!html) return;
-      const res = await getApi().receiptImage({
-        html,
-        size: defaultSize,
-        mode,
-        defaultFileName: fileName,
-      });
+      const api = getApi();
+      const native = typeof api.receiptImage === "function";
+      const res = native
+        ? await api.receiptImage({
+            html,
+            size: defaultSize,
+            mode,
+            defaultFileName: fileName,
+          })
+        : await receiptImageFallback(html, defaultSize, mode, fileName);
       if (!res.ok) {
         onError?.(res.error);
         return;
       }
       if (mode === "save") {
         if (res.data?.path) onNotice?.(`Saved ${res.data.path}`);
-      } else if (res.data?.path) {
-        onNotice?.("Picture saved to Pictures and copied. Open the chat and paste.");
+      } else {
+        onNotice?.("Picture copied. Open the WhatsApp chat and paste.");
       }
       setOpen(false);
+    } catch (err) {
+      onError?.(err instanceof Error ? err.message : "Could not save image");
     } finally {
       setBusy(false);
     }

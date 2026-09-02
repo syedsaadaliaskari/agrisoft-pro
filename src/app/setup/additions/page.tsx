@@ -101,7 +101,7 @@ export default function AdditionsPage() {
   };
 
   return (
-    <AppShell title="Additions" subtitle="Extra charges (delivery, packing, etc.)" permission="settings.manage">
+    <AppShell title="Additions" permission="settings.manage">
       {error && !open ? (
         <div className="mb-4">
           <Alert>{error}</Alert>

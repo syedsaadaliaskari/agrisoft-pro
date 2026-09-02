@@ -63,10 +63,9 @@ export default function VendorLedgerPage() {
   );
 
   return (
-    <AppShell title="Vendor Ledger" subtitle="Payables by vendor" permission="ledgers.view">
+    <AppShell title="Vendor Ledger" permission="ledgers.view">
       <LedgerInquiry
         title="Vendors"
-        subtitle="Pick a supplier to open payables"
         pickerLabel="Vendor"
         items={items}
         selectedId={vendorId}
@@ -97,7 +96,6 @@ export default function VendorLedgerPage() {
           ledger
             ? {
                 title: `${ledger.partyCode} — ${ledger.partyName}`,
-                subtitle: "Vendor payables",
                 fromDate: ledger.fromDate,
                 toDate: ledger.toDate,
                 openingBalance: ledger.openingBalance,

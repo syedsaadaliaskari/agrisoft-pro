@@ -193,7 +193,6 @@ export default function LoginPage() {
             >
               {t("brand.name")} {t("brand.pro")}
             </h1>
-            <p className="mt-2 text-sm text-[var(--text-muted)]">{t("login.subtitle")}</p>
           </div>
 
           <form

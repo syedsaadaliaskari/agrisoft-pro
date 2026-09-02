@@ -207,7 +207,7 @@ export function registerBackupHandlers(): void {
               title: "Reset all shop data",
               message: "Erase all sales, stock, parties, and users?",
               detail:
-                "This cannot be undone. Your Install ID and Pro activation are kept. The app will restart with a clean shop (admin / admin123).",
+                "This cannot be undone. Install ID and Pro activation are kept.",
             })
           : await dialog.showMessageBox({
               type: "warning",
@@ -217,7 +217,7 @@ export function registerBackupHandlers(): void {
               title: "Reset all shop data",
               message: "Erase all sales, stock, parties, and users?",
               detail:
-                "This cannot be undone. Your Install ID and Pro activation are kept. The app will restart with a clean shop (admin / admin123).",
+                "This cannot be undone. Install ID and Pro activation are kept.",
             });
         if (confirm.response !== 1) {
           return fail("Reset cancelled");

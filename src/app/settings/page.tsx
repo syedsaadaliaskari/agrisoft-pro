@@ -77,6 +77,13 @@ export default function SettingsPage() {
       return;
     }
     applyMap(res.data);
+    const books = await getApi().listAccounts({ cashBankOnly: true, activeOnly: true });
+    if (books.ok) {
+      const cash = books.data.find((a) => a.code === "1100");
+      const bank = books.data.find((a) => a.code === "1200");
+      setCashOpening(String(cash?.openingBalance ?? 0));
+      setBankOpening(String(bank?.openingBalance ?? 0));
+    }
   }, []);
 
   const loadAudit = useCallback(async () => {
@@ -133,7 +140,7 @@ export default function SettingsPage() {
     }
     setCashOpening(String(res.data.cashOpening));
     setBankOpening(String(res.data.bankOpening));
-    setSuccess("Opening cash and bank saved — dashboard and ledgers use these as the starting amounts");
+    setSuccess("Saved");
     void loadAudit();
   };
 
@@ -168,7 +175,7 @@ export default function SettingsPage() {
       return;
     }
     applyMap(res.data);
-    setSuccess("Shop logo saved — it will appear on printed receipts");
+    setSuccess("Saved");
     void loadAudit();
   };
 
@@ -247,12 +254,12 @@ export default function SettingsPage() {
       return;
     }
     setVendorCode("");
-    setSuccess("Vendor unlocked — you are Super Admin on this PC (License tools enabled).");
+    setSuccess("Unlocked");
     await hydrate();
   };
 
   return (
-    <AppShell title="Settings" subtitle="Shop profile, security, and shortcuts" permission="settings.manage">
+    <AppShell title="Settings" permission="settings.manage">
       <div className="space-y-6">
         {error ? <Alert>{error}</Alert> : null}
         {success ? <Alert tone="info">{success}</Alert> : null}
@@ -269,9 +276,6 @@ export default function SettingsPage() {
               <div className="text-sm font-semibold text-[var(--text)] group-hover:text-[var(--accent)]">
                 Change password
               </div>
-              <p className="mt-0.5 text-xs leading-relaxed text-[var(--text-muted)]">
-                Update the password for your signed-in account.
-              </p>
             </div>
           </Link>
           <Link
@@ -285,9 +289,6 @@ export default function SettingsPage() {
               <div className="text-sm font-semibold text-[var(--text)] group-hover:text-[var(--accent)]">
                 Audit log
               </div>
-              <p className="mt-0.5 text-xs leading-relaxed text-[var(--text-muted)]">
-                Full activity history — search, filter, and export.
-              </p>
             </div>
           </Link>
           {canManageUsers ? (
@@ -300,12 +301,8 @@ export default function SettingsPage() {
               </div>
               <div>
                 <div className="text-sm font-semibold text-[var(--text)] group-hover:text-[var(--accent)]">
-                  Users & RBAC
+                  Users
                 </div>
-                <p className="mt-0.5 text-xs leading-relaxed text-[var(--text-muted)]">
-                  Add users and tick which menus each role can see — including License & Activated
-                  list.
-                </p>
               </div>
             </Link>
           ) : null}
@@ -316,11 +313,7 @@ export default function SettingsPage() {
             onSubmit={(e) => void onVendorUnlock(e)}
             className="max-w-3xl space-y-3 rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5"
           >
-            <div className="text-sm font-semibold">Vendor unlock (you only)</div>
-            <p className="text-xs text-[var(--text-muted)]">
-              Customer installs start as shop Admin (no License tools). Enter your private vendor
-              code once on YOUR PC to become Super Admin and manage activations.
-            </p>
+            <div className="text-sm font-semibold">Vendor unlock</div>
             <Input
               label="Vendor unlock code"
               type="password"
@@ -335,7 +328,7 @@ export default function SettingsPage() {
           </form>
         ) : (
           <div className="max-w-3xl rounded-xl border border-[var(--accent)]/30 bg-[var(--accent-soft)]/30 px-5 py-3 text-sm text-[var(--text)]">
-            This PC is vendor-unlocked (Super Admin). License / Activated tools are available.
+            Super Admin
           </div>
         )}
 
@@ -381,11 +374,8 @@ export default function SettingsPage() {
             ]}
           />
           <div className="sm:col-span-2">
-            <div className="text-xs font-medium text-[var(--text-muted)]">Shop logo (receipts)</div>
-            <p className="mt-1 text-[11px] text-[var(--text-muted)]">
-              Your shop brand on printed sales / purchase tickets — not the Agri Soft Pro app icon.
-              PNG, JPG, or WebP under 1.5 MB.
-            </p>
+            <div className="text-xs font-medium text-[var(--text-muted)]">Shop logo</div>
+            <p className="mt-1 text-[11px] text-[var(--text-muted)]">PNG, JPG, or WebP. Max 1.5 MB.</p>
             <div className="mt-3 flex flex-wrap items-center gap-4">
               <div className="flex h-20 w-28 items-center justify-center rounded-lg border border-dashed border-[var(--border)] bg-[var(--bg-soft)]">
                 {logoPreview ? (
@@ -458,7 +448,7 @@ export default function SettingsPage() {
           </div>
 
           <div className="sm:col-span-2 border-t border-[var(--border)] pt-4 text-sm font-semibold">
-            WhatsApp (n8n)
+            WhatsApp
           </div>
           <Select
             label="Enabled"
@@ -506,30 +496,22 @@ export default function SettingsPage() {
           onSubmit={(e) => void onSaveOpenings(e)}
           className="grid max-w-3xl gap-4 rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5 sm:grid-cols-2"
         >
-          <div className="sm:col-span-2">
-            <div className="text-sm font-semibold">Opening cash & bank</div>
-            <p className="mt-1 text-xs text-[var(--text-muted)]">
-              Cash and bank the shop already had when you started this software. Dashboard, day book,
-              and cash/bank ledgers start from these amounts.
-            </p>
-          </div>
+          <div className="sm:col-span-2 text-sm font-semibold">Opening cash & bank</div>
           <Input
-            label="Opening cash in hand"
+            label="Opening cash"
             type="number"
             min={0}
             step="0.01"
             value={cashOpening}
             onChange={(e) => setCashOpening(e.target.value)}
-            hint="Physical cash in the drawer / till on day one"
           />
           <Input
-            label="Opening bank balance"
+            label="Opening bank"
             type="number"
             min={0}
             step="0.01"
             value={bankOpening}
             onChange={(e) => setBankOpening(e.target.value)}
-            hint="Bank / account balance on day one"
           />
           <div className="sm:col-span-2">
             <Button type="submit" disabled={openingBusy}>
@@ -545,7 +527,7 @@ export default function SettingsPage() {
               href="/settings/audit"
               className="text-xs font-medium text-[var(--accent)] hover:underline"
             >
-              Open full audit log →
+              Open audit log
             </Link>
           </div>
           <DataTable headers={["When", "User", "Module", "Action", "Details"]} empty={!audit.length}>

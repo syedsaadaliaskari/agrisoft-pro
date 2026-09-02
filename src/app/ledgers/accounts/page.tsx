@@ -55,10 +55,9 @@ export default function AccountsLedgerPage() {
   );
 
   return (
-    <AppShell title="Accounts Ledger" subtitle="Chart of accounts movement" permission="ledgers.view">
+    <AppShell title="Accounts Ledger" permission="ledgers.view">
       <LedgerInquiry
         title="Accounts"
-        subtitle="Pick an account to open its statement"
         pickerLabel="Account"
         items={items}
         selectedId={accountId}

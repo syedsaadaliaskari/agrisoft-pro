@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { ClipboardList, Search } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { ExportMenu } from "@/components/ExportMenu";
@@ -102,7 +101,6 @@ export default function AuditLogPage() {
   return (
     <AppShell
       title="Audit log"
-      subtitle="Who did what in the shop — search, filter, and export"
       permission="settings.manage"
     >
       <div className="space-y-5">
@@ -261,14 +259,6 @@ export default function AuditLogPage() {
             </tr>
           ))}
         </DataTable>
-
-        <p className="text-xs text-[var(--text-muted)]">
-          Shop profile stays under{" "}
-          <Link href="/settings" className="text-[var(--accent)] hover:underline">
-            Settings
-          </Link>
-          . This page is the full activity history.
-        </p>
       </div>
     </AppShell>
   );

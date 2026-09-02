@@ -113,7 +113,6 @@ export default function ProfitReportPage() {
   return (
     <AppShell
       title="Profit & Loss"
-      subtitle="Profit by crop — revenue, cost, and margin over time"
       permission="reports.view"
     >
       {error ? (
@@ -169,16 +168,15 @@ export default function ProfitReportPage() {
         <>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {[
-              { label: "Gross sales", value: report.grossSalesRevenue ?? report.salesRevenue, hint: "Before returns" },
+              { label: "Gross sales", value: report.grossSalesRevenue ?? report.salesRevenue },
               {
                 label: "Sale returns",
                 value: -(report.saleReturnsRevenue ?? 0),
-                hint: "Taken off revenue",
                 danger: true,
               },
-              { label: "Net revenue", value: report.salesRevenue, hint: "Sales − returns" },
-              { label: "Cost of goods", value: report.cogs, hint: "Net of returned stock" },
-              { label: "Net profit", value: report.netProfit, hint: "Revenue − cost" },
+              { label: "Net revenue", value: report.salesRevenue },
+              { label: "Cost of goods", value: report.cogs },
+              { label: "Net profit", value: report.netProfit },
             ].map((kpi) => (
               <div
                 key={kpi.label}
@@ -194,7 +192,6 @@ export default function ProfitReportPage() {
                 >
                   {money(cur, kpi.value)}
                 </p>
-                <p className="mt-1 text-[11px] text-[var(--text-muted)]">{kpi.hint}</p>
               </div>
             ))}
           </div>
@@ -318,15 +315,11 @@ export default function ProfitReportPage() {
           <div className="mt-5 mb-3 flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="text-sm font-semibold">Each crop</p>
-              <p className="text-xs text-[var(--text-muted)]">
-                Tap a card to open its graph above — green is profit, red is loss
-              </p>
             </div>
             <Input
               label="Find crop"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Urea, DAP…"
             />
           </div>
 

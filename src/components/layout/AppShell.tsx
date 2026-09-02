@@ -111,8 +111,7 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
             <div className="rounded-xl border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-5 py-8 text-center">
               <div className="text-sm font-semibold text-[var(--danger)]">{t("common.accessDenied")}</div>
               <p className="mt-2 text-sm text-[var(--text-muted)]">
-                {t("common.accessDeniedHint")}{" "}
-                <span className="font-mono text-[var(--text)]">{permission}</span>.
+                {t("common.accessDeniedHint")}
               </p>
             </div>
           </main>

@@ -99,6 +99,8 @@ export default function SalesPage() {
   const [taxAmount, setTaxAmount] = useState("0");
   const [cashPaid, setCashPaid] = useState("");
   const [bankPaid, setBankPaid] = useState("0");
+  const [postedCash, setPostedCash] = useState(0);
+  const [postedBank, setPostedBank] = useState(0);
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [pickVariantId, setPickVariantId] = useState("");
@@ -216,6 +218,8 @@ export default function SalesPage() {
     setTaxAmount("0");
     setCashPaid("");
     setBankPaid("0");
+    setPostedCash(0);
+    setPostedBank(0);
     setNotes("");
     setLines([]);
     setPickVariantId("");
@@ -245,12 +249,18 @@ export default function SalesPage() {
     if (sale.cashPaid != null || sale.bankPaid != null) {
       setCashPaid(String(sale.cashPaid ?? 0));
       setBankPaid(String(sale.bankPaid ?? 0));
+      setPostedCash(Number(sale.cashPaid ?? 0));
+      setPostedBank(Number(sale.bankPaid ?? 0));
     } else if (sale.paymentMode === "bank") {
       setCashPaid("0");
       setBankPaid(String(sale.paidAmount));
+      setPostedCash(0);
+      setPostedBank(Number(sale.paidAmount || 0));
     } else {
       setCashPaid(String(sale.paidAmount));
       setBankPaid("0");
+      setPostedCash(Number(sale.paidAmount || 0));
+      setPostedBank(0);
     }
     setNotes(sale.notes || "");
     setPickVariantId("");
@@ -333,19 +343,24 @@ export default function SalesPage() {
 
   const removeLine = (key: string) => setLines((prev) => prev.filter((l) => l.key !== key));
 
-  const printSale = async (sale: Sale, size: ReceiptSize = "thermal") => {
+  const saleHtml = async (sale: Sale, size: ReceiptSize = "thermal") => {
     let toPrint = sale;
     if (!sale.items) {
       const res = await getApi().getSale(sale.id);
-      if (!res.ok) {
-        setError(res.error);
-        return;
-      }
+      if (!res.ok) throw new Error(res.error);
       toPrint = res.data;
     }
-    const html = buildSalePrintHtml(toPrint, size);
-    const res = await getApi().printHtml(html);
-    if (!res.ok) setError(res.error);
+    return buildSalePrintHtml(toPrint, size);
+  };
+
+  const printSale = async (sale: Sale, size: ReceiptSize = "thermal") => {
+    try {
+      const html = await saleHtml(sale, size);
+      const res = await getApi().printHtml(html);
+      if (!res.ok) setError(res.error);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Print failed");
+    }
   };
 
   const onSave = async (andPrint: boolean) => {
@@ -433,7 +448,7 @@ export default function SalesPage() {
   }, [rows]);
 
   return (
-    <AppShell title="Sale" subtitle="Invoice desk — stock out, ledger, and print" permission="sales.view">
+    <AppShell title="Sale" permission="sales.view">
       {error && !composer ? (
         <div className="mb-4">
           <Alert>{error}</Alert>
@@ -452,20 +467,17 @@ export default function SalesPage() {
           {
             label: "Invoices",
             value: String(stats.count),
-            hint: "All posted sales",
             icon: Receipt,
           },
           {
             label: "Credit outstanding",
             value: money(stats.creditDue),
-            hint: "Unpaid balance across sales",
             tone: stats.creditDue > 0 ? "warn" : "success",
             icon: CreditCard,
           },
           {
             label: "Avg ticket",
             value: money(stats.avg),
-            hint: "Mean invoice value",
             icon: TrendingUp,
           },
         ]}
@@ -551,9 +563,6 @@ export default function SalesPage() {
                   </td>
                   <td className="px-4 py-3.5">
                     <div className="font-medium">{row.customerName || "Walk-in"}</div>
-                    <div className="text-[11px] text-[var(--text-muted)]">
-                      {row.customerName ? "Account customer" : "Counter sale"}
-                    </div>
                   </td>
                   <td className="px-4 py-3.5">
                     <PaymentModeBadge mode={row.paymentMode} />
@@ -587,7 +596,11 @@ export default function SalesPage() {
                           <Pencil size={14} />
                         </Button>
                       ) : null}
-                      <PrintMenu onPrint={(size) => printSale(row, size)} />
+                      <PrintMenu
+                        fileName={row.invoiceNo}
+                        getHtml={(size) => saleHtml(row, size)}
+                        onError={setError}
+                      />
                       {canCreate ? (
                         <Button variant="ghost" size="sm" onClick={() => void onDelete(row)} title="Delete">
                           <Trash2 size={14} />
@@ -645,8 +658,7 @@ export default function SalesPage() {
           <Alert>
             <div className="font-semibold">This sale will lose {money(lossTotal)}</div>
             <div className="mt-0.5 text-xs opacity-90">
-              {belowCostLines.length} item{belowCostLines.length === 1 ? "" : "s"} selling below
-              what you paid. You can still save.
+              {belowCostLines.length} item{belowCostLines.length === 1 ? "" : "s"} below cost.
             </div>
           </Alert>
         ) : null}
@@ -730,13 +742,16 @@ export default function SalesPage() {
                     bankPaid={bankPaid}
                     onCashPaid={setCashPaid}
                     onBankPaid={setBankPaid}
+                    moneyFlow="in"
+                    postedCash={postedCash}
+                    postedBank={postedBank}
                   />
                   <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--bg-soft)] px-3 py-2 text-sm">
                     <span className="text-[var(--text-muted)]">Total</span>
                     <span className="font-semibold tabular-nums">{money(grand)}</span>
                   </div>
                   <div className="flex items-center justify-between rounded-xl border border-[var(--border)] px-3 py-2 text-sm">
-                    <span className="text-[var(--text-muted)]">Due</span>
+                    <span className="text-[var(--text-muted)]">Receivable</span>
                     <span
                       className={`font-semibold tabular-nums ${balanceDue > 0 ? "text-amber-700 dark:text-amber-300" : "text-[var(--success)]"}`}
                     >
@@ -860,7 +875,6 @@ export default function SalesPage() {
         open={viewOpen}
         size="xl"
         title={viewing ? `Sale ${viewing.invoiceNo}` : "Sale"}
-        subtitle="Posted invoice detail"
         onClose={() => setViewOpen(false)}
         footer={
           <>
@@ -883,7 +897,9 @@ export default function SalesPage() {
                 variant="primary"
                 size="md"
                 label="Print"
-                onPrint={(size) => printSale(viewing, size)}
+                fileName={viewing.invoiceNo}
+                getHtml={(size) => saleHtml(viewing, size)}
+                onError={setError}
               />
             ) : null}
           </>

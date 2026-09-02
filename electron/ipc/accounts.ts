@@ -5,10 +5,12 @@ import {
   type ActionResult,
   type Account,
   type AccountListFilter,
+  type CashBankSnapshot,
 } from "../../shared/ipc";
 import { getDb } from "../db";
 import { accounts } from "../db/schema";
 import { requireAccountByCode } from "../db/accounts";
+import { getCashBankSnapshot } from "../db/cashBank";
 import { money } from "../db/ledger";
 import { writeAuditLog } from "../db/audit";
 import { requirePermission, requireSession, PermissionError, getCurrentSession } from "./session";
@@ -124,5 +126,9 @@ export function registerAccountHandlers(): void {
 
         return ok({ cashOpening: cashAmt, bankOpening: bankAmt });
       })
+  );
+
+  registerHandler(IPC.ACCOUNTS_CASH_BANK_SNAPSHOT, async (): Promise<ActionResult<CashBankSnapshot>> =>
+    guarded(() => requireSession(), async () => ok(getCashBankSnapshot(getDb())))
   );
 }

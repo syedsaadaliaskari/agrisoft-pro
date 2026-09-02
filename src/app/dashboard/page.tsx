@@ -37,6 +37,7 @@ import { ExportMenu } from "@/components/ExportMenu";
 import { DashboardSkeleton } from "@/components/ui/Skeleton";
 import { Alert, Button, DataTable, Input, Modal, Select, Textarea } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
+import { formatMoney } from "@/lib/utils";
 import { isSuperAdminUser } from "@/lib/permissions";
 import { useAuthStore } from "@/store/auth";
 import type {
@@ -53,7 +54,26 @@ const tooltipStyle = {
 };
 
 function fmt(cur: string, n: number) {
-  return `${cur} ${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  return formatMoney(Number(n || 0), cur);
+}
+
+const MOVE_LABELS: Record<string, string> = {
+  sale: "Sale",
+  sale_return: "Sale return",
+  purchase: "Purchase",
+  purchase_return: "Purchase return",
+  receipt: "Received",
+  payment: "Paid",
+  income: "Income",
+  expense: "Expense",
+  owner_draw: "Owner draw",
+  journal: "Journal",
+};
+
+function signedAmt(cur: string, n: number) {
+  const v = Number(n || 0);
+  if (Math.abs(v) < 0.005) return "—";
+  return `${v > 0 ? "+" : "−"}${formatMoney(Math.abs(v), cur)}`;
 }
 
 function today() {
@@ -175,7 +195,7 @@ export default function DashboardPage() {
       label: "Money today",
       value: summary ? fmt(cur, summary.moneyClosingToday ?? summary.cashClosingToday) : "…",
       sub: summary
-        ? `Open ${fmt(cur, summary.moneyOpeningToday ?? summary.cashOpeningToday)} · In ${fmt(cur, summary.moneyInToday ?? summary.cashInToday)} · Out ${fmt(cur, summary.moneyOutToday ?? summary.cashOutToday)}`
+        ? `In ${fmt(cur, summary.moneyInToday ?? summary.cashInToday)} · Out ${fmt(cur, summary.moneyOutToday ?? summary.cashOutToday)}`
         : "",
       icon: Banknote,
       color: "var(--accent)",
@@ -204,14 +224,14 @@ export default function DashboardPage() {
     {
       label: "Customers",
       value: summary ? String(summary.customerCount) : "…",
-      sub: "Active parties",
+      sub: "",
       icon: Users,
       color: "var(--info)",
     },
     {
       label: "Vendors",
       value: summary ? String(summary.vendorCount) : "…",
-      sub: "Suppliers",
+      sub: "",
       icon: Package,
       color: "var(--danger)",
     },
@@ -221,7 +241,7 @@ export default function DashboardPage() {
     {
       label: "Total companies",
       value: demand ? String(demand.totalCompanies) : "…",
-      sub: "Registered clients",
+      sub: "",
       icon: Building2,
       color: "var(--accent)",
     },
@@ -237,7 +257,7 @@ export default function DashboardPage() {
     {
       label: "Areas covered",
       value: demand ? String(demand.areaDemand.length) : "…",
-      sub: "Cities / regions",
+      sub: "",
       icon: MapPinned,
       color: "var(--info)",
     },
@@ -246,7 +266,7 @@ export default function DashboardPage() {
       value: demand?.areaDemand[0]?.area ?? "—",
       sub: demand?.areaDemand[0]
         ? `${demand.areaDemand[0].companyCount} companies`
-        : "Add companies",
+        : "",
       icon: TrendingUp,
       color: "var(--accent)",
     },
@@ -317,7 +337,6 @@ export default function DashboardPage() {
   return (
     <AppShell
       title="Dashboard"
-      subtitle={isVendor ? "Client network overview" : "Live books overview"}
       permission="dashboard.view"
     >
       {error ? (
@@ -337,13 +356,8 @@ export default function DashboardPage() {
                 {user?.fullName ? ` · ${user.fullName.split(" ")[0]}` : ""}
               </p>
               <h2 className="mt-1 text-xl font-semibold tracking-tight">
-                {isVendor ? "Vendor command center" : "Today at a glance"}
+                {isVendor ? "Companies" : "Overview"}
               </h2>
-              <p className="mt-1 text-sm text-[var(--text-muted)]">
-                {isVendor
-                  ? "Companies using Agri Soft Pro — totals and demand by area."
-                  : "Sales, stock, cash, and recent activity."}
-              </p>
             </div>
           </div>
 
@@ -361,7 +375,9 @@ export default function DashboardPage() {
                         {kpi.label}
                       </p>
                       <p className="mt-1.5 text-xl font-semibold tracking-tight break-all tabular-nums">{kpi.value}</p>
-                      <p className="mt-1 text-[11px] text-[var(--text-muted)] break-words">{kpi.sub}</p>
+                      {kpi.sub ? (
+                        <p className="mt-1 text-[11px] text-[var(--text-muted)] break-words">{kpi.sub}</p>
+                      ) : null}
                     </div>
                     <div
                       className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
@@ -381,45 +397,91 @@ export default function DashboardPage() {
           {!isVendor && summary ? (
             <div className="mt-5 rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-4">
               <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--accent)]">
-                Money day book (today)
+                Cash & bank today
               </p>
-              <div className="mt-4 grid gap-3 sm:grid-cols-4">
-                {[
-                  { label: "Opening", value: summary.moneyOpeningToday ?? summary.cashOpeningToday },
-                  { label: "In", value: summary.moneyInToday ?? summary.cashInToday },
-                  { label: "Out", value: summary.moneyOutToday ?? summary.cashOutToday },
-                  { label: "Closing", value: summary.moneyClosingToday ?? summary.cashClosingToday },
-                ].map((row) => (
-                  <div
-                    key={row.label}
-                    className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5"
-                  >
-                    <p className="text-[11px] text-[var(--text-muted)]">{row.label}</p>
-                    <p className="mt-1 text-lg font-semibold tabular-nums">
-                      {fmt(cur, Number(row.value || 0))}
-                    </p>
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                {(
+                  [
+                    {
+                      title: "Cash",
+                      open: summary.cashOpeningToday,
+                      inn: summary.cashInToday,
+                      out: summary.cashOutToday,
+                      close: summary.cashClosingToday,
+                    },
+                    {
+                      title: "Bank",
+                      open: summary.bankOpeningToday ?? 0,
+                      inn: summary.bankInToday ?? 0,
+                      out: summary.bankOutToday ?? 0,
+                      close: summary.bankClosingToday ?? summary.bankBalance,
+                    },
+                  ] as const
+                ).map((book) => (
+                  <div key={book.title} className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3">
+                    <p className="text-sm font-semibold">{book.title}</p>
+                    <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {[
+                        { label: "Opening", value: book.open },
+                        { label: "In (+)", value: book.inn, tone: "in" as const },
+                        { label: "Out (−)", value: book.out, tone: "out" as const },
+                        { label: "Now", value: book.close },
+                      ].map((row) => (
+                        <div key={row.label}>
+                          <p className="text-[11px] text-[var(--text-muted)]">{row.label}</p>
+                          <p
+                            className={`mt-0.5 text-sm font-semibold tabular-nums break-all ${
+                              row.tone === "in"
+                                ? "text-[var(--success)]"
+                                : row.tone === "out"
+                                  ? "text-[var(--danger)]"
+                                  : ""
+                            }`}
+                          >
+                            {fmt(cur, Number(row.value || 0))}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5">
-                  <p className="text-[11px] text-[var(--text-muted)]">Received today</p>
-                  <p className="mt-1 text-lg font-semibold tabular-nums text-[var(--success)]">
-                    {fmt(cur, Number(summary.receivedToday || 0))}
-                  </p>
+              {(summary.cashBankMovesToday ?? []).length > 0 ? (
+                <div className="mt-4 overflow-x-auto">
+                  <table className="w-full min-w-[640px] text-sm">
+                    <thead>
+                      <tr className="text-left text-[11px] uppercase tracking-wide text-[var(--text-muted)]">
+                        <th className="pb-2 pr-3 font-medium">Today&apos;s movement</th>
+                        <th className="pb-2 pr-3 font-medium">Cash in</th>
+                        <th className="pb-2 pr-3 font-medium">Cash out</th>
+                        <th className="pb-2 pr-3 font-medium">Bank in</th>
+                        <th className="pb-2 font-medium">Bank out</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(summary.cashBankMovesToday ?? []).map((m) => (
+                        <tr key={m.voucherType} className="border-t border-[var(--border)]">
+                          <td className="py-2 pr-3">{MOVE_LABELS[m.voucherType] ?? m.voucherType}</td>
+                          <td className="py-2 pr-3 tabular-nums text-[var(--success)]">
+                            {signedAmt(cur, m.cashIn)}
+                          </td>
+                          <td className="py-2 pr-3 tabular-nums text-[var(--danger)]">
+                            {m.cashOut ? signedAmt(cur, -m.cashOut) : "—"}
+                          </td>
+                          <td className="py-2 pr-3 tabular-nums text-[var(--success)]">
+                            {signedAmt(cur, m.bankIn)}
+                          </td>
+                          <td className="py-2 tabular-nums text-[var(--danger)]">
+                            {m.bankOut ? signedAmt(cur, -m.bankOut) : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5">
-                  <p className="text-[11px] text-[var(--text-muted)]">Paid out today</p>
-                  <p className="mt-1 text-lg font-semibold tabular-nums text-[var(--danger)]">
-                    {fmt(cur, Number(summary.paidOutToday || 0))}
-                  </p>
-                </div>
-              </div>
-              <p className="mt-3 text-xs text-[var(--text-muted)]">
-                Cash alone: open {fmt(cur, summary.cashOpeningToday)} · in{" "}
-                {fmt(cur, summary.cashInToday)} · out {fmt(cur, summary.cashOutToday)} · close{" "}
-                {fmt(cur, summary.cashClosingToday)}
-              </p>
+              ) : (
+                <p className="mt-3 text-xs text-[var(--text-muted)]">No cash or bank movement posted today yet.</p>
+              )}
             </div>
           ) : null}
 
@@ -432,9 +494,6 @@ export default function DashboardPage() {
                   </div>
                   <div>
                     <p className="text-sm font-semibold">Client network</p>
-                    <p className="text-xs text-[var(--text-muted)]">
-                      Companies using Agri Soft Pro · demand by area
-                    </p>
                   </div>
                 </div>
                 <div className="relative z-30 flex flex-wrap items-center gap-2">

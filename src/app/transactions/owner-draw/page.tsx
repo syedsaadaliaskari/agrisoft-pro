@@ -16,7 +16,9 @@ import {
   money,
 } from "@/components/ops/DocumentWorkspace";
 import { Alert, Button, DataTable, Input, Textarea } from "@/components/ui/form";
+import { PrintMenu } from "@/components/PrintMenu";
 import { getApi } from "@/lib/api";
+import { printVoucherNow, voucherPrintHtml } from "@/lib/print-actions";
 import { hasPermission } from "@/lib/permissions";
 import { useAuthStore } from "@/store/auth";
 import type { Voucher } from "@shared/ipc";
@@ -35,6 +37,8 @@ export default function OwnerDrawPage() {
   const [amount, setAmount] = useState("");
   const [cashPaid, setCashPaid] = useState("");
   const [bankPaid, setBankPaid] = useState("0");
+  const [postedCash, setPostedCash] = useState(0);
+  const [postedBank, setPostedBank] = useState(0);
   const [notes, setNotes] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -70,6 +74,8 @@ export default function OwnerDrawPage() {
     setAmount("");
     setCashPaid("");
     setBankPaid("0");
+    setPostedCash(0);
+    setPostedBank(0);
     setNotes("");
     setEditingId(null);
     setError("");
@@ -83,12 +89,14 @@ export default function OwnerDrawPage() {
     const legs = legsFromVoucher(row);
     setCashPaid(legs.cashPaid);
     setBankPaid(legs.bankPaid);
+    setPostedCash(Number(legs.cashPaid || 0));
+    setPostedBank(Number(legs.bankPaid || 0));
     setNotes(row.notes ?? "");
     setError("");
     setOkMsg("");
   };
 
-  const onSave = async () => {
+  const onSave = async (andPrint = false) => {
     setSaving(true);
     setError("");
     setOkMsg("");
@@ -110,6 +118,10 @@ export default function OwnerDrawPage() {
     setOkMsg(editingId ? "Updated" : "Saved");
     resetForm();
     await load();
+    if (andPrint) {
+      const pr = await printVoucherNow(res.data);
+      if (!pr.ok) setError(pr.error);
+    }
   };
 
   const onCancel = async (row: Voucher) => {
@@ -127,7 +139,6 @@ export default function OwnerDrawPage() {
   return (
     <AppShell
       title="Owner Draw"
-      subtitle="Take cash, bank, or both for personal use — does not count as expense"
       permission="transactions.create"
     >
       {error ? (
@@ -156,7 +167,7 @@ export default function OwnerDrawPage() {
               {
                 label: "Active draws",
                 value: String(stats.count),
-                hint: money(stats.total) + " posted",
+                hint: money(stats.total),
                 icon: Receipt,
               },
             ]}
@@ -177,6 +188,9 @@ export default function OwnerDrawPage() {
               onAmount={setAmount}
               onCashPaid={setCashPaid}
               onBankPaid={setBankPaid}
+              moneyFlow="out"
+              postedCash={postedCash}
+              postedBank={postedBank}
             />
             <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
             <div className="flex flex-wrap gap-2 pt-1">
@@ -185,8 +199,17 @@ export default function OwnerDrawPage() {
                   Cancel edit
                 </Button>
               ) : null}
+              {!editingId ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => void onSave(true)}
+                  disabled={saving || !splitCoversAmount(amount, cashPaid, bankPaid) || !canCreate}
+                >
+                  {saving ? "Saving..." : "Save & print"}
+                </Button>
+              ) : null}
               <Button
-                onClick={() => void onSave()}
+                onClick={() => void onSave(false)}
                 disabled={saving || !splitCoversAmount(amount, cashPaid, bankPaid) || !canCreate}
               >
                 {saving ? "Saving..." : editingId ? "Update draw" : "Post owner draw"}
@@ -217,21 +240,29 @@ export default function OwnerDrawPage() {
                     <DocStatusBadge status={row.status} />
                   </td>
                   <td className="px-4 py-3.5">
-                    {canCreate && row.status !== "cancelled" ? (
-                      <div className="flex justify-end gap-0.5">
-                        <Button variant="ghost" size="sm" onClick={() => openEdit(row)} title="Edit">
-                          <Pencil size={14} />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => void onCancel(row)}
-                          title="Cancel voucher"
-                        >
-                          <Ban size={14} />
-                        </Button>
-                      </div>
-                    ) : null}
+                    <div className="flex justify-end gap-0.5">
+                      <PrintMenu
+                        fileName={row.voucherNo}
+                        getHtml={(size) => voucherPrintHtml(row, size)}
+                        onError={setError}
+                        onNotice={setOkMsg}
+                      />
+                      {canCreate && row.status !== "cancelled" ? (
+                        <>
+                          <Button variant="ghost" size="sm" onClick={() => openEdit(row)} title="Edit">
+                            <Pencil size={14} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => void onCancel(row)}
+                            title="Cancel voucher"
+                          >
+                            <Ban size={14} />
+                          </Button>
+                        </>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               ))}

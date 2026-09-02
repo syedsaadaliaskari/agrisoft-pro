@@ -5,7 +5,7 @@ import { LanguageProvider } from "@/lib/i18n";
 
 export const metadata: Metadata = {
   title: "Agri Soft Pro",
-  description: "Local desktop agri ERP — Electron + Next.js + SQLite",
+  description: "Agri Soft Pro",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

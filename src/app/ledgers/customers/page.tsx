@@ -63,10 +63,9 @@ export default function CustomerLedgerPage() {
   );
 
   return (
-    <AppShell title="Customer Ledger" subtitle="Receivables by customer" permission="ledgers.view">
+    <AppShell title="Customer Ledger" permission="ledgers.view">
       <LedgerInquiry
         title="Customers"
-        subtitle="Pick a party to open receivables"
         pickerLabel="Customer"
         items={items}
         selectedId={customerId}
@@ -97,7 +96,6 @@ export default function CustomerLedgerPage() {
           ledger
             ? {
                 title: `${ledger.partyCode} — ${ledger.partyName}`,
-                subtitle: "Customer receivables",
                 fromDate: ledger.fromDate,
                 toDate: ledger.toDate,
                 openingBalance: ledger.openingBalance,

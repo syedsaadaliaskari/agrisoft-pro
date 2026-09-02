@@ -154,7 +154,6 @@ export default function BackupPage() {
   return (
     <AppShell
       title="Backup & Restore"
-      subtitle="Local database snapshots — free, on this PC only"
       permission="settings.manage"
     >
       {error ? (
@@ -181,7 +180,7 @@ export default function BackupPage() {
                   : t("backup.noneYet"),
                 hint: status?.lastAutoBackupPath
                   ? status.lastAutoBackupPath.split(/[/\\]/).pop()
-                  : t("backup.createdOn"),
+                  : undefined,
                 tone: "accent",
                 icon: HardDrive,
               },
@@ -236,10 +235,6 @@ export default function BackupPage() {
               Danger zone
             </div>
             <h2 className="mt-1 text-lg font-semibold tracking-tight">Reset all shop data</h2>
-            <p className="mt-1 text-xs text-[var(--text-muted)]">
-              Erases sales, purchases, stock, parties, and users. Keeps Install ID and Pro activation.
-              App restarts with admin / admin123.
-            </p>
             <div className="mt-3 max-w-sm">
               <Input
                 label='Type RESET to confirm'

@@ -27,7 +27,7 @@ export default function DeletedReportPage() {
   }, [load]);
 
   return (
-    <AppShell title="Deleted Data" subtitle="Soft-deleted sales and purchases" permission="reports.view">
+    <AppShell title="Deleted Data" permission="reports.view">
       {error ? (
         <div className="mb-4">
           <Alert>{error}</Alert>

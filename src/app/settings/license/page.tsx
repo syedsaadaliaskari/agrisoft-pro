@@ -83,7 +83,7 @@ export default function LicenseInfoPage() {
       return;
     }
     setLastCode(res.data.activationCode);
-    setOkMsg(`Activated ${res.data.plan} for ${res.data.name}. Copy the activation code and send it.`);
+    setOkMsg(`Activated ${res.data.name}.`);
     setForm({ name: "", installId: "", plan: "forever", notes: "", phone: "" });
     await load();
   };
@@ -96,31 +96,8 @@ export default function LicenseInfoPage() {
     }
   };
 
-  const onExpireTrial = async () => {
-    if (!confirm("Set trial as expired for THIS install? (for testing lock screen)")) return;
-    setError("");
-    const res = await getApi().expireTrialForTesting();
-    if (!res.ok) {
-      setError(res.error);
-      return;
-    }
-    if (res.data.allowed) {
-      setOkMsg(
-        `Trial date expired, but Status is still ${res.data.mode === "pro" ? "Pro" : "open"}. Use “Stop access now” to remove Pro and show the QR lock screen.`
-      );
-      setStatus(res.data);
-      return;
-    }
-    setOkMsg("Locked — opening Activate Pro (QR)…");
-    await forceQrLockScreen(res.data);
-  };
-
   const onLockNow = async () => {
-    if (
-      !confirm(
-        "Stop access on THIS PC now?\n\nRemoves Pro for this Install ID and shows the Activate / QR lock screen immediately. Unlock later by sending yourself a fresh activation code from another Super Admin PC, or activate again before locking."
-      )
-    ) {
+    if (!confirm("Stop access on this PC now?")) {
       return;
     }
     setError("");
@@ -143,7 +120,6 @@ export default function LicenseInfoPage() {
   return (
     <AppShell
       title="License"
-      subtitle="Activate companies and send them an activation code"
       permission="license.manage"
     >
       {error ? (
@@ -173,9 +149,6 @@ export default function LicenseInfoPage() {
             </Button>
             <Button variant="ghost" onClick={() => void load()}>
               Refresh
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => void onExpireTrial()}>
-              Expire trial (test)
             </Button>
             <Button type="button" variant="danger" onClick={() => void onLockNow()}>
               Stop access now
@@ -234,7 +207,7 @@ export default function LicenseInfoPage() {
           </div>
           <div className="sm:col-span-2">
             <Input
-              label="Customer WhatsApp (for n8n auto-send)"
+              label="WhatsApp"
               value={form.phone}
               onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
             />

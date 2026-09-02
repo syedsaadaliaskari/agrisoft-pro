@@ -31,7 +31,7 @@ export default function PurchasesReportPage() {
   }, [load]);
 
   return (
-    <AppShell title="Purchase Report" subtitle="Purchase totals by period" permission="reports.view">
+    <AppShell title="Purchase Report" permission="reports.view">
       {error ? <div className="mb-4"><Alert>{error}</Alert></div> : null}
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <Input label="From" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />

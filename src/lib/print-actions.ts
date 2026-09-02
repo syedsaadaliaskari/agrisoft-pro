@@ -19,3 +19,8 @@ export async function voucherPrintHtml(voucher: Voucher, size: ReceiptSize) {
   const shop = await shopBits();
   return buildVoucherPrintHtml({ ...voucher, ...shop }, size);
 }
+
+export async function printVoucherNow(voucher: Voucher, size: ReceiptSize = "thermal") {
+  const html = await voucherPrintHtml(voucher, size);
+  return getApi().printHtml(html);
+}

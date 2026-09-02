@@ -42,7 +42,7 @@ export default function ActivatedListPage() {
   const onCopyCode = async (row: LicenseRow) => {
     try {
       await navigator.clipboard.writeText(row.activationCode);
-      setOkMsg(`Activation code copied for ${row.name}. Send it on WhatsApp.`);
+      setOkMsg(`Copied ${row.name}`);
       setError("");
     } catch {
       setError("Could not copy activation code");
@@ -54,8 +54,8 @@ export default function ActivatedListPage() {
     if (
       !confirm(
         isThisPc
-          ? `Stop access on THIS PC now for ${row.name}?\n\nApp will lock and show the Activate / QR screen.`
-          : `Remove activation record for ${row.name} (${row.installId}) on this PC?\n\nTo lock their PC you must Stop access on their machine (or they stay locked until they get a new code).`
+          ? `Stop access on this PC for ${row.name}?`
+          : `Remove activation for ${row.name}?`
       )
     ) {
       return;
@@ -80,7 +80,6 @@ export default function ActivatedListPage() {
   return (
     <AppShell
       title="Activated list"
-      subtitle="Copy activation codes · stop access anytime"
       permission="license.view"
     >
       {error ? (

@@ -27,7 +27,7 @@ export default function TaxReportPage() {
   }, [load]);
 
   return (
-    <AppShell title="Tax Report" subtitle="Sales vs purchase tax" permission="reports.view">
+    <AppShell title="Tax Report" permission="reports.view">
       {error ? <div className="mb-4"><Alert>{error}</Alert></div> : null}
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <Input label="From" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />

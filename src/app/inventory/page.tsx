@@ -87,7 +87,6 @@ export default function InventoryPage() {
   return (
     <AppShell
       title="Inventory"
-      subtitle="Stock by product pack — adjust quantities"
       permission="inventory.view"
     >
       {error && !open ? (

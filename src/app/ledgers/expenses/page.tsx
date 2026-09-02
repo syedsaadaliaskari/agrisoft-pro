@@ -13,7 +13,6 @@ import type { Account, AccountLedger } from "@shared/ipc";
 
 function AccountTypeLedgerPage({
   title,
-  subtitle,
   accountType,
   exportFilename,
   actionLabel,
@@ -21,7 +20,6 @@ function AccountTypeLedgerPage({
   actionParam,
 }: {
   title: string;
-  subtitle: string;
   accountType: "expense" | "income";
   exportFilename: string;
   actionLabel: string;
@@ -79,10 +77,9 @@ function AccountTypeLedgerPage({
   );
 
   return (
-    <AppShell title={title} subtitle={subtitle} permission="ledgers.view">
+    <AppShell title={title} permission="ledgers.view">
       <LedgerInquiry
         title={accountType === "expense" ? "Expense heads" : "Income heads"}
-        subtitle={`Pick a ${accountType} account for its statement`}
         pickerLabel="Account"
         items={items}
         selectedId={accountId}
@@ -117,7 +114,6 @@ function AccountTypeLedgerPage({
           ledger
             ? {
                 title: `${ledger.account.name}`,
-                subtitle: `${accountType} account`,
                 fromDate: ledger.fromDate,
                 toDate: ledger.toDate,
                 openingBalance: ledger.openingBalance,
@@ -139,7 +135,6 @@ export default function ExpenseLedgerPage() {
   return (
     <AccountTypeLedgerPage
       title="Expense Ledger"
-      subtitle="Expense account movements"
       accountType="expense"
       exportFilename="expense-ledger"
       actionLabel="New expense"

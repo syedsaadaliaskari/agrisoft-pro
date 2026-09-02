@@ -17,7 +17,9 @@ import {
   money,
 } from "@/components/ops/DocumentWorkspace";
 import { Alert, Button, DataTable, Input, Select, Textarea } from "@/components/ui/form";
+import { PrintMenu } from "@/components/PrintMenu";
 import { getApi } from "@/lib/api";
+import { printVoucherNow, voucherPrintHtml } from "@/lib/print-actions";
 import { hasPermission } from "@/lib/permissions";
 import { useAuthStore } from "@/store/auth";
 import type { Account, Voucher } from "@shared/ipc";
@@ -40,6 +42,8 @@ function ExpensePageInner() {
   const [amount, setAmount] = useState("");
   const [cashPaid, setCashPaid] = useState("");
   const [bankPaid, setBankPaid] = useState("0");
+  const [postedCash, setPostedCash] = useState(0);
+  const [postedBank, setPostedBank] = useState(0);
   const [notes, setNotes] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -91,6 +95,8 @@ function ExpensePageInner() {
     setAmount("");
     setCashPaid("");
     setBankPaid("0");
+    setPostedCash(0);
+    setPostedBank(0);
     setNotes("");
     setEditingId(null);
     setError("");
@@ -107,12 +113,14 @@ function ExpensePageInner() {
     const legs = legsFromVoucher(row);
     setCashPaid(legs.cashPaid);
     setBankPaid(legs.bankPaid);
+    setPostedCash(Number(legs.cashPaid || 0));
+    setPostedBank(Number(legs.bankPaid || 0));
     setNotes(row.notes ?? "");
     setError("");
     setOkMsg("");
   };
 
-  const onSave = async () => {
+  const onSave = async (andPrint = false) => {
     setSaving(true);
     setError("");
     setOkMsg("");
@@ -135,6 +143,10 @@ function ExpensePageInner() {
     setOkMsg(editingId ? "Updated" : "Saved");
     resetForm();
     await load();
+    if (andPrint) {
+      const pr = await printVoucherNow(res.data);
+      if (!pr.ok) setError(pr.error);
+    }
   };
 
   const onCancel = async (row: Voucher) => {
@@ -150,7 +162,7 @@ function ExpensePageInner() {
   };
 
   return (
-    <AppShell title="Expense" subtitle="Operating expenses from cash, bank, or both" permission="transactions.create">
+    <AppShell title="Expense" permission="transactions.create">
       {error ? (
         <div className="mb-4">
           <Alert>{error}</Alert>
@@ -177,7 +189,7 @@ function ExpensePageInner() {
               {
                 label: "Active expenses",
                 value: String(stats.count),
-                hint: money(stats.total) + " posted",
+                hint: money(stats.total),
                 icon: Receipt,
               },
             ]}
@@ -204,6 +216,9 @@ function ExpensePageInner() {
               onAmount={setAmount}
               onCashPaid={setCashPaid}
               onBankPaid={setBankPaid}
+              moneyFlow="out"
+              postedCash={postedCash}
+              postedBank={postedBank}
             />
             <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
             <div className="flex flex-wrap gap-2 pt-1">
@@ -212,8 +227,19 @@ function ExpensePageInner() {
                   Cancel edit
                 </Button>
               ) : null}
+              {!editingId ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => void onSave(true)}
+                  disabled={
+                    saving || !expenseAccountId || !splitCoversAmount(amount, cashPaid, bankPaid) || !canCreate
+                  }
+                >
+                  {saving ? "Saving..." : "Save & print"}
+                </Button>
+              ) : null}
               <Button
-                onClick={() => void onSave()}
+                onClick={() => void onSave(false)}
                 disabled={
                   saving || !expenseAccountId || !splitCoversAmount(amount, cashPaid, bankPaid) || !canCreate
                 }
@@ -252,21 +278,29 @@ function ExpensePageInner() {
                       <DocStatusBadge status={row.status} />
                     </td>
                     <td className="px-4 py-3.5">
-                      {canCreate && row.status !== "cancelled" ? (
-                        <div className="flex justify-end gap-0.5">
-                          <Button variant="ghost" size="sm" onClick={() => openEdit(row)} title="Edit">
-                            <Pencil size={14} />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => void onCancel(row)}
-                            title="Cancel voucher"
-                          >
-                            <Ban size={14} />
-                          </Button>
-                        </div>
-                      ) : null}
+                      <div className="flex justify-end gap-0.5">
+                        <PrintMenu
+                          fileName={row.voucherNo}
+                          getHtml={(size) => voucherPrintHtml(row, size)}
+                          onError={setError}
+                          onNotice={setOkMsg}
+                        />
+                        {canCreate && row.status !== "cancelled" ? (
+                          <>
+                            <Button variant="ghost" size="sm" onClick={() => openEdit(row)} title="Edit">
+                              <Pencil size={14} />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => void onCancel(row)}
+                              title="Cancel voucher"
+                            >
+                              <Ban size={14} />
+                            </Button>
+                          </>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 );

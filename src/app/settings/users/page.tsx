@@ -184,7 +184,7 @@ export default function UsersPage() {
   };
 
   return (
-    <AppShell title="Users & RBAC" subtitle="Manage users and role access" permission="users.manage">
+    <AppShell title="Users" permission="users.manage">
       <div className="space-y-6">
         {error ? <Alert>{error}</Alert> : null}
         {success ? <Alert tone="info">{success}</Alert> : null}
@@ -196,13 +196,6 @@ export default function UsersPage() {
           <div className="sm:col-span-2 text-sm font-semibold">
             {editingId ? "Edit user" : "Create user"}
           </div>
-          <p className="sm:col-span-2 -mt-2 text-xs text-[var(--text-muted)]">
-            Fresh installs start as shop{" "}
-            <span className="font-medium text-[var(--text)]">Admin</span> (
-            <span className="font-mono">admin</span> / <span className="font-mono">admin123</span>
-            ) — no License tools. Only the vendor unlocks Super Admin on their own PC. Create staff
-            users on each shop PC after install.
-          </p>
           <Input
             label="Username"
             value={form.username}
@@ -262,10 +255,6 @@ export default function UsersPage() {
               <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
                 Access for role: {selectedRole.name}
               </div>
-              <p className="mb-3 text-xs text-[var(--text-muted)]">
-                This user will see menus and screens allowed for this role. Edit the role checklist
-                below to change what they can access.
-              </p>
               <div className="flex flex-wrap gap-1.5">
                 {selectedRolePerms.length ? (
                   selectedRolePerms.map((code) => (
@@ -346,14 +335,6 @@ export default function UsersPage() {
         <section className="space-y-3">
           <div>
             <h2 className="text-sm font-semibold">Role access menu</h2>
-            <p className="mt-1 text-xs text-[var(--text-muted)]">
-              Under <span className="font-medium text-[var(--text)]">license</span> and{" "}
-              <span className="font-medium text-[var(--text)]">platform</span>:{" "}
-              <span className="font-medium text-[var(--text)]">License (activate)</span>,{" "}
-              <span className="font-medium text-[var(--text)]">Activated list</span>, and{" "}
-              <span className="font-medium text-[var(--text)]">Companies & areas (Dashboard)</span>.
-              Super Admin has all three. Other roles stay unchecked until you tick them.
-            </p>
           </div>
           <div className="grid gap-4 xl:grid-cols-2">
             {roles.map((role) => {
@@ -370,12 +351,6 @@ export default function UsersPage() {
                   <div className="mb-1 flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <div className="font-medium">{role.name}</div>
-                      <div className="text-xs text-[var(--text-muted)]">{role.description}</div>
-                      {isSuper ? (
-                        <div className="mt-1 text-[11px] text-[var(--accent)]">
-                          Full access locked on — License, Activated list, and every menu.
-                        </div>
-                      ) : null}
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {!isSuper ? (
@@ -414,7 +389,6 @@ export default function UsersPage() {
                       <div key={module}>
                         <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
                           {module}
-                          {module === "license" ? " · Pro activation" : ""}
                         </div>
                         <div className="grid gap-1.5 sm:grid-cols-2">
                           {perms.map((perm) => (
@@ -431,19 +405,14 @@ export default function UsersPage() {
                                 disabled={isSuper}
                                 onChange={() => toggleRolePerm(role.id, perm.code)}
                               />
-                              <span>
-                                <span className="block font-medium text-[var(--text)]">
-                                  {perm.code === "license.manage"
-                                    ? "License (activate)"
-                                    : perm.code === "license.view"
-                                      ? "Activated list"
-                                      : perm.code === "platform.view"
-                                        ? "Companies & areas (Dashboard)"
-                                        : perm.code}
-                                </span>
-                                <span className="text-[var(--text-muted)]">
-                                  {perm.description || "-"}
-                                </span>
+                              <span className="font-medium text-[var(--text)]">
+                                {perm.code === "license.manage"
+                                  ? "License"
+                                  : perm.code === "license.view"
+                                    ? "Activated list"
+                                    : perm.code === "platform.view"
+                                      ? "Companies"
+                                      : perm.description || perm.code}
                               </span>
                             </label>
                           ))}

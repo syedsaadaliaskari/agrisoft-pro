@@ -95,6 +95,7 @@ export const IPC = {
   ACCOUNTS_LIST: "accounts:list",
   ACCOUNTS_GET: "accounts:get",
   ACCOUNTS_SET_CASH_BANK_OPENING: "accounts:setCashBankOpening",
+  ACCOUNTS_CASH_BANK_SNAPSHOT: "accounts:cashBankSnapshot",
   VOUCHERS_POST: "vouchers:post",
   VOUCHERS_GET: "vouchers:get",
   VOUCHERS_LIST: "vouchers:list",
@@ -1024,6 +1025,29 @@ export type DashboardRecentSale = {
   paymentMode: string;
 };
 
+export type CashBankBook = {
+  openingBalance: number;
+  openingToday: number;
+  inToday: number;
+  outToday: number;
+  closingToday: number;
+};
+
+export type CashBankMove = {
+  voucherType: VoucherType;
+  cashIn: number;
+  cashOut: number;
+  bankIn: number;
+  bankOut: number;
+};
+
+export type CashBankSnapshot = {
+  currencySymbol: string;
+  cash: CashBankBook;
+  bank: CashBankBook;
+  todayMoves: CashBankMove[];
+};
+
 export type DashboardSummary = {
   todaySalesTotal: number;
   todaySalesCount: number;
@@ -1042,11 +1066,17 @@ export type DashboardSummary = {
   cashOutToday: number;
   /** Cash balance now */
   cashClosingToday: number;
+  bankOpeningToday: number;
+  bankInToday: number;
+  bankOutToday: number;
+  bankClosingToday: number;
   /** Cash + bank opening today */
   moneyOpeningToday: number;
   moneyInToday: number;
   moneyOutToday: number;
   moneyClosingToday: number;
+  /** Today's cash/bank movement by voucher type (sale, purchase, returns, journal, …) */
+  cashBankMovesToday: CashBankMove[];
   /** Money collected from customers today (receipt vouchers) */
   receivedToday: number;
   /** Money paid out to vendors today (payment vouchers) */
@@ -1510,6 +1540,7 @@ export type ElectronAPI = {
     cashOpening: number;
     bankOpening: number;
   }) => Promise<ActionResult<{ cashOpening: number; bankOpening: number }>>;
+  getCashBankSnapshot: () => Promise<ActionResult<CashBankSnapshot>>;
   postVoucher: (input: PostVoucherInput) => Promise<ActionResult<Voucher>>;
   updateVoucher: (id: string, input: PostVoucherInput) => Promise<ActionResult<Voucher>>;
   getVoucher: (id: string) => Promise<ActionResult<Voucher>>;

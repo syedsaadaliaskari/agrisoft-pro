@@ -14,7 +14,7 @@ export function isElectron(): boolean {
 function createBrowserMock(): ElectronAPI {
   const notReady = <T = never>(): ActionResult<T> => ({
     ok: false,
-    error: "Open via Electron (`npm run dev`) for full IPC",
+    error: "Open Agri Soft Pro desktop for full access",
   });
 
   const mock: Partial<ElectronAPI> = {
@@ -27,7 +27,7 @@ function createBrowserMock(): ElectronAPI {
     }),
     login: async (): Promise<LoginResult> => ({
       ok: false,
-      error: "Open via Electron (`npm run dev`) to sign in",
+      error: "Open Agri Soft Pro desktop to sign in",
     }),
     logout: async () => undefined,
     getCurrentUser: async (): Promise<SessionUser | null> => null,

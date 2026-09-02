@@ -48,13 +48,10 @@ export default function ChangePasswordPage() {
   };
 
   return (
-    <AppShell title="Change password" subtitle="Update the password for your signed-in account">
+    <AppShell title="Change password">
       <div className="mx-auto max-w-lg space-y-5">
         {forced ? (
-          <Alert tone="info">
-            For security, change the default password before using the shop (client installs start
-            with a temporary password).
-          </Alert>
+          <Alert tone="info">Change your password to continue.</Alert>
         ) : null}
         {error ? <Alert>{error}</Alert> : null}
         {success ? <Alert tone="info">{success}</Alert> : null}
@@ -112,12 +109,6 @@ export default function ChangePasswordPage() {
             </div>
           </form>
         </div>
-
-        {!forced ? (
-          <p className="text-xs text-[var(--text-muted)]">
-            Need a reset for another account? Use Setup → Users & RBAC (requires Users permission).
-          </p>
-        ) : null}
       </div>
     </AppShell>
   );

@@ -96,6 +96,8 @@ export default function PurchasesPage() {
   const [taxAmount, setTaxAmount] = useState("0");
   const [cashPaid, setCashPaid] = useState("0");
   const [bankPaid, setBankPaid] = useState("0");
+  const [postedCash, setPostedCash] = useState(0);
+  const [postedBank, setPostedBank] = useState(0);
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [pickVariantId, setPickVariantId] = useState("");
@@ -220,6 +222,8 @@ export default function PurchasesPage() {
     setTaxAmount("0");
     setCashPaid("0");
     setBankPaid("0");
+    setPostedCash(0);
+    setPostedBank(0);
     setNotes("");
     setLines([]);
     setPickVariantId("");
@@ -249,12 +253,18 @@ export default function PurchasesPage() {
     if (purchase.cashPaid != null || purchase.bankPaid != null) {
       setCashPaid(String(purchase.cashPaid ?? 0));
       setBankPaid(String(purchase.bankPaid ?? 0));
+      setPostedCash(Number(purchase.cashPaid ?? 0));
+      setPostedBank(Number(purchase.bankPaid ?? 0));
     } else if (purchase.paymentMode === "bank") {
       setCashPaid("0");
       setBankPaid(String(purchase.paidAmount));
+      setPostedCash(0);
+      setPostedBank(Number(purchase.paidAmount || 0));
     } else {
       setCashPaid(String(purchase.paidAmount));
       setBankPaid("0");
+      setPostedCash(Number(purchase.paidAmount || 0));
+      setPostedBank(0);
     }
     setNotes(purchase.notes || "");
     setPickVariantId("");
@@ -299,7 +309,7 @@ export default function PurchasesPage() {
     setError("");
   };
 
-  const onSave = async () => {
+  const onSave = async (andPrint = false) => {
     setSaving(true);
     setError("");
     const cash =
@@ -348,6 +358,7 @@ export default function PurchasesPage() {
     setComposer(false);
     setEditingId(null);
     await load();
+    if (andPrint) await printPurchase(res.data);
   };
 
   const openView = async (row: Purchase) => {
@@ -370,23 +381,28 @@ export default function PurchasesPage() {
     await load();
   };
 
-  const printPurchase = async (row: Purchase, size: ReceiptSize = "a4") => {
+  const purchaseHtml = async (row: Purchase, size: ReceiptSize = "a4") => {
     let toPrint = row;
     if (!row.items) {
       const res = await getApi().getPurchase(row.id);
-      if (!res.ok) {
-        setError(res.error);
-        return;
-      }
+      if (!res.ok) throw new Error(res.error);
       toPrint = res.data;
     }
-    const html = buildPurchasePrintHtml(toPrint, size);
-    const res = await getApi().printHtml(html);
-    if (!res.ok) setError(res.error);
+    return buildPurchasePrintHtml(toPrint, size);
+  };
+
+  const printPurchase = async (row: Purchase, size: ReceiptSize = "a4") => {
+    try {
+      const html = await purchaseHtml(row, size);
+      const res = await getApi().printHtml(html);
+      if (!res.ok) setError(res.error);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Print failed");
+    }
   };
 
   return (
-    <AppShell title="Purchase" subtitle="Receiving desk — stock in and payables" permission="purchases.view">
+    <AppShell title="Purchase" permission="purchases.view">
       {error && !composer ? (
         <div className="mb-4">
           <Alert>{error}</Alert>
@@ -405,20 +421,17 @@ export default function PurchasesPage() {
           {
             label: "Purchase bills",
             value: String(stats.count),
-            hint: "All posted purchases",
             icon: Receipt,
           },
           {
             label: "Payables open",
             value: money(stats.payable),
-            hint: "Unpaid vendor balance",
             tone: stats.payable > 0 ? "warn" : "success",
             icon: Wallet,
           },
           {
             label: "Avg bill",
             value: money(stats.avg),
-            hint: "Mean purchase value",
             icon: TrendingDown,
           },
         ]}
@@ -509,7 +522,6 @@ export default function PurchasesPage() {
                     </span>
                     <div>
                       <div className="font-medium">{row.vendorName || "—"}</div>
-                      <div className="text-[11px] text-[var(--text-muted)]">Supplier bill</div>
                     </div>
                   </div>
                 </td>
@@ -545,7 +557,12 @@ export default function PurchasesPage() {
                         <Pencil size={14} />
                       </Button>
                     ) : null}
-                    <PrintMenu defaultSize="a4" onPrint={(size) => printPurchase(row, size)} />
+                    <PrintMenu
+                      defaultSize="a4"
+                      fileName={row.invoiceNo}
+                      getHtml={(size) => purchaseHtml(row, size)}
+                      onError={setError}
+                    />
                     {canCreate ? (
                       <Button variant="ghost" size="sm" onClick={() => void onDelete(row)}>
                         <Trash2 size={14} />
@@ -581,8 +598,17 @@ export default function PurchasesPage() {
             >
               Cancel
             </Button>
+            {!editingId ? (
+              <Button
+                variant="secondary"
+                onClick={() => void onSave(true)}
+                disabled={saving || lines.length === 0 || !vendorId}
+              >
+                {saving ? "Saving..." : "Save & print"}
+              </Button>
+            ) : null}
             <Button
-              onClick={() => void onSave()}
+              onClick={() => void onSave(false)}
               disabled={saving || lines.length === 0 || !vendorId}
             >
               {saving ? "Saving..." : editingId ? "Update" : "Save"}
@@ -662,13 +688,17 @@ export default function PurchasesPage() {
                     bankPaid={bankPaid}
                     onCashPaid={setCashPaid}
                     onBankPaid={setBankPaid}
+                    dueLabel="Payable"
+                    moneyFlow="out"
+                    postedCash={postedCash}
+                    postedBank={postedBank}
                   />
                   <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--bg-soft)] px-3 py-2 text-sm">
                     <span className="text-[var(--text-muted)]">Total</span>
                     <span className="font-semibold tabular-nums">{money(grand)}</span>
                   </div>
                   <div className="flex items-center justify-between rounded-xl border border-[var(--border)] px-3 py-2 text-sm">
-                    <span className="text-[var(--text-muted)]">Due</span>
+                    <span className="text-[var(--text-muted)]">Payable</span>
                     <span
                       className={`font-semibold tabular-nums ${balanceDue > 0 ? "text-amber-700 dark:text-amber-300" : "text-[var(--success)]"}`}
                     >
@@ -771,7 +801,6 @@ export default function PurchasesPage() {
         open={viewOpen}
         size="xl"
         title={viewing ? `Purchase ${viewing.invoiceNo}` : "Purchase"}
-        subtitle="Posted purchase bill"
         onClose={() => setViewOpen(false)}
         footer={
           <>
@@ -795,7 +824,9 @@ export default function PurchasesPage() {
                 size="md"
                 label="Print"
                 defaultSize="a4"
-                onPrint={(size) => printPurchase(viewing, size)}
+                fileName={viewing.invoiceNo}
+                getHtml={(size) => purchaseHtml(viewing, size)}
+                onError={setError}
               />
             ) : null}
           </>
@@ -856,7 +887,7 @@ export default function PurchasesPage() {
                       (viewing.collectedAmount ?? viewing.paidAmount)
                   )
               )}
-              dueLabel="Payable balance"
+              dueLabel="Payable"
             />
           </div>
         ) : null}

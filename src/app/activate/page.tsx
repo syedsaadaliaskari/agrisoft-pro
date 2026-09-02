@@ -57,7 +57,7 @@ export default function ActivatePage() {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      setError("Could not copy — select and copy manually");
+      setError("Could not copy");
     }
   };
 
@@ -68,14 +68,14 @@ export default function ActivatePage() {
     const res = await load();
     setBusy(false);
     if (res && res.ok && !res.data.allowed) {
-      setOkMsg("Still locked. Paste the activation code your vendor sent, then tap Activate.");
+      setOkMsg("Still locked.");
     }
   };
 
   const onApplyCode = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activationCode.trim()) {
-      setError("Paste the activation code from your vendor");
+      setError("Enter the activation code");
       return;
     }
     setBusy(true);
@@ -88,7 +88,7 @@ export default function ActivatePage() {
       return;
     }
     if (!res.data.allowed) {
-      setError("Code applied but this PC is still locked. Contact your vendor.");
+      setError("Still locked.");
       setStatus(res.data);
       return;
     }
@@ -205,9 +205,9 @@ export default function ActivatePage() {
             onSubmit={(e) => void onApplyCode(e)}
             className="mt-5 space-y-3 rounded-xl border border-[var(--border)] bg-[var(--bg)]/50 p-4"
           >
-            <div className="text-sm font-semibold">Activation code from vendor</div>
+            <div className="text-sm font-semibold">Activation code</div>
             <Input
-              label="Paste code"
+              label="Code"
               value={activationCode}
               onChange={(e) => setActivationCode(e.target.value)}
               autoComplete="off"

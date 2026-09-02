@@ -5,6 +5,7 @@ import { cn, formatMoney } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Button, Input } from "@/components/ui/form";
 import { useI18n } from "@/lib/i18n";
+import { CashBankEffect, signedMoneyFlow } from "@/components/ops/CashBankEffect";
 import type { PaymentMode } from "@shared/ipc";
 
 export function money(n: number) {
@@ -254,6 +255,9 @@ export function MoneySplitFields({
   onCashPaid,
   onBankPaid,
   amountLabel = "Amount",
+  moneyFlow,
+  postedCash = 0,
+  postedBank = 0,
 }: {
   amount: string;
   cashPaid: string;
@@ -262,6 +266,10 @@ export function MoneySplitFields({
   onCashPaid: (v: string) => void;
   onBankPaid: (v: string) => void;
   amountLabel?: string;
+  /** in = cash/bank increase (receive, income); out = decrease (pay, expense, draw) */
+  moneyFlow: "in" | "out";
+  postedCash?: number;
+  postedBank?: number;
 }) {
   return (
     <>
@@ -286,6 +294,9 @@ export function MoneySplitFields({
         onCashPaid={onCashPaid}
         onBankPaid={onBankPaid}
         allowCredit={false}
+        moneyFlow={moneyFlow}
+        postedCash={postedCash}
+        postedBank={postedBank}
       />
     </>
   );
@@ -302,6 +313,9 @@ export function SettlementPanel({
   dueLabel = "Receivable",
   compact,
   allowCredit = true,
+  moneyFlow,
+  postedCash = 0,
+  postedBank = 0,
 }: {
   grandTotal: number;
   cashPaid: string;
@@ -313,6 +327,9 @@ export function SettlementPanel({
   compact?: boolean;
   /** When false (receipts, payments, income, expense, owner draw) hide Credit all — cash+bank must equal the amount. */
   allowCredit?: boolean;
+  moneyFlow?: "in" | "out";
+  postedCash?: number;
+  postedBank?: number;
 }) {
   const cash = Number(cashPaid || 0);
   const bank = Number(bankPaid || 0);
@@ -370,11 +387,22 @@ export function SettlementPanel({
     </div>
   );
 
+  const books =
+    moneyFlow ? (
+      <CashBankEffect
+        cashDelta={signedMoneyFlow(moneyFlow, cash)}
+        bankDelta={signedMoneyFlow(moneyFlow, bank)}
+        replaceCashDelta={signedMoneyFlow(moneyFlow, postedCash)}
+        replaceBankDelta={signedMoneyFlow(moneyFlow, postedBank)}
+      />
+    ) : null;
+
   if (compact) {
     return (
       <div className="space-y-2">
         {buttons}
         {amounts}
+        {books}
       </div>
     );
   }
@@ -383,6 +411,7 @@ export function SettlementPanel({
     <div className="space-y-3">
       {buttons}
       {amounts}
+      {books}
       <div
         className={cn(
           "rounded-xl border px-3 py-2.5 text-sm",

@@ -63,10 +63,9 @@ export default function IncomeLedgerPage() {
   );
 
   return (
-    <AppShell title="Income Ledger" subtitle="Income account movements" permission="ledgers.view">
+    <AppShell title="Income Ledger" permission="ledgers.view">
       <LedgerInquiry
         title="Income heads"
-        subtitle="Pick an income account for its statement"
         pickerLabel="Account"
         items={items}
         selectedId={accountId}
@@ -101,7 +100,6 @@ export default function IncomeLedgerPage() {
           ledger
             ? {
                 title: `${ledger.account.name}`,
-                subtitle: "Income account",
                 fromDate: ledger.fromDate,
                 toDate: ledger.toDate,
                 openingBalance: ledger.openingBalance,

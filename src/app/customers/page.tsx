@@ -145,7 +145,7 @@ export default function CustomersPage() {
   };
 
   return (
-    <AppShell title="Customers" subtitle="Buyers and credit parties" permission="customers.view">
+    <AppShell title="Customers" permission="customers.view">
       {error ? (
         <div className="mb-4">
           <Alert>{error}</Alert>
@@ -172,7 +172,6 @@ export default function CustomersPage() {
               {
                 label: "Credit limits",
                 value: money(stats.creditLimit),
-                hint: "Across active parties",
                 icon: UserRound,
               },
             ]}

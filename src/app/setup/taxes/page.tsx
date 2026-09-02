@@ -98,7 +98,7 @@ export default function TaxesPage() {
   };
 
   return (
-    <AppShell title="Taxes" subtitle="Tax definitions for invoices" permission="settings.manage">
+    <AppShell title="Taxes" permission="settings.manage">
       {error && !open ? (
         <div className="mb-4">
           <Alert>{error}</Alert>

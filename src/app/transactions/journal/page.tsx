@@ -21,8 +21,11 @@ import {
   TotalsPanel,
   money,
 } from "@/components/ops/DocumentWorkspace";
+import { CashBankEffect } from "@/components/ops/CashBankEffect";
 import { Alert, Button, DataTable, Input, Select, Textarea } from "@/components/ui/form";
+import { PrintMenu } from "@/components/PrintMenu";
 import { getApi } from "@/lib/api";
+import { printVoucherNow, voucherPrintHtml } from "@/lib/print-actions";
 import { hasPermission } from "@/lib/permissions";
 import { useAuthStore } from "@/store/auth";
 import type { Account, Voucher } from "@shared/ipc";
@@ -52,6 +55,8 @@ export default function JournalPage() {
   const [lines, setLines] = useState<Line[]>(blankLines());
   const [linkAmounts, setLinkAmounts] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [postedCashDelta, setPostedCashDelta] = useState(0);
+  const [postedBankDelta, setPostedBankDelta] = useState(0);
   const [error, setError] = useState("");
   const [okMsg, setOkMsg] = useState("");
   const [saving, setSaving] = useState(false);
@@ -102,6 +107,8 @@ export default function JournalPage() {
     setLines(blankLines());
     setLinkAmounts(false);
     setEditingId(null);
+    setPostedCashDelta(0);
+    setPostedBankDelta(0);
     setError("");
   };
 
@@ -121,6 +128,19 @@ export default function JournalPage() {
       })
     );
   };
+
+  const cashBankFromLines = (rows: Line[]) => {
+    let cash = 0;
+    let bank = 0;
+    for (const l of rows) {
+      const signed = Number(l.debit || 0) - Number(l.credit || 0);
+      if (cashAccount && l.accountId === cashAccount.id) cash += signed;
+      if (bankAccount && l.accountId === bankAccount.id) bank += signed;
+    }
+    return { cash: Math.round(cash * 100) / 100, bank: Math.round(bank * 100) / 100 };
+  };
+
+  const draftBooks = useMemo(() => cashBankFromLines(lines), [lines, cashAccount, bankAccount]);
 
   const applyTransferPreset = (direction: "deposit" | "withdraw") => {
     if (!cashAccount || !bankAccount) return;
@@ -153,12 +173,15 @@ export default function JournalPage() {
         }))
       : blankLines();
     setLines(entries);
+    const posted = cashBankFromLines(entries);
+    setPostedCashDelta(posted.cash);
+    setPostedBankDelta(posted.bank);
     setLinkAmounts(false);
     setError("");
     setOkMsg("");
   };
 
-  const onSave = async () => {
+  const onSave = async (andPrint = false) => {
     setSaving(true);
     setError("");
     setOkMsg("");
@@ -186,6 +209,10 @@ export default function JournalPage() {
     setOkMsg(editingId ? "Updated" : "Saved");
     resetForm();
     await load();
+    if (andPrint) {
+      const pr = await printVoucherNow(res.data);
+      if (!pr.ok) setError(pr.error);
+    }
   };
 
   const onCancel = async (row: Voucher) => {
@@ -201,7 +228,7 @@ export default function JournalPage() {
   };
 
   return (
-    <AppShell title="Journal" subtitle="Manual double-entry voucher desk" permission="transactions.create">
+    <AppShell title="Journal" permission="transactions.create">
       {error ? (
         <div className="mb-4">
           <Alert>{error}</Alert>
@@ -218,14 +245,13 @@ export default function JournalPage() {
           {
             label: "Today's journals",
             value: String(stats.todayCount),
-            hint: "Posted today",
             tone: "accent",
             icon: BookOpen,
           },
           {
             label: "Active journals",
             value: String(stats.count),
-            hint: money(stats.total) + " volume",
+            hint: money(stats.total),
             icon: Scale,
           },
           {
@@ -347,6 +373,15 @@ export default function JournalPage() {
             ))}
           </div>
 
+          <div className="mt-4">
+            <CashBankEffect
+              cashDelta={draftBooks.cash}
+              bankDelta={draftBooks.bank}
+              replaceCashDelta={postedCashDelta}
+              replaceBankDelta={postedBankDelta}
+            />
+          </div>
+
           <div className="mt-4 flex flex-wrap gap-2">
             <Button
               variant="secondary"
@@ -366,7 +401,16 @@ export default function JournalPage() {
                 Cancel edit
               </Button>
             ) : null}
-            <Button onClick={() => void onSave()} disabled={saving || !canCreate || !balanced}>
+            {!editingId ? (
+              <Button
+                variant="secondary"
+                onClick={() => void onSave(true)}
+                disabled={saving || !canCreate || !balanced}
+              >
+                {saving ? "Saving..." : "Save & print"}
+              </Button>
+            ) : null}
+            <Button onClick={() => void onSave(false)} disabled={saving || !canCreate || !balanced}>
               {saving ? "Saving..." : editingId ? "Update journal" : "Post journal"}
             </Button>
           </div>
@@ -394,7 +438,6 @@ export default function JournalPage() {
       <div className="space-y-3">
         <div>
           <h2 className="text-sm font-semibold">Journal register</h2>
-          <p className="text-xs text-[var(--text-muted)]">Posted manual vouchers</p>
         </div>
         {loading ? (
           <OpsListSkeleton rows={5} />
@@ -419,21 +462,29 @@ export default function JournalPage() {
                   <DocStatusBadge status={row.status} />
                 </td>
                 <td className="px-4 py-3.5">
-                  {canCreate && row.status !== "cancelled" ? (
-                    <div className="flex justify-end gap-0.5">
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(row)} title="Edit">
-                        <Pencil size={14} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => void onCancel(row)}
-                        title="Cancel voucher"
-                      >
-                        <Ban size={14} />
-                      </Button>
-                    </div>
-                  ) : null}
+                  <div className="flex justify-end gap-0.5">
+                    <PrintMenu
+                      fileName={row.voucherNo}
+                      getHtml={(size) => voucherPrintHtml(row, size)}
+                      onError={setError}
+                      onNotice={setOkMsg}
+                    />
+                    {canCreate && row.status !== "cancelled" ? (
+                      <>
+                        <Button variant="ghost" size="sm" onClick={() => openEdit(row)} title="Edit">
+                          <Pencil size={14} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => void onCancel(row)}
+                          title="Cancel voucher"
+                        >
+                          <Ban size={14} />
+                        </Button>
+                      </>
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             ))}

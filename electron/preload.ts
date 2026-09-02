@@ -65,6 +65,7 @@ const api: ElectronAPI = {
   listAccounts: (filter) => ipcRenderer.invoke(IPC.ACCOUNTS_LIST, filter),
   getAccount: (id) => ipcRenderer.invoke(IPC.ACCOUNTS_GET, id),
   setCashBankOpenings: (input) => ipcRenderer.invoke(IPC.ACCOUNTS_SET_CASH_BANK_OPENING, input),
+  getCashBankSnapshot: () => ipcRenderer.invoke(IPC.ACCOUNTS_CASH_BANK_SNAPSHOT),
   postVoucher: (input) => ipcRenderer.invoke(IPC.VOUCHERS_POST, input),
   updateVoucher: (id, input) => ipcRenderer.invoke(IPC.VOUCHERS_UPDATE, id, input),
   getVoucher: (id) => ipcRenderer.invoke(IPC.VOUCHERS_GET, id),

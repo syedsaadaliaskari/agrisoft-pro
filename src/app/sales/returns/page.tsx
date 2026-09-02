@@ -15,6 +15,7 @@ import {
   PaymentModePicker,
   money,
 } from "@/components/ops/DocumentWorkspace";
+import { CashBankEffect, refundCashBank, signedMoneyFlow } from "@/components/ops/CashBankEffect";
 import {
   Alert,
   Button,
@@ -70,6 +71,7 @@ export default function SaleReturnsPage() {
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [pickVariantId, setPickVariantId] = useState("");
+  const [linkedSale, setLinkedSale] = useState<Sale | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -144,6 +146,10 @@ export default function SaleReturnsPage() {
     () => Math.round((subtotal + Number(taxAmount || 0)) * 100) / 100,
     [subtotal, taxAmount]
   );
+  const refundLegs = useMemo(
+    () => refundCashBank(grand, refundMode, saleId ? linkedSale : null),
+    [grand, refundMode, saleId, linkedSale]
+  );
 
   const openCreate = () => {
     setReturnDate(today());
@@ -154,6 +160,7 @@ export default function SaleReturnsPage() {
     setNotes("");
     setLines([]);
     setPickVariantId("");
+    setLinkedSale(null);
     setError("");
     if (accounts[0]) setAccountId(accounts[0].id);
     setOpen(true);
@@ -161,12 +168,16 @@ export default function SaleReturnsPage() {
 
   const onSaleLink = async (id: string) => {
     setSaleId(id);
-    if (!id) return;
+    if (!id) {
+      setLinkedSale(null);
+      return;
+    }
     const res = await getApi().getSale(id);
     if (!res.ok) {
       setError(res.error);
       return;
     }
+    setLinkedSale(res.data);
     setCustomerId(res.data.customerId ?? "");
     setLines(
       (res.data.items ?? []).map((it) => ({
@@ -201,7 +212,7 @@ export default function SaleReturnsPage() {
     setError("");
   };
 
-  const onSave = async () => {
+  const onSave = async (andPrint = false) => {
     setSaving(true);
     setError("");
     const res = await getApi().createSaleReturn({
@@ -225,36 +236,41 @@ export default function SaleReturnsPage() {
     }
     setOpen(false);
     await load();
+    if (andPrint) await printReturn(res.data);
   };
 
-  const printReturn = async (row: SaleReturn, size: ReceiptSize = "thermal") => {
+  const returnHtml = async (row: SaleReturn, size: ReceiptSize = "thermal") => {
     let toPrint = row;
     if (!row.items?.length) {
       const res = await getApi().getSaleReturn(row.id);
-      if (!res.ok) {
-        setError(res.error);
-        return;
-      }
+      if (!res.ok) throw new Error(res.error);
       toPrint = res.data;
     }
-    const html = buildSaleReturnPrintHtml(
+    return buildSaleReturnPrintHtml(
       {
         ...toPrint,
         items: (toPrint.items ?? []).map((it) => ({
           ...it,
-          unit: it.unit ?? inventory.find((row) => row.variantId === it.variantId)?.unit ?? null,
+          unit: it.unit ?? inventory.find((inv) => inv.variantId === it.variantId)?.unit ?? null,
         })),
       },
       size
     );
-    const res = await getApi().printHtml(html);
-    if (!res.ok) setError(res.error);
+  };
+
+  const printReturn = async (row: SaleReturn, size: ReceiptSize = "thermal") => {
+    try {
+      const html = await returnHtml(row, size);
+      const res = await getApi().printHtml(html);
+      if (!res.ok) setError(res.error);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Print failed");
+    }
   };
 
   return (
     <AppShell
       title="Sale Return"
-      subtitle="Returns desk — restore stock and reverse settlement"
       permission="sales.return"
     >
       {error && !open ? (
@@ -275,18 +291,16 @@ export default function SaleReturnsPage() {
           {
             label: "All returns",
             value: String(stats.count),
-            hint: money(stats.total) + " lifetime",
+            hint: money(stats.total),
             icon: RotateCcw,
           },
           {
             label: "Linked to sale",
             value: String(stats.linked),
-            hint: "Pulled from original invoice",
           },
           {
             label: "Avg return",
             value: money(stats.count ? stats.total / stats.count : 0),
-            hint: "Mean credit note",
           },
         ]}
       />
@@ -366,7 +380,11 @@ export default function SaleReturnsPage() {
               </td>
               <td className="px-4 py-3.5">
                 <div className="flex justify-end">
-                  <PrintMenu onPrint={(size) => printReturn(row, size)} />
+                  <PrintMenu
+                    fileName={row.returnNo}
+                    getHtml={(size) => returnHtml(row, size)}
+                    onError={setError}
+                  />
                 </div>
               </td>
             </tr>
@@ -378,7 +396,6 @@ export default function SaleReturnsPage() {
         open={open}
         size="full"
         title="New sale return"
-        subtitle="Restore stock and issue refund / credit"
         onClose={() => setOpen(false)}
         footer={
           <>
@@ -388,7 +405,14 @@ export default function SaleReturnsPage() {
             <Button variant="secondary" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={() => void onSave()} disabled={saving || lines.length === 0}>
+            <Button
+              variant="secondary"
+              onClick={() => void onSave(true)}
+              disabled={saving || lines.length === 0}
+            >
+              {saving ? "Saving..." : "Save & print"}
+            </Button>
+            <Button onClick={() => void onSave(false)} disabled={saving || lines.length === 0}>
               {saving ? "Saving..." : "Post return"}
             </Button>
           </>
@@ -482,6 +506,10 @@ export default function SaleReturnsPage() {
                   ) : null}
                 </div>
               )}
+              <CashBankEffect
+                cashDelta={signedMoneyFlow("out", refundLegs.cash)}
+                bankDelta={signedMoneyFlow("out", refundLegs.bank)}
+              />
             </div>
           }
         >

@@ -300,7 +300,7 @@ export default function ProductsPage() {
   };
 
   return (
-    <AppShell title="Products" subtitle="Catalog, packs, and pricing" permission="products.view">
+    <AppShell title="Products" permission="products.view">
       {error && !open ? (
         <div className="mb-4">
           <Alert>{error}</Alert>
@@ -417,8 +417,7 @@ export default function ProductsPage() {
         {error ? <Alert>{error}</Alert> : null}
         {saleBelowCost ? (
           <Alert>
-            Sale price is below cost. Selling this product will lose{" "}
-            {formatMoney(Number(form.costPrice) - Number(form.salePrice))} per unit.
+            Sale price is below cost by {formatMoney(Number(form.costPrice) - Number(form.salePrice))} per unit.
           </Alert>
         ) : null}
         <div className="grid gap-4 sm:grid-cols-2">
