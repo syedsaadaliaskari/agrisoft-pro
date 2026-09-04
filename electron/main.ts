@@ -340,6 +340,7 @@ async function createWindow() {
     minWidth: 1100,
     minHeight: 700,
     title: "Agri Soft Pro",
+    ...(isDev ? { icon: path.join(process.cwd(), "build", "icon.png") } : {}),
     backgroundColor: "#12151a",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),

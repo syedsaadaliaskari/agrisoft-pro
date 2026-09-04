@@ -114,9 +114,9 @@ export function Sidebar() {
     >
       <div className="flex h-16 items-center gap-3 border-b border-[var(--border)] px-5">
         <img
-          src="/logo.png"
+          src="/logo-mark.png"
           alt="Agri Soft Pro"
-          className="h-9 w-9 rounded-lg object-cover shadow-sm ring-1 ring-[var(--border)]"
+          className="h-9 w-9 shrink-0 object-contain"
         />
         <div>
           <div className="text-sm font-semibold tracking-wide text-[var(--text)]">{t("brand.name")}</div>

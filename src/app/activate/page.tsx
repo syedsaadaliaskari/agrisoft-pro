@@ -128,14 +128,8 @@ export default function ActivatePage() {
           <img
             src="/logo.png"
             alt="Agri Soft Pro"
-            className="mx-auto mb-4 h-14 w-14 rounded-2xl object-cover shadow-lg shadow-[var(--accent)]/25 ring-1 ring-[var(--border)]"
+            className="mx-auto mb-4 h-auto w-48 object-contain"
           />
-          <p
-            className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent)]"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            Agri Soft Pro
-          </p>
         </div>
 
         <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)]/95 p-6 shadow-2xl shadow-black/15 backdrop-blur sm:p-8">

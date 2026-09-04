@@ -159,7 +159,7 @@ export default function LoginPage() {
           <img
             src="/logo.png"
             alt="Agri Soft Pro"
-            className="mx-auto mb-6 h-20 w-20 rounded-2xl object-cover shadow-lg shadow-[var(--accent)]/30 ring-1 ring-[var(--border)]"
+            className="mx-auto mb-6 h-auto w-44 object-contain"
           />
           <h1 className="text-2xl font-semibold tracking-tight">{t("login.welcome")}</h1>
           <p
@@ -185,14 +185,8 @@ export default function LoginPage() {
             <img
               src="/logo.png"
               alt="Agri Soft Pro"
-              className="mx-auto mb-5 h-16 w-16 rounded-2xl object-cover shadow-lg shadow-[var(--accent)]/25 ring-1 ring-[var(--border)]"
+              className="mx-auto h-auto w-52 object-contain"
             />
-            <h1
-              className="text-3xl font-semibold tracking-tight text-[var(--text)]"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
-              {t("brand.name")} {t("brand.pro")}
-            </h1>
           </div>
 
           <form
