@@ -2,21 +2,23 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowDownLeft, Ban, Pencil, Receipt } from "lucide-react";
+import { ArrowDownLeft, Ban, Pencil, Plus, Receipt } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
+import { ExportMenu } from "@/components/ExportMenu";
 import {
+  ComposerSection,
   DocStatusBadge,
+  FilterChips,
+  MoneyComposerBody,
   OpsEmptyState,
   OpsListSkeleton,
   OpsStatStrip,
-  VoucherWorkspace,
-  MoneySplitFields,
   cashBankSummary,
   legsFromVoucher,
   splitCoversAmount,
   money,
 } from "@/components/ops/DocumentWorkspace";
-import { Alert, Button, DataTable, Input, Select, Textarea } from "@/components/ui/form";
+import { Alert, Button, DataTable, Input, Modal, PageToolbar, Select, Textarea } from "@/components/ui/form";
 import { PrintMenu } from "@/components/PrintMenu";
 import { getApi } from "@/lib/api";
 import { printVoucherNow, voucherPrintHtml } from "@/lib/print-actions";
@@ -28,6 +30,8 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
+type ListFilter = "all" | "today";
+
 function ReceivePaymentPageInner() {
   const searchParams = useSearchParams();
   const prefCustomerId = searchParams.get("customerId") || "";
@@ -36,7 +40,10 @@ function ReceivePaymentPageInner() {
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [rows, setRows] = useState<Voucher[]>([]);
+  const [search, setSearch] = useState("");
+  const [listFilter, setListFilter] = useState<ListFilter>("all");
   const [loading, setLoading] = useState(true);
+  const [composer, setComposer] = useState(false);
   const [voucherDate, setVoucherDate] = useState(today());
   const [customerId, setCustomerId] = useState(prefCustomerId);
   const [amount, setAmount] = useState("");
@@ -75,7 +82,10 @@ function ReceivePaymentPageInner() {
   }, [load]);
 
   useEffect(() => {
-    if (prefCustomerId) setCustomerId(prefCustomerId);
+    if (prefCustomerId) {
+      setCustomerId(prefCustomerId);
+      setComposer(true);
+    }
   }, [prefCustomerId]);
 
   const stats = useMemo(() => {
@@ -90,6 +100,21 @@ function ReceivePaymentPageInner() {
     };
   }, [rows]);
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const t = today();
+    return rows.filter((r) => {
+      if (listFilter === "today" && r.voucherDate !== t) return false;
+      if (!q) return true;
+      return (
+        r.voucherNo.toLowerCase().includes(q) ||
+        (r.partyName ?? "").toLowerCase().includes(q) ||
+        (r.notes ?? "").toLowerCase().includes(q) ||
+        (r.referenceNo ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [rows, search, listFilter]);
+
   const resetForm = () => {
     setVoucherDate(today());
     setCustomerId(customers[0]?.id ?? "");
@@ -102,6 +127,16 @@ function ReceivePaymentPageInner() {
     setNotes("");
     setEditingId(null);
     setError("");
+  };
+
+  const closeComposer = () => {
+    setComposer(false);
+    resetForm();
+  };
+
+  const openComposer = () => {
+    resetForm();
+    setComposer(true);
   };
 
   const openEdit = (row: Voucher) => {
@@ -119,6 +154,7 @@ function ReceivePaymentPageInner() {
     setNotes(row.notes ?? "");
     setError("");
     setOkMsg("");
+    setComposer(true);
   };
 
   const onSave = async (andPrint = false) => {
@@ -143,6 +179,7 @@ function ReceivePaymentPageInner() {
       return;
     }
     setOkMsg(editingId ? "Updated" : "Saved");
+    setComposer(false);
     resetForm();
     await load();
     if (andPrint) {
@@ -159,159 +196,198 @@ function ReceivePaymentPageInner() {
       setError(res.error);
       return;
     }
-    if (editingId === row.id) resetForm();
+    if (editingId === row.id) closeComposer();
     await load();
   };
 
+  const canSave = !saving && !!customerId && splitCoversAmount(amount, cashPaid, bankPaid) && canCreate;
+  const filterCounts = {
+    all: rows.length,
+    today: rows.filter((r) => r.voucherDate === today()).length,
+  };
+
   return (
-    <AppShell
-      title="Receive Payment"
-      permission="transactions.create"
-    >
-      {error ? (
+    <AppShell title="Receive Payment" permission="transactions.create">
+      {error && !composer ? (
         <div className="mb-4">
           <Alert>{error}</Alert>
         </div>
       ) : null}
-      {okMsg ? (
+      {okMsg && !composer ? (
         <div className="mb-4">
           <Alert tone="info">{okMsg}</Alert>
         </div>
       ) : null}
 
-      <VoucherWorkspace
-        formTitle={editingId ? "Edit receipt" : "New receipt"}
-        stats={
-          <OpsStatStrip
-            items={[
-              {
-                label: "Today received",
-                value: money(stats.todayTotal),
-                hint: `${stats.todayCount} receipt${stats.todayCount === 1 ? "" : "s"}`,
-                tone: "accent",
-                icon: ArrowDownLeft,
-              },
-              {
-                label: "Active receipts",
-                value: String(stats.count),
-                hint: money(stats.total),
-                icon: Receipt,
-              },
+      <OpsStatStrip
+        items={[
+          {
+            label: "Today received",
+            value: money(stats.todayTotal),
+            hint: `${stats.todayCount} receipt${stats.todayCount === 1 ? "" : "s"}`,
+            tone: "accent",
+            icon: ArrowDownLeft,
+          },
+          {
+            label: "Active receipts",
+            value: String(stats.count),
+            hint: money(stats.total),
+            icon: Receipt,
+          },
+        ]}
+      />
+
+      <PageToolbar
+        search={search}
+        onSearch={setSearch}
+        onAdd={canCreate ? openComposer : undefined}
+        addLabel="New receipt"
+        actions={
+          <ExportMenu
+            filename="receipts"
+            title="Receive payment"
+            columns={[
+              { key: "voucherNo", label: "Voucher" },
+              { key: "voucherDate", label: "Date" },
+              { key: "partyName", label: "Customer" },
+              { key: "paidFrom", label: "Cash / bank" },
+              { key: "grandTotal", label: "Amount" },
+              { key: "status", label: "Status" },
             ]}
+            rows={filtered.map((r) => ({
+              voucherNo: r.voucherNo,
+              voucherDate: r.voucherDate,
+              partyName: r.partyName || "—",
+              paidFrom: cashBankSummary(r),
+              grandTotal: r.grandTotal,
+              status: r.status,
+            }))}
           />
         }
-        form={
-          <>
-            <Input
-              label="Date"
-              type="date"
-              value={voucherDate}
-              onChange={(e) => setVoucherDate(e.target.value)}
-            />
-            <Select
-              label="Customer"
-              value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-              options={customers.map((c) => ({ value: c.id, label: `${c.name}` }))}
-            />
-            <MoneySplitFields
-              amount={amount}
-              cashPaid={cashPaid}
-              bankPaid={bankPaid}
-              onAmount={setAmount}
-              onCashPaid={setCashPaid}
-              onBankPaid={setBankPaid}
-              moneyFlow="in"
-              postedCash={postedCash}
-              postedBank={postedBank}
-            />
-            <Input
-              label="Reference"
-              value={referenceNo}
-              onChange={(e) => setReferenceNo(e.target.value)}
-            />
-            <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-            <div className="flex flex-wrap gap-2 pt-1">
-              {editingId ? (
-                <Button variant="secondary" onClick={resetForm}>
-                  Cancel edit
-                </Button>
-              ) : null}
-              {!editingId ? (
-                <Button
-                  variant="secondary"
-                  onClick={() => void onSave(true)}
-                  disabled={saving || !customerId || !splitCoversAmount(amount, cashPaid, bankPaid) || !canCreate}
-                >
-                  {saving ? "Saving..." : "Save & print"}
-                </Button>
-              ) : null}
-              <Button
-                onClick={() => void onSave(false)}
-                disabled={saving || !customerId || !splitCoversAmount(amount, cashPaid, bankPaid) || !canCreate}
-              >
-                {saving ? "Saving..." : editingId ? "Update receipt" : "Post receipt"}
+      />
+
+      <div className="mb-4">
+        <FilterChips
+          value={listFilter}
+          onChange={(v) => setListFilter(v as ListFilter)}
+          options={[
+            { value: "all", label: "All", count: filterCounts.all },
+            { value: "today", label: "Today", count: filterCounts.today },
+          ]}
+        />
+      </div>
+
+      {loading ? (
+        <OpsListSkeleton />
+      ) : filtered.length === 0 ? (
+        <OpsEmptyState
+          title={search || listFilter !== "all" ? "No matching receipts" : "No receipts yet"}
+          action={
+            canCreate && !search && listFilter === "all" ? (
+              <Button onClick={openComposer}>
+                <Plus size={14} /> New receipt
               </Button>
-            </div>
+            ) : undefined
+          }
+        />
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)]">
+          <DataTable headers={["Voucher", "Customer", "Cash / bank", "Amount", "Status", ""]} empty={false}>
+            {filtered.map((row) => (
+              <tr
+                key={row.id}
+                className="group border-b border-[var(--border)] last:border-0 transition hover:bg-[var(--bg-soft)]/60"
+              >
+                <td className="px-4 py-3.5">
+                  <div className="font-mono text-xs font-semibold tracking-wide">{row.voucherNo}</div>
+                  <div className="mt-0.5 text-[11px] text-[var(--text-muted)]">{row.voucherDate}</div>
+                </td>
+                <td className="px-4 py-3.5 font-medium">{row.partyName || "—"}</td>
+                <td className="px-4 py-3.5 text-[var(--text-muted)]">{cashBankSummary(row)}</td>
+                <td className="px-4 py-3.5 font-semibold tabular-nums">{money(row.grandTotal)}</td>
+                <td className="px-4 py-3.5">
+                  <DocStatusBadge status={row.status} />
+                </td>
+                <td className="px-4 py-3.5">
+                  <div className="flex justify-end gap-0.5 opacity-80 transition group-hover:opacity-100">
+                    <PrintMenu
+                      fileName={row.voucherNo}
+                      getHtml={(size) => voucherPrintHtml(row, size)}
+                      onError={setError}
+                      onNotice={setOkMsg}
+                    />
+                    {canCreate && row.status !== "cancelled" ? (
+                      <>
+                        <Button variant="ghost" size="sm" onClick={() => openEdit(row)} title="Edit">
+                          <Pencil size={14} />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => void onCancel(row)} title="Cancel voucher">
+                          <Ban size={14} />
+                        </Button>
+                      </>
+                    ) : null}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </DataTable>
+        </div>
+      )}
+
+      <Modal
+        open={composer}
+        size="full"
+        title={editingId ? "Edit receipt" : "New receipt"}
+        onClose={closeComposer}
+        footer={
+          <>
+            <Button variant="secondary" onClick={closeComposer}>
+              Cancel
+            </Button>
+            {!editingId ? (
+              <Button variant="secondary" onClick={() => void onSave(true)} disabled={!canSave}>
+                {saving ? "Saving..." : "Save & print"}
+              </Button>
+            ) : null}
+            <Button onClick={() => void onSave(false)} disabled={!canSave}>
+              {saving ? "Saving..." : editingId ? "Update" : "Save"}
+            </Button>
           </>
         }
-        listTitle="Receipt register"
-        list={
-          loading ? (
-            <OpsListSkeleton rows={5} />
-          ) : rows.length === 0 ? (
-            <OpsEmptyState title="No receipts yet" />
-          ) : (
-            <DataTable
-              headers={["Voucher", "Customer", "Cash / bank", "Amount", "Status", ""]}
-              empty={false}
-            >
-              {rows.map((row) => (
-                <tr
-                  key={row.id}
-                  className="group border-b border-[var(--border)] last:border-0 transition hover:bg-[var(--bg-soft)]/60"
-                >
-                  <td className="px-4 py-3.5">
-                    <div className="font-mono text-xs font-semibold">{row.voucherNo}</div>
-                    <div className="text-[11px] text-[var(--text-muted)]">{row.voucherDate}</div>
-                  </td>
-                  <td className="px-4 py-3.5 font-medium">{row.partyName || "—"}</td>
-                  <td className="px-4 py-3.5 text-[var(--text-muted)]">{cashBankSummary(row)}</td>
-                  <td className="px-4 py-3.5 font-semibold tabular-nums">{money(row.grandTotal)}</td>
-                  <td className="px-4 py-3.5">
-                    <DocStatusBadge status={row.status} />
-                  </td>
-                  <td className="px-4 py-3.5">
-                    <div className="flex justify-end gap-0.5">
-                      <PrintMenu
-                        fileName={row.voucherNo}
-                        getHtml={(size) => voucherPrintHtml(row, size)}
-                        onError={setError}
-                        onNotice={setOkMsg}
-                      />
-                      {canCreate && row.status !== "cancelled" ? (
-                        <>
-                          <Button variant="ghost" size="sm" onClick={() => openEdit(row)} title="Edit">
-                            <Pencil size={14} />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => void onCancel(row)}
-                            title="Cancel voucher"
-                          >
-                            <Ban size={14} />
-                          </Button>
-                        </>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </DataTable>
-          )
-        }
-      />
+      >
+        {error ? <Alert>{error}</Alert> : null}
+        <MoneyComposerBody
+          editingId={editingId}
+          amount={amount}
+          cashPaid={cashPaid}
+          bankPaid={bankPaid}
+          onAmount={setAmount}
+          onCashPaid={setCashPaid}
+          onBankPaid={setBankPaid}
+          grandLabel="Received"
+          fields={
+            <>
+              <Input
+                label="Date"
+                type="date"
+                value={voucherDate}
+                onChange={(e) => setVoucherDate(e.target.value)}
+              />
+              <Select
+                label="Customer"
+                value={customerId}
+                onChange={(e) => setCustomerId(e.target.value)}
+                options={customers.map((c) => ({ value: c.id, label: c.name }))}
+              />
+              <Input label="Reference" value={referenceNo} onChange={(e) => setReferenceNo(e.target.value)} />
+            </>
+          }
+        >
+          <ComposerSection title="Notes">
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </ComposerSection>
+        </MoneyComposerBody>
+      </Modal>
     </AppShell>
   );
 }

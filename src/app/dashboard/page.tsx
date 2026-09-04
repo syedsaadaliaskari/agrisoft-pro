@@ -374,7 +374,9 @@ export default function DashboardPage() {
                       <p className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
                         {kpi.label}
                       </p>
-                      <p className="mt-1.5 text-xl font-semibold tracking-tight break-all tabular-nums">{kpi.value}</p>
+                      <p className="mt-1.5 text-xl font-semibold tracking-tight whitespace-nowrap tabular-nums">
+                        {kpi.value}
+                      </p>
                       {kpi.sub ? (
                         <p className="mt-1 text-[11px] text-[var(--text-muted)] break-words">{kpi.sub}</p>
                       ) : null}
@@ -430,7 +432,7 @@ export default function DashboardPage() {
                         <div key={row.label}>
                           <p className="text-[11px] text-[var(--text-muted)]">{row.label}</p>
                           <p
-                            className={`mt-0.5 text-sm font-semibold tabular-nums break-all ${
+                            className={`mt-0.5 text-sm font-semibold tabular-nums whitespace-nowrap ${
                               row.tone === "in"
                                 ? "text-[var(--success)]"
                                 : row.tone === "out"

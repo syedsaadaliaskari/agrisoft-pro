@@ -181,7 +181,7 @@ export const ur: Dict = {
   "payment.cash": "نقد",
   "payment.bank": "بینک",
   "payment.credit": "ادھار",
-  "payment.split": "Mixed",
+  "payment.split": "نقد + بینک",
 
   "backup.backup": "بیک اپ",
   "backup.restore": "بحالی",

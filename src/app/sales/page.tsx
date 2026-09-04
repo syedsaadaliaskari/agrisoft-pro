@@ -712,7 +712,7 @@ export default function SalesPage() {
                   onChange={(e) => setNotes(e.target.value)}
                 />
               </div>
-              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
                 <div>
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                     <div className="flex-1">
@@ -736,15 +736,13 @@ export default function SalesPage() {
                 </div>
                 <div className="space-y-2">
                   <SettlementPanel
+                    key={editingId ?? "new"}
                     compact
                     grandTotal={grand}
                     cashPaid={cashPaid}
                     bankPaid={bankPaid}
                     onCashPaid={setCashPaid}
                     onBankPaid={setBankPaid}
-                    moneyFlow="in"
-                    postedCash={postedCash}
-                    postedBank={postedBank}
                   />
                   <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--bg-soft)] px-3 py-2 text-sm">
                     <span className="text-[var(--text-muted)]">Total</span>

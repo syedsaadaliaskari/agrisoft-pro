@@ -156,10 +156,8 @@ export function PrintMenu({
       }
       if (mode === "save") {
         if (res.data?.path) onNotice?.(`Saved ${res.data.path}`);
-      } else if (res.data?.shared) {
-        onNotice?.("Pick WhatsApp, then a chat");
       } else {
-        onNotice?.("Open a WhatsApp chat and press Ctrl+V");
+        onNotice?.("Open a chat and press Ctrl+V");
       }
       setOpen(false);
     } catch (err) {

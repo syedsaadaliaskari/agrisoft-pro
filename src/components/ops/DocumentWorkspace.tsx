@@ -1,11 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { cn, formatMoney } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { Button, Input } from "@/components/ui/form";
+import { Input } from "@/components/ui/form";
 import { useI18n } from "@/lib/i18n";
-import { CashBankEffect, signedMoneyFlow } from "@/components/ops/CashBankEffect";
 import type { PaymentMode } from "@shared/ipc";
 
 export function money(n: number) {
@@ -51,7 +51,7 @@ export function OpsStatStrip({
                 <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
                   {item.label}
                 </div>
-                <div className="mt-1.5 text-xl font-semibold tracking-tight text-[var(--text)] break-all tabular-nums">
+                <div className="mt-1.5 text-xl font-semibold tracking-tight text-[var(--text)] whitespace-nowrap tabular-nums">
                   {item.value}
                 </div>
                 {item.hint ? (
@@ -181,7 +181,7 @@ export function PaymentModePicker({
   return (
     <div className="space-y-1.5">
       <div className="text-xs font-medium text-[var(--text-muted)]">{t("payment.mode")}</div>
-      <div className="grid grid-cols-3 gap-2">
+      <div className={cn("grid gap-2", resolved.length >= 4 ? "grid-cols-2" : "grid-cols-3")}>
         {resolved.map((o) => {
           const active = value === o.value;
           return (
@@ -190,13 +190,13 @@ export function PaymentModePicker({
               type="button"
               onClick={() => onChange(o.value)}
               className={cn(
-                "rounded-xl border px-3 py-2.5 text-center transition",
+                "rounded-xl border px-3 py-3 text-center transition",
                 active
                   ? "border-[var(--accent)] bg-[var(--accent-soft)] shadow-[0_0_0_1px_var(--accent)]"
                   : "border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)]"
               )}
             >
-              <div className={cn("text-sm font-semibold", active && "text-[var(--accent)]")}>{o.label}</div>
+              <div className={cn("text-base font-semibold", active && "text-[var(--accent)]")}>{o.label}</div>
               {o.hint ? <div className="mt-0.5 text-[10px] text-[var(--text-muted)]">{o.hint}</div> : null}
             </button>
           );
@@ -246,7 +246,101 @@ function nextSplitForAmount(nextAmount: string, cashPaid: string, bankPaid: stri
   return { cashPaid, bankPaid };
 }
 
-/** Amount + cash/bank split for money vouchers (no credit remainder). */
+function inferPayHow(cash: number, bank: number, grandTotal: number, allowCredit: boolean): PaymentMode {
+  if (cash > 0.004 && bank > 0.004) return "split";
+  if (bank > 0.004) return "bank";
+  if (cash > 0.004) return "cash";
+  if (allowCredit && grandTotal > 0.004) return "credit";
+  return "cash";
+}
+
+function totalAsText(grandTotal: number) {
+  const t = Math.round(Number(grandTotal || 0) * 100) / 100;
+  return t ? String(t) : "0";
+}
+
+/** Sale-style composer: fields on top, amount left, Cash/Bank + totals on the right. */
+export function MoneyComposerBody({
+  fields,
+  amount,
+  cashPaid,
+  bankPaid,
+  onAmount,
+  onCashPaid,
+  onBankPaid,
+  amountLabel = "Amount",
+  editingId,
+  grandLabel = "Amount",
+  children,
+}: {
+  fields: React.ReactNode;
+  amount: string;
+  cashPaid: string;
+  bankPaid: string;
+  onAmount: (v: string) => void;
+  onCashPaid: (v: string) => void;
+  onBankPaid: (v: string) => void;
+  amountLabel?: string;
+  editingId?: string | null;
+  grandLabel?: string;
+  children?: React.ReactNode;
+}) {
+  const grand = Number(amount || 0);
+  const cash = Number(cashPaid || 0);
+  const bank = Number(bankPaid || 0);
+  return (
+    <ComposerShell
+      header={
+        <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{fields}</div>
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
+            <div>
+              <Input
+                label={amountLabel}
+                type="number"
+                min={0.01}
+                step="0.01"
+                value={amount}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  const next = nextSplitForAmount(v, cashPaid, bankPaid);
+                  onAmount(v);
+                  onCashPaid(next.cashPaid);
+                  onBankPaid(next.bankPaid);
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <SettlementPanel
+                key={editingId ?? "new"}
+                compact
+                allowCredit={false}
+                grandTotal={grand}
+                cashPaid={cashPaid}
+                bankPaid={bankPaid}
+                onCashPaid={onCashPaid}
+                onBankPaid={onBankPaid}
+              />
+              <TotalsPanel
+                accent
+                rows={[
+                  { label: "Cash", value: money(cash), muted: true },
+                  { label: "Bank", value: money(bank), muted: true },
+                ]}
+                grandLabel={grandLabel}
+                grand={money(grand)}
+              />
+            </div>
+          </div>
+        </div>
+      }
+    >
+      {children}
+    </ComposerShell>
+  );
+}
+
+/** Amount + cash/bank for money vouchers (no credit remainder). */
 export function MoneySplitFields({
   amount,
   cashPaid,
@@ -255,9 +349,6 @@ export function MoneySplitFields({
   onCashPaid,
   onBankPaid,
   amountLabel = "Amount",
-  moneyFlow,
-  postedCash = 0,
-  postedBank = 0,
 }: {
   amount: string;
   cashPaid: string;
@@ -266,10 +357,6 @@ export function MoneySplitFields({
   onCashPaid: (v: string) => void;
   onBankPaid: (v: string) => void;
   amountLabel?: string;
-  /** in = cash/bank increase (receive, income); out = decrease (pay, expense, draw) */
-  moneyFlow: "in" | "out";
-  postedCash?: number;
-  postedBank?: number;
 }) {
   return (
     <>
@@ -294,15 +381,12 @@ export function MoneySplitFields({
         onCashPaid={onCashPaid}
         onBankPaid={onBankPaid}
         allowCredit={false}
-        moneyFlow={moneyFlow}
-        postedCash={postedCash}
-        postedBank={postedBank}
       />
     </>
   );
 }
 
-/** Cash + bank + credit on one bill — shows due live so ledger stays correct. */
+/** Cash, bank, or credit — one tap. Split only if they need both. */
 export function SettlementPanel({
   grandTotal,
   cashPaid,
@@ -313,9 +397,6 @@ export function SettlementPanel({
   dueLabel = "Receivable",
   compact,
   allowCredit = true,
-  moneyFlow,
-  postedCash = 0,
-  postedBank = 0,
 }: {
   grandTotal: number;
   cashPaid: string;
@@ -325,122 +406,118 @@ export function SettlementPanel({
   dueHint?: string;
   dueLabel?: string;
   compact?: boolean;
-  /** When false (receipts, payments, income, expense, owner draw) hide Credit all — cash+bank must equal the amount. */
   allowCredit?: boolean;
-  moneyFlow?: "in" | "out";
-  postedCash?: number;
-  postedBank?: number;
 }) {
+  const { t } = useI18n();
   const cash = Number(cashPaid || 0);
   const bank = Number(bankPaid || 0);
   const paid = Math.round((cash + bank) * 100) / 100;
   const due = Math.max(0, Math.round((grandTotal - paid) * 100) / 100);
   const over = paid > grandTotal + 0.001;
+  const [how, setHow] = useState<PaymentMode>(() => inferPayHow(cash, bank, grandTotal, allowCredit));
 
-  const setFullCash = () => {
-    onCashPaid(String(grandTotal || 0));
-    onBankPaid("0");
+  useEffect(() => {
+    if (how === "split") return;
+    const s = totalAsText(grandTotal);
+    const cashN = Number(cashPaid || 0);
+    const bankN = Number(bankPaid || 0);
+    const want = Number(s);
+    if (how === "cash") {
+      if (Math.abs(cashN - want) > 0.001 || Math.abs(bankN) > 0.001) {
+        onCashPaid(s);
+        onBankPaid("0");
+      }
+      return;
+    }
+    if (how === "bank") {
+      if (Math.abs(bankN - want) > 0.001 || Math.abs(cashN) > 0.001) {
+        onCashPaid("0");
+        onBankPaid(s);
+      }
+      return;
+    }
+    if (how === "credit" && (Math.abs(cashN) > 0.001 || Math.abs(bankN) > 0.001)) {
+      onCashPaid("0");
+      onBankPaid("0");
+    }
+  }, [grandTotal, how, cashPaid, bankPaid, onCashPaid, onBankPaid]);
+
+  const pick = (next: PaymentMode) => {
+    setHow(next);
+    const s = totalAsText(grandTotal);
+    if (next === "cash") {
+      onCashPaid(s);
+      onBankPaid("0");
+    } else if (next === "bank") {
+      onCashPaid("0");
+      onBankPaid(s);
+    } else if (next === "credit") {
+      onCashPaid("0");
+      onBankPaid("0");
+    }
   };
-  const setFullBank = () => {
-    onCashPaid("0");
-    onBankPaid(String(grandTotal || 0));
-  };
-  const setCreditAll = () => {
-    onCashPaid("0");
-    onBankPaid("0");
-  };
 
-  const buttons = (
-    <div className="flex flex-wrap gap-2">
-      <Button type="button" size="sm" variant="secondary" onClick={setFullCash}>
-        Full cash
-      </Button>
-      <Button type="button" size="sm" variant="secondary" onClick={setFullBank}>
-        Full bank
-      </Button>
-      {allowCredit ? (
-        <Button type="button" size="sm" variant="secondary" onClick={setCreditAll}>
-          Credit all
-        </Button>
-      ) : null}
-    </div>
-  );
-
-  const amounts = (
-    <div className="grid gap-3 sm:grid-cols-2">
-      <Input
-        label="Cash"
-        type="number"
-        min={0}
-        step="0.01"
-        value={cashPaid}
-        onChange={(e) => onCashPaid(e.target.value)}
-      />
-      <Input
-        label="Bank"
-        type="number"
-        min={0}
-        step="0.01"
-        value={bankPaid}
-        onChange={(e) => onBankPaid(e.target.value)}
-      />
-    </div>
-  );
-
-  const books =
-    moneyFlow ? (
-      <CashBankEffect
-        cashDelta={signedMoneyFlow(moneyFlow, cash)}
-        bankDelta={signedMoneyFlow(moneyFlow, bank)}
-        replaceCashDelta={signedMoneyFlow(moneyFlow, postedCash)}
-        replaceBankDelta={signedMoneyFlow(moneyFlow, postedBank)}
-      />
-    ) : null;
-
-  if (compact) {
-    return (
-      <div className="space-y-2">
-        {buttons}
-        {amounts}
-        {books}
-      </div>
-    );
-  }
+  const options: { value: PaymentMode; label: string }[] = [
+    { value: "cash", label: t("payment.cash") },
+    { value: "bank", label: t("payment.bank") },
+    ...(allowCredit ? [{ value: "credit" as const, label: t("payment.credit") }] : []),
+    { value: "split", label: t("payment.split") },
+  ];
 
   return (
-    <div className="space-y-3">
-      {buttons}
-      {amounts}
-      {books}
-      <div
-        className={cn(
-          "rounded-xl border px-3 py-2.5 text-sm",
-          over
-            ? "border-[var(--danger)]/40 bg-[var(--danger)]/10"
-            : due > 0
-              ? "border-amber-500/30 bg-amber-500/10"
-              : "border-[var(--success)]/30 bg-[var(--success)]/10"
-        )}
-      >
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-[var(--text-muted)]">{allowCredit ? "Paid now" : "Cash + bank"}</span>
-          <span className="font-semibold tabular-nums">{money(paid)}</span>
+    <div className="space-y-2">
+      <PaymentModePicker value={how} onChange={pick} options={options} />
+      {how === "split" ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Input
+            label={t("payment.cash")}
+            type="number"
+            min={0}
+            step="0.01"
+            value={cashPaid}
+            onChange={(e) => onCashPaid(e.target.value)}
+          />
+          <Input
+            label={t("payment.bank")}
+            type="number"
+            min={0}
+            step="0.01"
+            value={bankPaid}
+            onChange={(e) => onBankPaid(e.target.value)}
+          />
         </div>
-        <div className="mt-1.5 flex items-center justify-between gap-3">
-          <span className="text-[var(--text-muted)]">{allowCredit ? dueLabel : "Remaining"}</span>
-          <span
-            className={cn(
-              "font-semibold tabular-nums",
-              over ? "text-[var(--danger)]" : due > 0 ? "text-amber-700 dark:text-amber-300" : "text-[var(--success)]"
-            )}
-          >
-            {over ? `Over by ${money(paid - grandTotal)}` : money(due)}
-          </span>
+      ) : null}
+      {!compact ? (
+        <div
+          className={cn(
+            "rounded-xl border px-3 py-2.5 text-sm",
+            over
+              ? "border-[var(--danger)]/40 bg-[var(--danger)]/10"
+              : due > 0
+                ? "border-amber-500/30 bg-amber-500/10"
+                : "border-[var(--success)]/30 bg-[var(--success)]/10"
+          )}
+        >
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[var(--text-muted)]">{allowCredit ? "Paid now" : "Paid"}</span>
+            <span className="font-semibold tabular-nums whitespace-nowrap">{money(paid)}</span>
+          </div>
+          <div className="mt-1.5 flex items-center justify-between gap-3">
+            <span className="text-[var(--text-muted)]">{allowCredit ? dueLabel : "Left"}</span>
+            <span
+              className={cn(
+                "font-semibold tabular-nums whitespace-nowrap",
+                over ? "text-[var(--danger)]" : due > 0 ? "text-amber-700 dark:text-amber-300" : "text-[var(--success)]"
+              )}
+            >
+              {over ? `Too much ${money(paid - grandTotal)}` : money(due)}
+            </span>
+          </div>
+          {(due > 0 || (!allowCredit && over)) && dueHint ? (
+            <p className="mt-2 text-xs text-[var(--text-muted)]">{dueHint}</p>
+          ) : null}
         </div>
-        {(due > 0 || (!allowCredit && over)) && dueHint ? (
-          <p className="mt-2 text-xs text-[var(--text-muted)]">{dueHint}</p>
-        ) : null}
-      </div>
+      ) : null}
     </div>
   );
 }
@@ -523,7 +600,7 @@ export function TotalsPanel({
             <span className={cn(r.muted ? "text-[var(--text-muted)]" : "text-[var(--text)]")}>{r.label}</span>
             <span
               className={cn(
-                "tabular-nums font-medium",
+                "whitespace-nowrap tabular-nums font-medium",
                 r.negative ? "text-[var(--danger)]" : "text-[var(--text)]"
               )}
             >
@@ -544,7 +621,7 @@ export function TotalsPanel({
           <span className="text-[var(--text-muted)]">{dueLabel}</span>
           <span
             className={cn(
-              "font-semibold tabular-nums",
+              "font-semibold whitespace-nowrap tabular-nums",
               Number(due.replace(/[^0-9.-]/g, "")) > 0 ? "text-amber-600 dark:text-amber-300" : "text-[var(--success)]"
             )}
           >

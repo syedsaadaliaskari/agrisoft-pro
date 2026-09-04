@@ -181,7 +181,7 @@ export const en: Dict = {
   "payment.cash": "Cash",
   "payment.bank": "Bank",
   "payment.credit": "Credit",
-  "payment.split": "Split",
+  "payment.split": "Cash + Bank",
 
   "backup.backup": "Backup",
   "backup.restore": "Restore",

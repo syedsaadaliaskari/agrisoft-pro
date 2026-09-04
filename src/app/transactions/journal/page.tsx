@@ -21,7 +21,6 @@ import {
   TotalsPanel,
   money,
 } from "@/components/ops/DocumentWorkspace";
-import { CashBankEffect } from "@/components/ops/CashBankEffect";
 import { Alert, Button, DataTable, Input, Select, Textarea } from "@/components/ui/form";
 import { PrintMenu } from "@/components/PrintMenu";
 import { getApi } from "@/lib/api";
@@ -55,8 +54,6 @@ export default function JournalPage() {
   const [lines, setLines] = useState<Line[]>(blankLines());
   const [linkAmounts, setLinkAmounts] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [postedCashDelta, setPostedCashDelta] = useState(0);
-  const [postedBankDelta, setPostedBankDelta] = useState(0);
   const [error, setError] = useState("");
   const [okMsg, setOkMsg] = useState("");
   const [saving, setSaving] = useState(false);
@@ -107,8 +104,6 @@ export default function JournalPage() {
     setLines(blankLines());
     setLinkAmounts(false);
     setEditingId(null);
-    setPostedCashDelta(0);
-    setPostedBankDelta(0);
     setError("");
   };
 
@@ -128,19 +123,6 @@ export default function JournalPage() {
       })
     );
   };
-
-  const cashBankFromLines = (rows: Line[]) => {
-    let cash = 0;
-    let bank = 0;
-    for (const l of rows) {
-      const signed = Number(l.debit || 0) - Number(l.credit || 0);
-      if (cashAccount && l.accountId === cashAccount.id) cash += signed;
-      if (bankAccount && l.accountId === bankAccount.id) bank += signed;
-    }
-    return { cash: Math.round(cash * 100) / 100, bank: Math.round(bank * 100) / 100 };
-  };
-
-  const draftBooks = useMemo(() => cashBankFromLines(lines), [lines, cashAccount, bankAccount]);
 
   const applyTransferPreset = (direction: "deposit" | "withdraw") => {
     if (!cashAccount || !bankAccount) return;
@@ -173,9 +155,6 @@ export default function JournalPage() {
         }))
       : blankLines();
     setLines(entries);
-    const posted = cashBankFromLines(entries);
-    setPostedCashDelta(posted.cash);
-    setPostedBankDelta(posted.bank);
     setLinkAmounts(false);
     setError("");
     setOkMsg("");
@@ -269,7 +248,7 @@ export default function JournalPage() {
         ]}
       />
 
-      <div className="mb-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_280px]">
+      <div className="mb-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
         <ComposerSection
           title={editingId ? "Edit journal voucher" : "New journal voucher"}
           action={
@@ -371,15 +350,6 @@ export default function JournalPage() {
                 </Button>
               </div>
             ))}
-          </div>
-
-          <div className="mt-4">
-            <CashBankEffect
-              cashDelta={draftBooks.cash}
-              bankDelta={draftBooks.bank}
-              replaceCashDelta={postedCashDelta}
-              replaceBankDelta={postedBankDelta}
-            />
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">

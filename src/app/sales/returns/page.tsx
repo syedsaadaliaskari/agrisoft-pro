@@ -15,7 +15,6 @@ import {
   PaymentModePicker,
   money,
 } from "@/components/ops/DocumentWorkspace";
-import { CashBankEffect, refundCashBank, signedMoneyFlow } from "@/components/ops/CashBankEffect";
 import {
   Alert,
   Button,
@@ -145,10 +144,6 @@ export default function SaleReturnsPage() {
   const grand = useMemo(
     () => Math.round((subtotal + Number(taxAmount || 0)) * 100) / 100,
     [subtotal, taxAmount]
-  );
-  const refundLegs = useMemo(
-    () => refundCashBank(grand, refundMode, saleId ? linkedSale : null),
-    [grand, refundMode, saleId, linkedSale]
   );
 
   const openCreate = () => {
@@ -506,10 +501,6 @@ export default function SaleReturnsPage() {
                   ) : null}
                 </div>
               )}
-              <CashBankEffect
-                cashDelta={signedMoneyFlow("out", refundLegs.cash)}
-                bankDelta={signedMoneyFlow("out", refundLegs.bank)}
-              />
             </div>
           }
         >

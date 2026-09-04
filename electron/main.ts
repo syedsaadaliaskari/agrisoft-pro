@@ -1,5 +1,4 @@
 import { app, BrowserWindow, shell, protocol, dialog, nativeImage, clipboard } from "electron";
-import { execFile } from "child_process";
 import path from "path";
 import fs from "fs";
 import { initDatabase, closeDatabase } from "./db";
@@ -194,68 +193,6 @@ function isPngBuffer(buf: Buffer) {
   );
 }
 
-function runPowerShell(command: string, extraEnv?: Record<string, string>): Promise<boolean> {
-  return new Promise((resolve) => {
-    execFile(
-      "powershell.exe",
-      ["-NoProfile", "-STA", "-ExecutionPolicy", "Bypass", "-Command", command],
-      {
-        windowsHide: true,
-        timeout: 20_000,
-        env: extraEnv ? { ...process.env, ...extraEnv } : process.env,
-      },
-      (err) => resolve(!err)
-    );
-  });
-}
-
-/** Windows Share sheet — user picks WhatsApp, then a chat, with the file already attached. */
-async function showWindowsShareDialog(filePath: string): Promise<boolean> {
-  if (process.platform !== "win32") return false;
-  const ok = await runPowerShell(
-    `
-$path = $env:AGRI_SHARE_FILE
-if (-not $path -or -not (Test-Path -LiteralPath $path)) { exit 1 }
-try {
-  Start-Process -LiteralPath $path -Verb Share -ErrorAction Stop
-  Start-Sleep -Milliseconds 600
-  exit 0
-} catch { }
-$shell = New-Object -ComObject Shell.Application
-$folder = Split-Path -LiteralPath $path
-$name = Split-Path -LiteralPath $path -Leaf
-$item = $shell.NameSpace($folder).ParseName($name)
-if (-not $item) { exit 1 }
-$done = $false
-foreach ($verb in $item.Verbs()) {
-  $label = (($verb.Name -replace '&','') + '').Trim()
-  if ($label -match '(?i)^share') { $verb.DoIt(); $done = $true; break }
-}
-if (-not $done) {
-  try { $item.InvokeVerb('Share') ; $done = $true } catch { }
-}
-if (-not $done) { exit 1 }
-Start-Sleep -Milliseconds 600
-exit 0
-`,
-    { AGRI_SHARE_FILE: filePath }
-  );
-  return ok;
-}
-
-async function putFileOnClipboard(filePath: string): Promise<boolean> {
-  if (process.platform !== "win32") return false;
-  return runPowerShell(
-    `
-$path = $env:AGRI_SHARE_FILE
-if (-not $path -or -not (Test-Path -LiteralPath $path)) { exit 1 }
-Set-Clipboard -LiteralPath $path
-exit 0
-`,
-    { AGRI_SHARE_FILE: filePath }
-  );
-}
-
 async function htmlToPng(html: string, size: "thermal" | "a4"): Promise<Buffer> {
   const width = size === "a4" ? 860 : 340;
   const scale = 2;
@@ -383,22 +320,14 @@ async function receiptImageAction(input: {
   fs.mkdirSync(dir, { recursive: true });
   const dest = path.join(dir, `${baseName}-${Date.now()}.png`);
   fs.writeFileSync(dest, png);
-
-  const shared = await showWindowsShareDialog(dest);
-  const filed = await putFileOnClipboard(dest);
-  if (shared) {
-    return { ok: true, data: { path: dest, shared: true } };
-  }
-  if (!filed) {
-    clipboard.writeImage(nativeImage.createFromBuffer(png));
-  }
+  clipboard.writeImage(nativeImage.createFromBuffer(png));
   try {
     await shell.openExternal("whatsapp://send");
   } catch {
     try {
       await shell.openExternal("https://web.whatsapp.com/");
     } catch {
-      /* WhatsApp not installed — picture is still saved */
+      /* WhatsApp not installed — picture is still copied */
     }
   }
   return { ok: true, data: { path: dest, copied: true } };
