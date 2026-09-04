@@ -1,17 +1,20 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 — 2026-09-04
+
+### Brand
+- Agri Soft Pro lockup in the app (login, activate, sidebar). Soft Pro SP mark is the Windows / installer icon.
 
 ### Print
-- Save & print on sales, purchases, returns, receipts, payments, income, expense, owner draw, and journal.
-- Print menu now includes **Save as image** (Pictures/gallery) and **WhatsApp picture** (saves, copies, opens WhatsApp to paste).
+- Save and print on sales, purchases, returns, receipts, payments, income, expense, owner draw, and journal.
+- **Save as image** writes a PNG. **WhatsApp picture** copies the receipt and opens WhatsApp — pick a chat and press Ctrl+V.
+
+### Payments
+- Sales and purchases: tap **Cash**, **Bank**, **Credit**, or **Cash + Bank**. Cash and bank books move only when cash or bank is used; credit leaves them unchanged.
+- Receive payment, make payment, income, expense, and owner draw use the same document layout as sales and purchases. Cash plus bank must equal the amount.
 
 ### Wording
 - Party opening type is Receivable or Payable. Sale remainder is Receivable; purchase remainder is Payable. Credit / debit posting is unchanged.
-
-### Transactions
-- Receive payment, make payment, income, expense, and owner draw can split one amount across cash and bank (same as sales/purchases). Cash plus bank must equal the amount — no credit remainder.
-- Cash and bank running totals: each sale, purchase, return, receipt, payment, income, expense, owner draw, and journal adds or takes from cash and/or bank. Dashboard shows Opening / In / Out / Now for both books plus today's movement by type. Document screens show cash & bank now, this document's change, and the amount after save.
 
 ## 0.2.0 — 2026-08-30
 
