@@ -2,8 +2,17 @@ import { eq } from "drizzle-orm";
 import { getDb } from "../db";
 import { accounts, voucherEntries, vouchers } from "../db/schema";
 import { supabaseUpsert, tenantId } from "./client";
+import {
+  beginTableDeletes,
+  fetchCloudDeletedIds,
+  finishTableSnapshot,
+  liveRows,
+  pushTableTombstones,
+  shouldRemoveLocal,
+} from "./deletes";
 import { fetchTenantRows, type SyncCounts } from "./pull";
 import { isNewer } from "./store";
+import { tombstoneIdSet } from "./tombstones";
 
 export async function syncVouchers(): Promise<SyncCounts> {
   const tid = tenantId();
@@ -11,35 +20,10 @@ export async function syncVouchers(): Promise<SyncCounts> {
   const accountIds = new Set(db.select().from(accounts).all().map((a) => a.id));
 
   const local = db.select().from(vouchers).all();
-  const pushed = await supabaseUpsert(
-    "vouchers",
-    local.map((row) => ({
-      id: row.id,
-      tenant_id: tid,
-      voucher_no: row.voucherNo,
-      voucher_type: row.voucherType,
-      voucher_date: row.voucherDate,
-      party_type: row.partyType,
-      party_id: row.partyId,
-      account_id: row.accountId && accountIds.has(row.accountId) ? row.accountId : null,
-      reference_no: row.referenceNo,
-      notes: row.notes,
-      subtotal: row.subtotal,
-      discount_amount: row.discountAmount,
-      addition_amount: row.additionAmount,
-      tax_amount: row.taxAmount,
-      grand_total: row.grandTotal,
-      paid_amount: row.paidAmount,
-      status: row.status,
-      created_by: null,
-      created_at: row.createdAt,
-      updated_at: row.updatedAt,
-      deleted_at: null,
-    }))
-  );
+  beginTableDeletes("vouchers", local.map((row) => row.id));
+  await pushTableTombstones("vouchers");
 
-  let pulled = 0;
-  for (const row of await fetchTenantRows<{
+  const remote = await fetchTenantRows<{
     id: string;
     voucher_no: string;
     voucher_type: string;
@@ -58,7 +42,12 @@ export async function syncVouchers(): Promise<SyncCounts> {
     status: string;
     created_at: string;
     updated_at: string;
-  }>("vouchers")) {
+  }>("vouchers");
+  const cloudLiveIds = new Set(remote.map((row) => row.id));
+  const cloudDeletedIds = await fetchCloudDeletedIds("vouchers");
+
+  let pulled = 0;
+  for (const row of remote) {
     const existing = db.select().from(vouchers).where(eq(vouchers.id, row.id)).get();
     const mapped = {
       id: row.id,
@@ -90,26 +79,50 @@ export async function syncVouchers(): Promise<SyncCounts> {
     }
   }
 
-  const localEntries = db.select().from(voucherEntries).all();
-  const stamp = new Date().toISOString();
-  await supabaseUpsert(
-    "voucher_entries",
-    localEntries
-      .filter((row) => accountIds.has(row.accountId))
-      .map((row) => ({
-        id: row.id,
-        tenant_id: tid,
-        voucher_id: row.voucherId,
-        account_id: row.accountId,
-        debit: row.debit,
-        credit: row.credit,
-        narration: row.narration,
-        line_order: row.lineOrder,
-        created_at: stamp,
-        updated_at: stamp,
-        deleted_at: null,
-      }))
+  for (const row of db.select().from(vouchers).all()) {
+    if (cloudDeletedIds.has(row.id) || shouldRemoveLocal("vouchers", row.id, row.updatedAt, cloudLiveIds)) {
+      db.delete(voucherEntries).where(eq(voucherEntries.voucherId, row.id)).run();
+      db.delete(vouchers).where(eq(vouchers.id, row.id)).run();
+    }
+  }
+
+  const remaining = liveRows("vouchers", db.select().from(vouchers).all());
+  const pushed = await supabaseUpsert(
+    "vouchers",
+    remaining.map((row) => ({
+      id: row.id,
+      tenant_id: tid,
+      voucher_no: row.voucherNo,
+      voucher_type: row.voucherType,
+      voucher_date: row.voucherDate,
+      party_type: row.partyType,
+      party_id: row.partyId,
+      account_id: row.accountId && accountIds.has(row.accountId) ? row.accountId : null,
+      reference_no: row.referenceNo,
+      notes: row.notes,
+      subtotal: row.subtotal,
+      discount_amount: row.discountAmount,
+      addition_amount: row.additionAmount,
+      tax_amount: row.taxAmount,
+      grand_total: row.grandTotal,
+      paid_amount: row.paidAmount,
+      status: row.status,
+      created_by: null,
+      created_at: row.createdAt,
+      updated_at: row.updatedAt,
+      deleted_at: null,
+    }))
   );
+  finishTableSnapshot("vouchers", remaining.map((row) => row.id));
+
+  const localEntries = db.select().from(voucherEntries).all();
+  const liveVoucherIds = new Set(remaining.map((row) => row.id));
+  const deadVouchers = tombstoneIdSet("vouchers");
+  const orphanEntryIds = localEntries
+    .filter((row) => !liveVoucherIds.has(row.voucherId) || deadVouchers.has(row.voucherId))
+    .map((row) => row.id);
+  beginTableDeletes("voucher_entries", localEntries.map((row) => row.id), orphanEntryIds);
+  await pushTableTombstones("voucher_entries");
 
   const remoteEntries = await fetchTenantRows<{
     id: string;
@@ -120,6 +133,8 @@ export async function syncVouchers(): Promise<SyncCounts> {
     narration: string | null;
     line_order: number;
   }>("voucher_entries");
+  const entryLiveIds = new Set(remoteEntries.map((row) => row.id));
+  const entryDeletedIds = await fetchCloudDeletedIds("voucher_entries");
 
   for (const row of remoteEntries) {
     const voucher = db.select().from(vouchers).where(eq(vouchers.id, row.voucher_id)).get();
@@ -141,6 +156,36 @@ export async function syncVouchers(): Promise<SyncCounts> {
       db.update(voucherEntries).set(mapped).where(eq(voucherEntries.id, row.id)).run();
     }
   }
+
+  for (const row of db.select().from(voucherEntries).all()) {
+    const parent = db.select().from(vouchers).where(eq(vouchers.id, row.voucherId)).get();
+    const stamp = parent?.updatedAt || parent?.createdAt || "";
+    if (entryDeletedIds.has(row.id) || shouldRemoveLocal("voucher_entries", row.id, stamp, entryLiveIds)) {
+      db.delete(voucherEntries).where(eq(voucherEntries.id, row.id)).run();
+    }
+  }
+
+  const remainingEntries = liveRows("voucher_entries", db.select().from(voucherEntries).all()).filter(
+    (row) => liveVoucherIds.has(row.voucherId) && accountIds.has(row.accountId)
+  );
+  const stamp = new Date().toISOString();
+  await supabaseUpsert(
+    "voucher_entries",
+    remainingEntries.map((row) => ({
+      id: row.id,
+      tenant_id: tid,
+      voucher_id: row.voucherId,
+      account_id: row.accountId,
+      debit: row.debit,
+      credit: row.credit,
+      narration: row.narration,
+      line_order: row.lineOrder,
+      created_at: stamp,
+      updated_at: stamp,
+      deleted_at: null,
+    }))
+  );
+  finishTableSnapshot("voucher_entries", remainingEntries.map((row) => row.id));
 
   return { pushed, pulled };
 }

@@ -11,6 +11,7 @@ import { syncPurchases } from "./purchases";
 import { syncReturns } from "./returns";
 import { syncSales } from "./sales";
 import { syncStockMovements } from "./stock";
+import { pushPendingShopWipe } from "./deletes";
 import { getSetting, recordSyncError, setSetting } from "./store";
 import { syncVendors } from "./vendors";
 import { syncVouchers } from "./vouchers";
@@ -73,6 +74,7 @@ export async function runShopCloudSync(): Promise<CloudSyncResult> {
     db.select().from(settings).where(eq(settings.key, "shop_name")).get()?.value?.trim() || "Shop";
 
   await ensureCloudTenant(tid, shopName);
+  await pushPendingShopWipe();
   await syncMasters();
   const customerResult = await syncCustomers();
   const vendorResult = await syncVendors();

@@ -24,6 +24,7 @@ import {
   purchaseItems,
 } from "../db/schema";
 import { requirePermission, requireAnyPermission, getCurrentSession, PermissionError } from "./session";
+import { rememberLocalDelete } from "../sync/deletes";
 
 function ok<T>(data: T): ActionResult<T> {
   return { ok: true, data };
@@ -356,7 +357,16 @@ export function registerProductHandlers(): void {
         }
       }
 
+      rememberLocalDelete("products", id);
       for (const v of variants) {
+        const movementIds = db
+          .select({ id: stockMovements.id })
+          .from(stockMovements)
+          .where(eq(stockMovements.variantId, v.id))
+          .all()
+          .map((row) => row.id);
+        rememberLocalDelete("stock_movements", movementIds);
+        rememberLocalDelete("product_variants", v.id);
         db.delete(stockMovements).where(eq(stockMovements.variantId, v.id)).run();
         db.delete(productVariants).where(eq(productVariants.id, v.id)).run();
       }
@@ -534,6 +544,14 @@ export function registerProductHandlers(): void {
         return fail("Cannot delete: pack has sales/purchase history. Deactivate it instead.");
       }
 
+      const movementIds = db
+        .select({ id: stockMovements.id })
+        .from(stockMovements)
+        .where(eq(stockMovements.variantId, id))
+        .all()
+        .map((row) => row.id);
+      rememberLocalDelete("stock_movements", movementIds);
+      rememberLocalDelete("product_variants", id);
       db.delete(stockMovements).where(eq(stockMovements.variantId, id)).run();
       db.delete(productVariants).where(eq(productVariants.id, id)).run();
       return ok(undefined);

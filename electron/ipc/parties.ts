@@ -16,6 +16,7 @@ import { requireAccountByCode } from "../db/accounts";
 import { money } from "../db/ledger";
 import { customers, vendors, sales, purchases, accounts } from "../db/schema";
 import { requirePermission, PermissionError } from "./session";
+import { rememberLocalDelete } from "../sync/deletes";
 
 function ok<T>(data: T): ActionResult<T> {
   return { ok: true, data };
@@ -246,6 +247,7 @@ export function registerPartyHandlers(): void {
         partyOpeningSigned(current.openingBalance, current.balanceType),
         0
       );
+      rememberLocalDelete("customers", id);
       db.delete(customers).where(eq(customers.id, id)).run();
       return ok(undefined);
     })
@@ -361,6 +363,7 @@ export function registerPartyHandlers(): void {
         partyOpeningSigned(current.openingBalance, current.balanceType),
         0
       );
+      rememberLocalDelete("vendors", id);
       db.delete(vendors).where(eq(vendors.id, id)).run();
       return ok(undefined);
     })

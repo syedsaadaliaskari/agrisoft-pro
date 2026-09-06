@@ -20,6 +20,7 @@ import { getDb } from "../db";
 import { nextDocumentNumber } from "../db/counters";
 import { units, categories, taxes, discounts, additions, products } from "../db/schema";
 import { requirePermission, requireSession, PermissionError } from "./session";
+import { rememberLocalDelete } from "../sync/deletes";
 
 function ok<T>(data: T): ActionResult<T> {
   return { ok: true, data };
@@ -181,6 +182,7 @@ export function registerMasterHandlers(): void {
       const inUse = db.select({ value: count() }).from(products).where(eq(products.unitId, id)).get()?.value ?? 0;
       if (inUse > 0) return fail("Cannot delete: unit is used by products. Deactivate it instead.");
 
+      rememberLocalDelete("units", id);
       db.delete(units).where(eq(units.id, id)).run();
       return ok(undefined);
     })
@@ -278,6 +280,7 @@ export function registerMasterHandlers(): void {
         return fail("Cannot delete: category has child categories. Move or delete children first.");
       }
 
+      rememberLocalDelete("categories", id);
       db.delete(categories).where(eq(categories.id, id)).run();
       return ok(undefined);
     })
@@ -358,6 +361,7 @@ export function registerMasterHandlers(): void {
       const inUse = db.select({ value: count() }).from(products).where(eq(products.taxId, id)).get()?.value ?? 0;
       if (inUse > 0) return fail("Cannot delete: tax is used by products. Deactivate it instead.");
 
+      rememberLocalDelete("taxes", id);
       db.delete(taxes).where(eq(taxes.id, id)).run();
       return ok(undefined);
     })
@@ -438,6 +442,7 @@ export function registerMasterHandlers(): void {
       const db = getDb();
       const current = db.select().from(discounts).where(eq(discounts.id, id)).get();
       if (!current) return fail("Discount not found");
+      rememberLocalDelete("discounts", id);
       db.delete(discounts).where(eq(discounts.id, id)).run();
       return ok(undefined);
     })
@@ -518,6 +523,7 @@ export function registerMasterHandlers(): void {
       const db = getDb();
       const current = db.select().from(additions).where(eq(additions.id, id)).get();
       if (!current) return fail("Addition not found");
+      rememberLocalDelete("additions", id);
       db.delete(additions).where(eq(additions.id, id)).run();
       return ok(undefined);
     })

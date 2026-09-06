@@ -11,6 +11,8 @@ import {
 } from "./index";
 import { licenses, settings } from "./schema";
 import { setSkipQuitAutoBackup } from "./backup";
+import { resolveTenant } from "../sync/client";
+import { markPendingShopWipe, pushPendingShopWipe } from "../sync/deletes";
 
 function removeIfExists(p: string) {
   if (fs.existsSync(p)) fs.unlinkSync(p);
@@ -69,6 +71,16 @@ export async function resetShopDatabase(): Promise<{ relaunching: true }> {
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   }));
+
+  const tenant = resolveTenant().tenantId;
+  if (tenant) {
+    markPendingShopWipe(tenant);
+    try {
+      await pushPendingShopWipe();
+    } catch {
+      /* Offline or cloud down — pending wipe stays in cloud-sync-state.json */
+    }
+  }
 
   closeDatabase();
 

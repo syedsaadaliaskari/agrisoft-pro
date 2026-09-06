@@ -1,7 +1,16 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "../db";
-import { productVariants, products } from "../db/schema";
-import { supabaseRest, supabaseUpsert, tenantId } from "./client";
+import { productVariants, products, stockMovements } from "../db/schema";
+import { supabaseUpsert, tenantId } from "./client";
+import {
+  beginTableDeletes,
+  fetchCloudDeletedIds,
+  finishTableSnapshot,
+  liveRows,
+  pushTableTombstones,
+  shouldRemoveLocal,
+} from "./deletes";
+import { fetchTenantRows } from "./pull";
 import { isNewer } from "./store";
 
 type CloudProduct = {
@@ -44,6 +53,16 @@ type CloudVariant = {
   deleted_at: string | null;
 };
 
+function removeProductLocal(id: string) {
+  const db = getDb();
+  const variants = db.select().from(productVariants).where(eq(productVariants.productId, id)).all();
+  for (const variant of variants) {
+    db.delete(stockMovements).where(eq(stockMovements.variantId, variant.id)).run();
+    db.delete(productVariants).where(eq(productVariants.id, variant.id)).run();
+  }
+  db.delete(products).where(eq(products.id, id)).run();
+}
+
 export async function syncProducts(): Promise<{
   pushedProducts: number;
   pulledProducts: number;
@@ -54,53 +73,12 @@ export async function syncProducts(): Promise<{
   const db = getDb();
 
   const localProducts = db.select().from(products).all();
-  const productPayload: CloudProduct[] = localProducts.map((row) => ({
-    id: row.id,
-    tenant_id: tid,
-    sku: row.sku,
-    barcode: row.barcode,
-    name: row.name,
-    description: row.description,
-    category_id: row.categoryId,
-    unit_id: row.unitId,
-    brand: row.brand,
-    gender: row.gender,
-    season: row.season,
-    cost_price: row.costPrice,
-    sale_price: row.salePrice,
-    wholesale_price: row.wholesalePrice,
-    tax_id: row.taxId,
-    reorder_level: row.reorderLevel,
-    is_active: row.isActive,
-    created_at: row.createdAt,
-    updated_at: row.updatedAt,
-    deleted_at: null,
-  }));
-  const pushedProducts = await supabaseUpsert("products", productPayload);
+  beginTableDeletes("products", localProducts.map((row) => row.id));
+  await pushTableTombstones("products");
 
-  const localVariants = db.select().from(productVariants).all();
-  const variantPayload: CloudVariant[] = localVariants.map((row) => ({
-    id: row.id,
-    tenant_id: tid,
-    product_id: row.productId,
-    sku: row.sku,
-    barcode: row.barcode,
-    size: row.size,
-    color: row.color,
-    cost_price: row.costPrice,
-    sale_price: row.salePrice,
-    stock_qty: row.stockQty,
-    is_active: row.isActive,
-    created_at: row.createdAt,
-    updated_at: row.updatedAt,
-    deleted_at: null,
-  }));
-  const pushedVariants = await supabaseUpsert("product_variants", variantPayload);
-
-  const remoteProducts = await supabaseRest<CloudProduct[]>("products", {
-    method: "GET",
-    query: `tenant_id=eq.${encodeURIComponent(tid)}&deleted_at=is.null&select=*`,
-  });
+  const remoteProducts = await fetchTenantRows<CloudProduct>("products");
+  const productLiveIds = new Set(remoteProducts.map((row) => row.id));
+  const productDeletedIds = await fetchCloudDeletedIds("products");
 
   let pulledProducts = 0;
   for (const row of remoteProducts) {
@@ -134,10 +112,47 @@ export async function syncProducts(): Promise<{
     }
   }
 
-  const remoteVariants = await supabaseRest<CloudVariant[]>("product_variants", {
-    method: "GET",
-    query: `tenant_id=eq.${encodeURIComponent(tid)}&deleted_at=is.null&select=*`,
-  });
+  for (const row of db.select().from(products).all()) {
+    if (productDeletedIds.has(row.id) || shouldRemoveLocal("products", row.id, row.updatedAt, productLiveIds)) {
+      removeProductLocal(row.id);
+    }
+  }
+
+  const remainingProducts = liveRows("products", db.select().from(products).all());
+  const pushedProducts = await supabaseUpsert(
+    "products",
+    remainingProducts.map((row) => ({
+      id: row.id,
+      tenant_id: tid,
+      sku: row.sku,
+      barcode: row.barcode,
+      name: row.name,
+      description: row.description,
+      category_id: row.categoryId,
+      unit_id: row.unitId,
+      brand: row.brand,
+      gender: row.gender,
+      season: row.season,
+      cost_price: row.costPrice,
+      sale_price: row.salePrice,
+      wholesale_price: row.wholesalePrice,
+      tax_id: row.taxId,
+      reorder_level: row.reorderLevel,
+      is_active: row.isActive,
+      created_at: row.createdAt,
+      updated_at: row.updatedAt,
+      deleted_at: null,
+    }))
+  );
+  finishTableSnapshot("products", remainingProducts.map((row) => row.id));
+
+  const localVariants = db.select().from(productVariants).all();
+  beginTableDeletes("product_variants", localVariants.map((row) => row.id));
+  await pushTableTombstones("product_variants");
+
+  const remoteVariants = await fetchTenantRows<CloudVariant>("product_variants");
+  const variantLiveIds = new Set(remoteVariants.map((row) => row.id));
+  const variantDeletedIds = await fetchCloudDeletedIds("product_variants");
 
   let pulledVariants = 0;
   for (const row of remoteVariants) {
@@ -166,6 +181,35 @@ export async function syncProducts(): Promise<{
       pulledVariants += 1;
     }
   }
+
+  for (const row of db.select().from(productVariants).all()) {
+    if (variantDeletedIds.has(row.id) || shouldRemoveLocal("product_variants", row.id, row.updatedAt, variantLiveIds)) {
+      db.delete(stockMovements).where(eq(stockMovements.variantId, row.id)).run();
+      db.delete(productVariants).where(eq(productVariants.id, row.id)).run();
+    }
+  }
+
+  const remainingVariants = liveRows("product_variants", db.select().from(productVariants).all());
+  const pushedVariants = await supabaseUpsert(
+    "product_variants",
+    remainingVariants.map((row) => ({
+      id: row.id,
+      tenant_id: tid,
+      product_id: row.productId,
+      sku: row.sku,
+      barcode: row.barcode,
+      size: row.size,
+      color: row.color,
+      cost_price: row.costPrice,
+      sale_price: row.salePrice,
+      stock_qty: row.stockQty,
+      is_active: row.isActive,
+      created_at: row.createdAt,
+      updated_at: row.updatedAt,
+      deleted_at: null,
+    }))
+  );
+  finishTableSnapshot("product_variants", remainingVariants.map((row) => row.id));
 
   return { pushedProducts, pulledProducts, pushedVariants, pulledVariants };
 }

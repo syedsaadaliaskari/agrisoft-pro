@@ -1,7 +1,16 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "../db";
 import { customers } from "../db/schema";
-import { supabaseRest, supabaseUpsert, tenantId } from "./client";
+import { supabaseUpsert, tenantId } from "./client";
+import {
+  beginTableDeletes,
+  fetchCloudDeletedIds,
+  finishTableSnapshot,
+  liveRows,
+  pushTableTombstones,
+  shouldRemoveLocal,
+} from "./deletes";
+import { fetchTenantRows } from "./pull";
 import { isNewer } from "./store";
 
 type CloudCustomer = {
@@ -25,31 +34,14 @@ type CloudCustomer = {
 export async function syncCustomers(): Promise<{ pushed: number; pulled: number }> {
   const tid = tenantId();
   const db = getDb();
+  const table = "customers";
   const local = db.select().from(customers).all();
-  const payload: CloudCustomer[] = local.map((row) => ({
-    id: row.id,
-    tenant_id: tid,
-    code: row.code,
-    name: row.name,
-    phone: row.phone,
-    email: row.email,
-    address: row.address,
-    city: row.city,
-    opening_balance: row.openingBalance,
-    balance_type: row.balanceType,
-    credit_limit: row.creditLimit,
-    is_active: row.isActive,
-    created_at: row.createdAt,
-    updated_at: row.updatedAt,
-    deleted_at: null,
-  }));
+  beginTableDeletes(table, local.map((row) => row.id));
+  await pushTableTombstones(table);
 
-  const pushed = await supabaseUpsert("customers", payload);
-
-  const remote = await supabaseRest<CloudCustomer[]>("customers", {
-    method: "GET",
-    query: `tenant_id=eq.${encodeURIComponent(tid)}&deleted_at=is.null&select=*`,
-  });
+  const remote = await fetchTenantRows<CloudCustomer>(table);
+  const cloudLiveIds = new Set(remote.map((row) => row.id));
+  const cloudDeletedIds = await fetchCloudDeletedIds(table);
 
   let pulled = 0;
   for (const row of remote) {
@@ -79,5 +71,31 @@ export async function syncCustomers(): Promise<{ pushed: number; pulled: number 
     }
   }
 
+  for (const row of db.select().from(customers).all()) {
+    if (cloudDeletedIds.has(row.id) || shouldRemoveLocal(table, row.id, row.updatedAt, cloudLiveIds)) {
+      db.delete(customers).where(eq(customers.id, row.id)).run();
+    }
+  }
+
+  const remaining = liveRows(table, db.select().from(customers).all());
+  const payload: CloudCustomer[] = remaining.map((row) => ({
+    id: row.id,
+    tenant_id: tid,
+    code: row.code,
+    name: row.name,
+    phone: row.phone,
+    email: row.email,
+    address: row.address,
+    city: row.city,
+    opening_balance: row.openingBalance,
+    balance_type: row.balanceType,
+    credit_limit: row.creditLimit,
+    is_active: row.isActive,
+    created_at: row.createdAt,
+    updated_at: row.updatedAt,
+    deleted_at: null,
+  }));
+  const pushed = await supabaseUpsert(table, payload);
+  finishTableSnapshot(table, remaining.map((row) => row.id));
   return { pushed, pulled };
 }

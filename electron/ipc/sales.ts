@@ -43,6 +43,7 @@ import {
   units,
 } from "../db/schema";
 import { requirePermission, getCurrentSession, PermissionError } from "./session";
+import { rememberLocalDelete } from "../sync/deletes";
 
 function ok<T>(data: T): ActionResult<T> {
   return { ok: true, data };
@@ -833,6 +834,12 @@ export function registerSalesHandlers(): void {
         }
       }
 
+      rememberLocalDelete("sales", id);
+      rememberLocalDelete("vouchers", sale.voucherId);
+      rememberLocalDelete(
+        "sale_items",
+        items.map((item) => item.id)
+      );
       db.update(sales)
         .set({ status: "deleted", updatedAt: ts })
         .where(eq(sales.id, id))

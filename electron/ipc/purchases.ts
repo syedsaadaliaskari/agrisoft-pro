@@ -44,6 +44,7 @@ import {
   units,
 } from "../db/schema";
 import { requirePermission, getCurrentSession, PermissionError } from "./session";
+import { rememberLocalDelete } from "../sync/deletes";
 
 function ok<T>(data: T): ActionResult<T> {
   return { ok: true, data };
@@ -771,6 +772,12 @@ export function registerPurchaseHandlers(): void {
           .run();
       }
 
+      rememberLocalDelete("purchases", id);
+      rememberLocalDelete("vouchers", purchase.voucherId);
+      rememberLocalDelete(
+        "purchase_items",
+        items.map((item) => item.id)
+      );
       db.update(purchases).set({ status: "deleted", updatedAt: ts }).where(eq(purchases.id, id)).run();
       db.update(vouchers).set({ status: "cancelled", updatedAt: ts }).where(eq(vouchers.id, purchase.voucherId)).run();
 

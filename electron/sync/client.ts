@@ -95,6 +95,15 @@ export async function supabaseRest<T = unknown>(
   }
 }
 
+export async function supabasePatch(table: string, query: string, body: unknown): Promise<void> {
+  await supabaseRest(table, {
+    method: "PATCH",
+    query,
+    prefer: "return=minimal",
+    body,
+  });
+}
+
 export async function supabaseUpsert(table: string, rows: unknown[]): Promise<number> {
   if (!rows.length) return 0;
   const chunkSize = 200;
