@@ -22,8 +22,8 @@ import { readShopLogoDataUrl } from "../db/branding";
 import { netAmount, returnedTotalForPurchase } from "../db/returnsNet";
 import {
   cashBankFromVoucher,
+  resolveRefundSettlement,
   resolveSettlement,
-  splitReversalAcrossCashBank,
 } from "../db/settlement";
 import {
   allPurchaseCollectedAmounts,
@@ -820,7 +820,7 @@ export function registerPurchaseHandlers(): void {
         if (!input.vendorId) return fail("Vendor is required");
 
         const mode = (input.refundMode || "cash") as PaymentMode;
-        if (!["cash", "credit", "bank"].includes(mode)) return fail("Invalid refund mode");
+        if (!["cash", "credit", "bank", "split"].includes(mode)) return fail("Invalid refund mode");
         const db = getDb();
         const session = getCurrentSession();
         const vendor = db.select().from(vendors).where(eq(vendors.id, input.vendorId)).get();
@@ -904,60 +904,21 @@ export function registerPurchaseHandlers(): void {
         const taxAmount = money(Number(input.taxAmount ?? 0));
         const grandTotal = money(subtotal + taxAmount);
 
-        // When linked to an original purchase, reverse cash/bank vs AP in the same
-        // proportion as the purchase was paid (incl. cash+bank split settlement).
-        let cashPart = 0;
-        let bankPart = 0;
-        let creditPart = 0;
-        let cashRefundAccountId: string | null = null;
-        let bankRefundAccountId: string | null = null;
-        let payAccountId: string | null = input.accountId ?? null;
-        let linkedPurchase: typeof purchases.$inferSelect | null = null;
-
-        if (input.purchaseId) {
-          linkedPurchase =
-            db.select().from(purchases).where(eq(purchases.id, input.purchaseId)).get() ?? null;
-        }
-
-        if (linkedPurchase && linkedPurchase.grandTotal > 0) {
-          const paidShare = Math.min(
-            1,
-            Math.max(0, linkedPurchase.paidAmount / linkedPurchase.grandTotal)
-          );
-          const reversePaid = money(grandTotal * paidShare);
-          creditPart = money(grandTotal - reversePaid);
-          const orig = cashBankFromVoucher(db, linkedPurchase.voucherId, "credit");
-          const split = splitReversalAcrossCashBank(reversePaid, orig.cashPaid, orig.bankPaid);
-          cashPart = split.cashPart;
-          bankPart = split.bankPart;
-          if (cashPart > 0) {
-            cashRefundAccountId =
-              input.accountId && bankPart === 0 ? input.accountId : orig.cashAccountId;
-          }
-          if (bankPart > 0) {
-            bankRefundAccountId = orig.bankAccountId;
-          }
-          payAccountId = cashRefundAccountId || bankRefundAccountId;
-        } else if (mode === "credit") {
-          creditPart = grandTotal;
-          cashPart = 0;
-          bankPart = 0;
-          payAccountId = null;
-        } else if (mode === "bank") {
-          bankPart = grandTotal;
-          cashPart = 0;
-          creditPart = 0;
-          bankRefundAccountId =
-            payAccountId || requireAccountByCode(db, "1200", "Cash/Bank").id;
-          payAccountId = bankRefundAccountId;
-        } else {
-          cashPart = grandTotal;
-          bankPart = 0;
-          creditPart = 0;
-          cashRefundAccountId =
-            payAccountId || requireAccountByCode(db, "1100", "Cash/Bank").id;
-          payAccountId = cashRefundAccountId;
-        }
+        const refund = resolveRefundSettlement(db, {
+          refundMode: input.refundMode,
+          cashPaid: input.cashPaid,
+          bankPaid: input.bankPaid,
+          grandTotal,
+        });
+        if ("error" in refund) return fail(refund.error);
+        const {
+          cashPart,
+          bankPart,
+          creditPart,
+          cashAccountId: cashRefundAccountId,
+          bankAccountId: bankRefundAccountId,
+          headerAccountId: payAccountId,
+        } = refund;
 
         const moneyOut = money(cashPart + bankPart);
         if (cashPart > 0 && cashRefundAccountId) {

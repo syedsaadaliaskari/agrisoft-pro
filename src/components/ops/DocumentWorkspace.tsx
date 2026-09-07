@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { cn, formatMoney } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -241,9 +241,9 @@ export function legsFromVoucher(row: {
 function nextSplitForAmount(nextAmount: string, cashPaid: string, bankPaid: string) {
   const bankN = Number(bankPaid || 0);
   const cashN = Number(cashPaid || 0);
-  if (bankN === 0) return { cashPaid: nextAmount, bankPaid: bankPaid || "0" };
-  if (cashN === 0) return { cashPaid: cashPaid || "0", bankPaid: nextAmount };
-  return { cashPaid, bankPaid };
+  if (cashN <= 0 && bankN > 0) return { cashPaid: "0", bankPaid: nextAmount };
+  if (cashN > 0 && bankN > 0) return { cashPaid, bankPaid };
+  return { cashPaid: nextAmount, bankPaid: bankPaid || "0" };
 }
 
 function inferPayHow(cash: number, bank: number, grandTotal: number, allowCredit: boolean): PaymentMode {
@@ -386,7 +386,7 @@ export function MoneySplitFields({
   );
 }
 
-/** Cash, bank, or credit — one tap. Split only if they need both. */
+/** Cash, bank, or credit. The chosen drawer always has an amount box. */
 export function SettlementPanel({
   grandTotal,
   cashPaid,
@@ -415,46 +415,33 @@ export function SettlementPanel({
   const due = Math.max(0, Math.round((grandTotal - paid) * 100) / 100);
   const over = paid > grandTotal + 0.001;
   const [how, setHow] = useState<PaymentMode>(() => inferPayHow(cash, bank, grandTotal, allowCredit));
+  const autoFill = useRef(true);
 
-  useEffect(() => {
-    if (how === "split") return;
-    const s = totalAsText(grandTotal);
-    const cashN = Number(cashPaid || 0);
-    const bankN = Number(bankPaid || 0);
-    const want = Number(s);
-    if (how === "cash") {
-      if (Math.abs(cashN - want) > 0.001 || Math.abs(bankN) > 0.001) {
-        onCashPaid(s);
-        onBankPaid("0");
-      }
-      return;
-    }
-    if (how === "bank") {
-      if (Math.abs(bankN - want) > 0.001 || Math.abs(cashN) > 0.001) {
-        onCashPaid("0");
-        onBankPaid(s);
-      }
-      return;
-    }
-    if (how === "credit" && (Math.abs(cashN) > 0.001 || Math.abs(bankN) > 0.001)) {
-      onCashPaid("0");
-      onBankPaid("0");
-    }
-  }, [grandTotal, how, cashPaid, bankPaid, onCashPaid, onBankPaid]);
-
-  const pick = (next: PaymentMode) => {
-    setHow(next);
-    const s = totalAsText(grandTotal);
-    if (next === "cash") {
+  const fillMode = (mode: PaymentMode, total: number) => {
+    const s = totalAsText(total);
+    if (mode === "cash") {
       onCashPaid(s);
       onBankPaid("0");
-    } else if (next === "bank") {
+    } else if (mode === "bank") {
       onCashPaid("0");
       onBankPaid(s);
-    } else if (next === "credit") {
+    } else if (mode === "credit") {
       onCashPaid("0");
       onBankPaid("0");
     }
+  };
+
+  useEffect(() => {
+    if (how === "split" || !autoFill.current) return;
+    fillMode(how, grandTotal);
+    // fillMode identities change every render; grandTotal + how are the inputs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grandTotal, how]);
+
+  const pick = (next: PaymentMode) => {
+    autoFill.current = true;
+    setHow(next);
+    fillMode(next, grandTotal);
   };
 
   const options: { value: PaymentMode; label: string }[] = [
@@ -464,27 +451,42 @@ export function SettlementPanel({
     { value: "split", label: t("payment.split") },
   ];
 
+  const showCash = how === "cash" || how === "split";
+  const showBank = how === "bank" || how === "split";
+
   return (
     <div className="space-y-2">
       <PaymentModePicker value={how} onChange={pick} options={options} />
-      {how === "split" ? (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Input
-            label={t("payment.cash")}
-            type="number"
-            min={0}
-            step="0.01"
-            value={cashPaid}
-            onChange={(e) => onCashPaid(e.target.value)}
-          />
-          <Input
-            label={t("payment.bank")}
-            type="number"
-            min={0}
-            step="0.01"
-            value={bankPaid}
-            onChange={(e) => onBankPaid(e.target.value)}
-          />
+      {showCash || showBank ? (
+        <div className={cn("grid gap-3", showCash && showBank ? "sm:grid-cols-2" : "grid-cols-1")}>
+          {showCash ? (
+            <Input
+              label={t("payment.cash")}
+              type="number"
+              min={0}
+              step="0.01"
+              value={cashPaid}
+              onChange={(e) => {
+                autoFill.current = false;
+                onCashPaid(e.target.value);
+                if (how === "cash") onBankPaid("0");
+              }}
+            />
+          ) : null}
+          {showBank ? (
+            <Input
+              label={t("payment.bank")}
+              type="number"
+              min={0}
+              step="0.01"
+              value={bankPaid}
+              onChange={(e) => {
+                autoFill.current = false;
+                onBankPaid(e.target.value);
+                if (how === "bank") onCashPaid("0");
+              }}
+            />
+          ) : null}
         </div>
       ) : null}
       {!compact ? (

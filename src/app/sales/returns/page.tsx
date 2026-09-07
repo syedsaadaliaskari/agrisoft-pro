@@ -12,7 +12,7 @@ import {
   OpsEmptyState,
   OpsListSkeleton,
   OpsStatStrip,
-  PaymentModePicker,
+  SettlementPanel,
   money,
 } from "@/components/ops/DocumentWorkspace";
 import {
@@ -27,7 +27,6 @@ import {
 import { getApi } from "@/lib/api";
 import { buildSaleReturnPrintHtml } from "@/lib/print";
 import type {
-  Account,
   Customer,
   InventoryRow,
   PaymentMode,
@@ -53,7 +52,6 @@ export default function SaleReturnsPage() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [inventory, setInventory] = useState<InventoryRow[]>([]);
-  const [accounts, setAccounts] = useState<Account[]>([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "today" | "linked">("all");
   const [loading, setLoading] = useState(true);
@@ -64,8 +62,8 @@ export default function SaleReturnsPage() {
   const [returnDate, setReturnDate] = useState(today());
   const [saleId, setSaleId] = useState("");
   const [customerId, setCustomerId] = useState("");
-  const [refundMode, setRefundMode] = useState<PaymentMode>("cash");
-  const [accountId, setAccountId] = useState("");
+  const [cashPaid, setCashPaid] = useState("");
+  const [bankPaid, setBankPaid] = useState("0");
   const [taxAmount, setTaxAmount] = useState("0");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([]);
@@ -76,22 +74,17 @@ export default function SaleReturnsPage() {
     setLoading(true);
     setError("");
     const api = getApi();
-    const [retRes, salesRes, custRes, invRes, acctRes] = await Promise.all([
+    const [retRes, salesRes, custRes, invRes] = await Promise.all([
       api.listSaleReturns(),
       api.listSales(),
       api.listCustomers(),
       api.listInventory(),
-      api.listAccounts({ cashBankOnly: true }),
     ]);
     if (!retRes.ok) setError(retRes.error);
     else setRows(retRes.data);
     if (salesRes.ok) setSales(salesRes.data.filter((s) => s.status !== "deleted"));
     if (custRes.ok) setCustomers(custRes.data.filter((c) => c.isActive));
     if (invRes.ok) setInventory(invRes.data.filter((r) => r.isActive));
-    if (acctRes.ok) {
-      setAccounts(acctRes.data);
-      if (acctRes.data[0]) setAccountId(acctRes.data[0].id);
-    }
     setLoading(false);
   }, []);
 
@@ -150,14 +143,14 @@ export default function SaleReturnsPage() {
     setReturnDate(today());
     setSaleId("");
     setCustomerId("");
-    setRefundMode("cash");
+    setCashPaid("");
+    setBankPaid("0");
     setTaxAmount("0");
     setNotes("");
     setLines([]);
     setPickVariantId("");
     setLinkedSale(null);
     setError("");
-    if (accounts[0]) setAccountId(accounts[0].id);
     setOpen(true);
   };
 
@@ -210,12 +203,17 @@ export default function SaleReturnsPage() {
   const onSave = async (andPrint = false) => {
     setSaving(true);
     setError("");
+    const cash = Number(cashPaid || 0);
+    const bank = Number(bankPaid || 0);
+    const mode: PaymentMode =
+      cash + bank === 0 ? "credit" : cash > 0 && bank > 0 ? "split" : bank > 0 ? "bank" : "cash";
     const res = await getApi().createSaleReturn({
       returnDate,
       saleId: saleId || null,
       customerId: customerId || null,
-      refundMode,
-      accountId: refundMode === "credit" ? null : accountId || null,
+      refundMode: mode,
+      cashPaid: cash,
+      bankPaid: bank,
       taxAmount: Number(taxAmount || 0),
       notes: notes || null,
       items: lines.map((l) => ({
@@ -459,7 +457,7 @@ export default function SaleReturnsPage() {
                   onChange={(e) => setNotes(e.target.value)}
                 />
               </div>
-              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                   <div className="flex-1">
                     <Select
@@ -473,34 +471,22 @@ export default function SaleReturnsPage() {
                     <Plus size={14} /> Add
                   </Button>
                 </div>
-                <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--bg-soft)] px-3 py-2 text-sm">
-                  <span className="text-[var(--text-muted)]">Total</span>
-                  <span className="font-semibold tabular-nums">{money(grand)}</span>
+                <div className="space-y-2">
+                  <SettlementPanel
+                    compact
+                    grandTotal={grand}
+                    cashPaid={cashPaid}
+                    bankPaid={bankPaid}
+                    onCashPaid={setCashPaid}
+                    onBankPaid={setBankPaid}
+                    dueLabel="Credit back"
+                  />
+                  <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--bg-soft)] px-3 py-2 text-sm">
+                    <span className="text-[var(--text-muted)]">Total</span>
+                    <span className="font-semibold tabular-nums">{money(grand)}</span>
+                  </div>
                 </div>
               </div>
-              {saleId ? (
-                <Select
-                  label="Refund account"
-                  value={accountId}
-                  onChange={(e) => setAccountId(e.target.value)}
-                  options={[
-                    { value: "", label: "Original sale account" },
-                    ...accounts.map((a) => ({ value: a.id, label: a.name })),
-                  ]}
-                />
-              ) : (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <PaymentModePicker value={refundMode} onChange={setRefundMode} />
-                  {refundMode !== "credit" ? (
-                    <Select
-                      label="Account"
-                      value={accountId}
-                      onChange={(e) => setAccountId(e.target.value)}
-                      options={accounts.map((a) => ({ value: a.id, label: a.name }))}
-                    />
-                  ) : null}
-                </div>
-              )}
             </div>
           }
         >

@@ -12,7 +12,7 @@ import {
   OpsEmptyState,
   OpsListSkeleton,
   OpsStatStrip,
-  PaymentModePicker,
+  SettlementPanel,
   money,
 } from "@/components/ops/DocumentWorkspace";
 import {
@@ -27,7 +27,6 @@ import {
 import { getApi } from "@/lib/api";
 import { buildPurchaseReturnPrintHtml } from "@/lib/print";
 import type {
-  Account,
   InventoryRow,
   PaymentMode,
   Purchase,
@@ -53,7 +52,6 @@ export default function PurchaseReturnsPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [inventory, setInventory] = useState<InventoryRow[]>([]);
-  const [accounts, setAccounts] = useState<Account[]>([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "today" | "linked">("all");
   const [loading, setLoading] = useState(true);
@@ -63,8 +61,8 @@ export default function PurchaseReturnsPage() {
   const [returnDate, setReturnDate] = useState(today());
   const [purchaseId, setPurchaseId] = useState("");
   const [vendorId, setVendorId] = useState("");
-  const [refundMode, setRefundMode] = useState<PaymentMode>("cash");
-  const [accountId, setAccountId] = useState("");
+  const [cashPaid, setCashPaid] = useState("");
+  const [bankPaid, setBankPaid] = useState("0");
   const [taxAmount, setTaxAmount] = useState("0");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([]);
@@ -74,22 +72,17 @@ export default function PurchaseReturnsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     const api = getApi();
-    const [r, p, v, inv, a] = await Promise.all([
+    const [r, p, v, inv] = await Promise.all([
       api.listPurchaseReturns(),
       api.listPurchases(),
       api.listVendors(),
       api.listInventory(),
-      api.listAccounts({ cashBankOnly: true }),
     ]);
     if (!r.ok) setError(r.error);
     else setRows(r.data);
     if (p.ok) setPurchases(p.data);
     if (v.ok) setVendors(v.data.filter((x) => x.isActive));
     if (inv.ok) setInventory(inv.data.filter((x) => x.isActive));
-    if (a.ok) {
-      setAccounts(a.data);
-      if (a.data[0]) setAccountId(a.data[0].id);
-    }
     setLoading(false);
   }, []);
 
@@ -138,13 +131,13 @@ export default function PurchaseReturnsPage() {
     setReturnDate(today());
     setPurchaseId("");
     setVendorId(vendors[0]?.id ?? "");
-    setRefundMode("cash");
+    setCashPaid("");
+    setBankPaid("0");
     setTaxAmount("0");
     setNotes("");
     setLines([]);
     setPickVariantId("");
     setLinkedPurchase(null);
-    if (accounts[0]) setAccountId(accounts[0].id);
     setOpen(true);
   };
 
@@ -196,12 +189,17 @@ export default function PurchaseReturnsPage() {
   const onSave = async (andPrint = false) => {
     setSaving(true);
     setError("");
+    const cash = Number(cashPaid || 0);
+    const bank = Number(bankPaid || 0);
+    const mode: PaymentMode =
+      cash + bank === 0 ? "credit" : cash > 0 && bank > 0 ? "split" : bank > 0 ? "bank" : "cash";
     const res = await getApi().createPurchaseReturn({
       returnDate,
       vendorId,
       purchaseId: purchaseId || null,
-      refundMode,
-      accountId: refundMode === "credit" ? null : accountId || null,
+      refundMode: mode,
+      cashPaid: cash,
+      bankPaid: bank,
       taxAmount: Number(taxAmount || 0),
       notes: notes || null,
       items: lines.map((l) => ({
@@ -446,7 +444,7 @@ export default function PurchaseReturnsPage() {
                   onChange={(e) => setNotes(e.target.value)}
                 />
               </div>
-              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                   <div className="flex-1">
                     <Select
@@ -466,34 +464,22 @@ export default function PurchaseReturnsPage() {
                     <Plus size={14} /> Add
                   </Button>
                 </div>
-                <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--bg-soft)] px-3 py-2 text-sm">
-                  <span className="text-[var(--text-muted)]">Total</span>
-                  <span className="font-semibold tabular-nums">{money(grand)}</span>
+                <div className="space-y-2">
+                  <SettlementPanel
+                    compact
+                    grandTotal={grand}
+                    cashPaid={cashPaid}
+                    bankPaid={bankPaid}
+                    onCashPaid={setCashPaid}
+                    onBankPaid={setBankPaid}
+                    dueLabel="Credit back"
+                  />
+                  <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--bg-soft)] px-3 py-2 text-sm">
+                    <span className="text-[var(--text-muted)]">Total</span>
+                    <span className="font-semibold tabular-nums">{money(grand)}</span>
+                  </div>
                 </div>
               </div>
-              {purchaseId ? (
-                <Select
-                  label="Refund account"
-                  value={accountId}
-                  onChange={(e) => setAccountId(e.target.value)}
-                  options={[
-                    { value: "", label: "Original purchase account" },
-                    ...accounts.map((a) => ({ value: a.id, label: a.name })),
-                  ]}
-                />
-              ) : (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <PaymentModePicker value={refundMode} onChange={setRefundMode} />
-                  {refundMode !== "credit" ? (
-                    <Select
-                      label="Account"
-                      value={accountId}
-                      onChange={(e) => setAccountId(e.target.value)}
-                      options={accounts.map((a) => ({ value: a.id, label: a.name }))}
-                    />
-                  ) : null}
-                </div>
-              )}
             </div>
           }
         >

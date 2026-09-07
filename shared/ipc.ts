@@ -814,6 +814,8 @@ export type CreatePurchaseReturnInput = {
   purchaseId?: string | null;
   refundMode: PaymentMode;
   accountId?: string | null;
+  cashPaid?: number;
+  bankPaid?: number;
   taxAmount?: number;
   notes?: string | null;
   items: PurchaseReturnLineInput[];
@@ -950,6 +952,8 @@ export type CreateSaleReturnInput = {
   saleId?: string | null;
   refundMode: PaymentMode;
   accountId?: string | null;
+  cashPaid?: number;
+  bankPaid?: number;
   taxAmount?: number;
   notes?: string | null;
   items: SaleReturnLineInput[];

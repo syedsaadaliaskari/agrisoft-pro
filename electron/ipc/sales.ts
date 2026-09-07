@@ -21,8 +21,8 @@ import { readShopLogoDataUrl } from "../db/branding";
 import { writeAuditLog } from "../db/audit";
 import {
   cashBankFromVoucher,
+  resolveRefundSettlement,
   resolveSettlement,
-  splitReversalAcrossCashBank,
 } from "../db/settlement";
 import {
   allSaleCollectedAmounts,
@@ -888,7 +888,7 @@ export function registerSalesHandlers(): void {
         if (!input.returnDate?.trim()) return fail("Return date is required");
 
         const refundMode = (input.refundMode || "cash") as PaymentMode;
-        if (!["cash", "credit", "bank"].includes(refundMode)) return fail("Invalid refund mode");
+        if (!["cash", "credit", "bank", "split"].includes(refundMode)) return fail("Invalid refund mode");
 
         const db = getDb();
         const session = getCurrentSession();
@@ -989,56 +989,21 @@ export function registerSalesHandlers(): void {
         const grandTotal = money(subtotal + taxAmount);
         const cogsTotal = money(built.reduce((s, l) => s + l.costPrice * l.quantity, 0));
 
-        // When linked to an original sale, reverse cash/bank vs AR in the same proportion
-        // as the sale was paid (incl. cash+bank split settlement).
-        let cashPart = 0;
-        let bankPart = 0;
-        let creditPart = 0;
-        let cashRefundAccountId: string | null = null;
-        let bankRefundAccountId: string | null = null;
-        let payAccountId: string | null = input.accountId ?? null;
-        let linkedSale: typeof sales.$inferSelect | null = null;
-
-        if (input.saleId) {
-          linkedSale = db.select().from(sales).where(eq(sales.id, input.saleId)).get() ?? null;
-        }
-
-        if (linkedSale && linkedSale.grandTotal > 0) {
-          const paidShare = Math.min(1, Math.max(0, linkedSale.paidAmount / linkedSale.grandTotal));
-          const reversePaid = money(grandTotal * paidShare);
-          creditPart = money(grandTotal - reversePaid);
-          const orig = cashBankFromVoucher(db, linkedSale.voucherId, "debit");
-          const split = splitReversalAcrossCashBank(reversePaid, orig.cashPaid, orig.bankPaid);
-          cashPart = split.cashPart;
-          bankPart = split.bankPart;
-          if (cashPart > 0) {
-            cashRefundAccountId =
-              input.accountId && bankPart === 0 ? input.accountId : orig.cashAccountId;
-          }
-          if (bankPart > 0) {
-            bankRefundAccountId = orig.bankAccountId;
-          }
-          payAccountId = cashRefundAccountId || bankRefundAccountId;
-        } else if (refundMode === "credit") {
-          creditPart = grandTotal;
-          cashPart = 0;
-          bankPart = 0;
-          payAccountId = null;
-        } else if (refundMode === "bank") {
-          bankPart = grandTotal;
-          cashPart = 0;
-          creditPart = 0;
-          bankRefundAccountId =
-            payAccountId || requireAccountByCode(db, "1200", "Cash/Bank").id;
-          payAccountId = bankRefundAccountId;
-        } else {
-          cashPart = grandTotal;
-          bankPart = 0;
-          creditPart = 0;
-          cashRefundAccountId =
-            payAccountId || requireAccountByCode(db, "1100", "Cash/Bank").id;
-          payAccountId = cashRefundAccountId;
-        }
+        const refund = resolveRefundSettlement(db, {
+          refundMode: input.refundMode,
+          cashPaid: input.cashPaid,
+          bankPaid: input.bankPaid,
+          grandTotal,
+        });
+        if ("error" in refund) return fail(refund.error);
+        const {
+          cashPart,
+          bankPart,
+          creditPart,
+          cashAccountId: cashRefundAccountId,
+          bankAccountId: bankRefundAccountId,
+          headerAccountId: payAccountId,
+        } = refund;
 
         if (creditPart > 0 && !input.customerId) {
           return fail("Customer is required when the return reduces credit balance");

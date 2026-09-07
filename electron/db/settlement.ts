@@ -91,15 +91,11 @@ export function resolveSettlement(db: Db, input: SettlementInput): ResolvedSettl
   let bankAccountId: string | null = null;
 
   if (cashPaid > 0) {
-    cashAccountId = input.cashAccountId || (input.accountId && !bankPaid ? input.accountId : null) || defaultCash;
+    cashAccountId = input.cashAccountId || defaultCash;
   }
   if (bankPaid > 0) {
-    bankAccountId = input.bankAccountId || (input.accountId && !cashPaid ? input.accountId : null) || defaultBank;
+    bankAccountId = input.bankAccountId || defaultBank;
   }
-
-  // Prefer explicit accountId when only one side is paid
-  if (cashPaid > 0 && bankPaid === 0 && input.accountId) cashAccountId = input.accountId;
-  if (bankPaid > 0 && cashPaid === 0 && input.accountId) bankAccountId = input.accountId;
 
   let paymentMode: PaymentMode;
   if (paidAmount === 0) paymentMode = "credit";
@@ -187,8 +183,6 @@ export function resolveMoneySplit(db: Db, input: MoneySplitInput): ResolvedMoney
   if (bankPaid > 0) {
     bankAccountId = input.bankAccountId || defaultBank;
   }
-  if (cashPaid > 0 && bankPaid === 0 && input.accountId) cashAccountId = input.accountId;
-  if (bankPaid > 0 && cashPaid === 0 && input.accountId) bankAccountId = input.accountId;
 
   const headerAccountId = cashAccountId || bankAccountId;
   if (!headerAccountId) return { error: "Cash or bank account required" };
@@ -224,6 +218,68 @@ export function cashBankFromVoucher(
     bankPaid,
     cashAccountId: cash.id,
     bankAccountId: bank.id,
+  };
+}
+
+export type RefundLegs = {
+  cashPart: number;
+  bankPart: number;
+  creditPart: number;
+  cashAccountId: string | null;
+  bankAccountId: string | null;
+  headerAccountId: string | null;
+};
+
+/** Cash/bank/credit for a return. User amounts win; otherwise refundMode. */
+export function resolveRefundSettlement(
+  db: Db,
+  input: {
+    refundMode?: PaymentMode | string | null;
+    cashPaid?: number | null;
+    bankPaid?: number | null;
+    grandTotal: number;
+  }
+): RefundLegs | { error: string } {
+  const grandTotal = money(input.grandTotal);
+  if (grandTotal < 0) return { error: "Grand total cannot be negative" };
+  const cash = requireAccountByCode(db, "1100", "Cash");
+  const bank = requireAccountByCode(db, "1200", "Bank");
+
+  const hasSplitFields = input.cashPaid != null || input.bankPaid != null;
+  let cashPart = 0;
+  let bankPart = 0;
+  if (hasSplitFields) {
+    cashPart = money(Number(input.cashPaid ?? 0));
+    bankPart = money(Number(input.bankPaid ?? 0));
+  } else {
+    const mode = (input.refundMode || "cash") as string;
+    if (mode === "credit") {
+      cashPart = 0;
+      bankPart = 0;
+    } else if (mode === "bank") {
+      cashPart = 0;
+      bankPart = grandTotal;
+    } else if (mode === "split") {
+      return { error: "Cash + Bank refund needs cash and bank amounts" };
+    } else {
+      cashPart = grandTotal;
+      bankPart = 0;
+    }
+  }
+
+  if (Number.isNaN(cashPart) || Number.isNaN(bankPart)) return { error: "Invalid refund amounts" };
+  if (cashPart < 0 || bankPart < 0) return { error: "Refund amounts cannot be negative" };
+  const moneyOut = money(cashPart + bankPart);
+  if (moneyOut > grandTotal) return { error: "Refund paid cannot exceed return total" };
+  const creditPart = money(grandTotal - moneyOut);
+
+  return {
+    cashPart,
+    bankPart,
+    creditPart,
+    cashAccountId: cashPart > 0 ? cash.id : null,
+    bankAccountId: bankPart > 0 ? bank.id : null,
+    headerAccountId: cashPart > 0 ? cash.id : bankPart > 0 ? bank.id : null,
   };
 }
 

@@ -44,7 +44,6 @@ import { buildPurchasePrintHtml } from "@/lib/print";
 import { hasPermission } from "@/lib/permissions";
 import { useAuthStore } from "@/store/auth";
 import type {
-  Account,
   InventoryRow,
   PaymentMode,
   Purchase,
@@ -80,7 +79,6 @@ export default function PurchasesPage() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [inventory, setInventory] = useState<InventoryRow[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
-  const [accounts, setAccounts] = useState<Account[]>([]);
   const [search, setSearch] = useState("");
   const [modeFilter, setModeFilter] = useState<ModeFilter>("all");
   const [loading, setLoading] = useState(true);
@@ -90,7 +88,6 @@ export default function PurchasesPage() {
   const [saving, setSaving] = useState(false);
   const [invoiceDate, setInvoiceDate] = useState(today());
   const [vendorId, setVendorId] = useState("");
-  const [accountId, setAccountId] = useState("");
   const [discountAmount, setDiscountAmount] = useState("0");
   const [additionAmount, setAdditionAmount] = useState("0");
   const [taxAmount, setTaxAmount] = useState("0");
@@ -108,11 +105,10 @@ export default function PurchasesPage() {
     setLoading(true);
     setError("");
     const api = getApi();
-    const [p, v, inv, acct, unitRes] = await Promise.all([
+    const [p, v, inv, unitRes] = await Promise.all([
       api.listPurchases(),
       api.listVendors(),
       api.listInventory(),
-      api.listAccounts({ cashBankOnly: true }),
       api.listUnits(),
     ]);
     if (!p.ok) setError(p.error);
@@ -120,10 +116,6 @@ export default function PurchasesPage() {
     if (v.ok) setVendors(v.data.filter((x) => x.isActive));
     if (inv.ok) setInventory(inv.data.filter((x) => x.isActive));
     if (unitRes.ok) setUnits(unitRes.data.filter((u) => u.isActive));
-    if (acct.ok) {
-      setAccounts(acct.data);
-      if (acct.data[0]) setAccountId(acct.data[0].id);
-    }
     setLoading(false);
   }, []);
 
@@ -228,7 +220,6 @@ export default function PurchasesPage() {
     setLines([]);
     setPickVariantId("");
     setError("");
-    if (accounts[0]) setAccountId(accounts[0].id);
   };
 
   const openComposer = () => {
@@ -312,14 +303,8 @@ export default function PurchasesPage() {
   const onSave = async (andPrint = false) => {
     setSaving(true);
     setError("");
-    const cash =
-      cashPaid === "" && (bankPaid === "" || bankPaid === "0")
-        ? grand
-        : Number(cashPaid || 0);
-    const bank =
-      cashPaid === "" && (bankPaid === "" || bankPaid === "0")
-        ? 0
-        : Number(bankPaid || 0);
+    const cash = Number(cashPaid || 0);
+    const bank = Number(bankPaid || 0);
     const paymentMode: PaymentMode =
       cash + bank === 0
         ? "credit"
@@ -332,7 +317,6 @@ export default function PurchasesPage() {
       invoiceDate,
       vendorId,
       paymentMode,
-      accountId: paymentMode === "credit" ? null : accountId || null,
       cashPaid: cash,
       bankPaid: bank,
       paidAmount: cash + bank,
