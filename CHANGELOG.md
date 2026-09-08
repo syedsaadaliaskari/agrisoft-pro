@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1 — 2026-09-08
+
+### Payments
+- Cash posts to cash and bank posts to bank. The chosen drawer shows an amount box so you can type what was paid. Same on sales, purchases, returns, receive, pay, income, expense, and owner draw.
+
+### Cloud sync
+- Deletes on the PC are sent to the cloud (`deleted_at`). Cloud deletes from the phone are applied on the PC. Shop wipe marks cloud rows deleted so the phone goes empty too.
+
 ## 0.3.0 — 2026-09-04
 
 ### Brand
