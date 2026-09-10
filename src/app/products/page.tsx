@@ -31,6 +31,7 @@ const emptyProduct = {
   salePrice: "0",
   taxId: "",
   reorderLevel: "0",
+  initialStock: "0",
   isActive: true,
 };
 
@@ -127,6 +128,7 @@ export default function ProductsPage() {
       salePrice: String(row.salePrice),
       taxId: row.taxId ?? "",
       reorderLevel: String(row.reorderLevel),
+      initialStock: "0",
       isActive: row.isActive,
     });
     setError("");
@@ -150,7 +152,10 @@ export default function ProductsPage() {
     const api = getApi();
     const res = editing
       ? await api.updateProduct(editing.id, payload)
-      : await api.createProduct(payload);
+      : await api.createProduct({
+          ...payload,
+          initialStock: Number(form.initialStock || 0),
+        });
     setSaving(false);
     if (!res.ok) {
       setError(res.error);
@@ -510,6 +515,16 @@ export default function ProductsPage() {
             value={form.reorderLevel}
             onChange={(e) => setForm((f) => ({ ...f, reorderLevel: e.target.value }))}
           />
+          {!editing ? (
+            <Input
+              label="Initial stock"
+              type="number"
+              min={0}
+              step="0.01"
+              value={form.initialStock}
+              onChange={(e) => setForm((f) => ({ ...f, initialStock: e.target.value }))}
+            />
+          ) : null}
         </div>
         <Textarea
           label="Description"

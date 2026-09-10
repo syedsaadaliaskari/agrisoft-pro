@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.2 — 2026-09-10
+
+### Products
+- Add product has **Initial stock** so an existing shop can enter qty already on hand. Edit product does not change stock.
+
 ## 0.3.1 — 2026-09-08
 
 ### Payments
