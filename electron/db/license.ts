@@ -342,6 +342,68 @@ function storeCloudTenantId(db: Db, tenantId: string) {
   setSetting(db, CLOUD_TENANT_SETTING_KEY, tenantId.trim(), "sync");
 }
 
+/** Second PC: same shop cloud ID, and Pro if that shop is paid. */
+export function applyJoinedShopLicense(
+  db: Db,
+  input: {
+    tenantId: string;
+    plan: string | null;
+    expiresAt: string | null;
+    name: string | null;
+  }
+): LicenseStatus {
+  const tenantId = input.tenantId.trim();
+  if (!tenantId) throw new Error("Shop is missing");
+  storeCloudTenantId(db, tenantId);
+
+  const { installId } = ensureInstallIdentity(db);
+  const rawPlan = input.plan?.trim() || "";
+  const plan = ["monthly", "yearly", "forever"].includes(rawPlan) ? rawPlan : "forever";
+  const expired = plan !== "forever" && Boolean(input.expiresAt && input.expiresAt < todayIsoDate());
+
+  const existing = db
+    .select()
+    .from(licenses)
+    .where(eq(licenses.installId, installId))
+    .orderBy(desc(licenses.createdAt))
+    .all();
+  const now = new Date().toISOString();
+  for (const row of existing) {
+    if (row.tenantId !== tenantId) {
+      db.update(licenses)
+        .set({ tenantId, updatedAt: now })
+        .where(eq(licenses.id, row.id))
+        .run();
+    }
+  }
+
+  if (expired) {
+    return getLicenseStatus(db, false);
+  }
+
+  if (findActiveLicense(db, installId)) {
+    return getLicenseStatus(db, false);
+  }
+
+  const id = randomUUID();
+  db.insert(licenses)
+    .values({
+      id,
+      name: (input.name || "Shop").trim() || "Shop",
+      installId,
+      plan,
+      activatedAt: todayIsoDate(),
+      expiresAt: plan === "forever" ? null : input.expiresAt,
+      notes: "Joined shop",
+      tenantId,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .run();
+
+  return getLicenseStatus(db, false);
+}
+
 /** Customer PC: paste code from vendor WhatsApp to unlock this install. */
 export function applyActivationCode(db: Db, rawCode: string): LicenseStatus {
   const code = rawCode.trim().replace(/\s+/g, "");

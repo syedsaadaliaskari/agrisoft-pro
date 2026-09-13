@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Cloud login
+- Login has **Shop code** under password. A new PC joins that shop, then signs in as admin / cashier / any shop user.
+- Settings shows **Shop code** and the code only.
+- Paid status follows the shop. Users and passwords sync with the shop.
+
 ## 0.3.2 — 2026-09-10
 
 ### Products

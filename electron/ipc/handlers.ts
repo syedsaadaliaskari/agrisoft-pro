@@ -33,6 +33,9 @@ import { registerN8nHandlers } from "./n8n";
 import { registerSyncHandlers } from "./sync";
 import { getCurrentSession, setCurrentSession, PermissionError, requireSession } from "./session";
 import { writeAuditLog } from "../db/audit";
+import { joinShopByCode } from "../sync/join";
+import { displayShopCode, normalizeShopCode } from "../sync/shopCode";
+import { resolveTenant, SyncError } from "../sync/client";
 
 function loadUserSession(userId: string): SessionUser | null {
   const db = getDb();
@@ -81,44 +84,62 @@ export function registerIpcHandlers(appVersion: string, isDev: boolean): void {
     isDev,
   }));
 
-  registerHandler(IPC.AUTH_LOGIN, async (_e, username: string, password: string): Promise<LoginResult> => {
-    const db = getDb();
-    const normalized = String(username ?? "").trim().toLowerCase();
-    const user = db
-      .select()
-      .from(users)
-      .where(sql`lower(${users.username}) = ${normalized}`)
-      .get();
+  registerHandler(
+    IPC.AUTH_LOGIN,
+    async (_e, username: string, password: string, shopCode?: string): Promise<LoginResult> => {
+      const code = normalizeShopCode(shopCode);
+      if (code) {
+        const already = normalizeShopCode(displayShopCode());
+        const sameShop = Boolean(resolveTenant().tenantId) && already === code;
+        if (!sameShop) {
+          try {
+            await joinShopByCode(code);
+          } catch (err) {
+            const message =
+              err instanceof SyncError || err instanceof Error ? err.message : "Could not join shop";
+            return { ok: false, error: message };
+          }
+        }
+      }
 
-    if (!user || !user.isActive) {
-      return { ok: false, error: "Invalid username or password" };
+      const db = getDb();
+      const normalized = String(username ?? "").trim().toLowerCase();
+      const user = db
+        .select()
+        .from(users)
+        .where(sql`lower(${users.username}) = ${normalized}`)
+        .get();
+
+      if (!user || !user.isActive) {
+        return { ok: false, error: "Invalid username or password" };
+      }
+
+      const valid = await bcrypt.compare(String(password ?? ""), user.passwordHash);
+      if (!valid) {
+        return { ok: false, error: "Invalid username or password" };
+      }
+
+      db.update(users)
+        .set({ lastLoginAt: new Date().toISOString() })
+        .where(eq(users.id, user.id))
+        .run();
+
+      const session = loadUserSession(user.id);
+      if (!session) {
+        return { ok: false, error: "Failed to load user session" };
+      }
+
+      setCurrentSession(session);
+      writeAuditLog(db, {
+        userId: session.id,
+        action: "login",
+        module: "auth",
+        entityId: session.id,
+        details: `User ${session.username} signed in`,
+      });
+      return { ok: true, user: session };
     }
-
-    const valid = await bcrypt.compare(String(password ?? ""), user.passwordHash);
-    if (!valid) {
-      return { ok: false, error: "Invalid username or password" };
-    }
-
-    db.update(users)
-      .set({ lastLoginAt: new Date().toISOString() })
-      .where(eq(users.id, user.id))
-      .run();
-
-    const session = loadUserSession(user.id);
-    if (!session) {
-      return { ok: false, error: "Failed to load user session" };
-    }
-
-    setCurrentSession(session);
-    writeAuditLog(db, {
-      userId: session.id,
-      action: "login",
-      module: "auth",
-      entityId: session.id,
-      details: `User ${session.username} signed in`,
-    });
-    return { ok: true, user: session };
-  });
+  );
 
   registerHandler(IPC.AUTH_LOGOUT, async () => {
     const session = getCurrentSession();

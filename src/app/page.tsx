@@ -21,7 +21,7 @@ export default function HomePage() {
     void (async () => {
       const res = await getApi().getLicenseStatus();
       if (cancelled) return;
-      if (res.ok && !res.data.allowed) {
+      if (res.ok && !res.data.allowed && user) {
         router.replace("/activate");
         return;
       }

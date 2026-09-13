@@ -454,6 +454,11 @@ export function getDbPath(): string {
   return dbPath;
 }
 
+export function getSqlite(): Database.Database {
+  if (!sqlite) throw new Error("Database not initialized");
+  return sqlite;
+}
+
 export async function initDatabase(): Promise<Db> {
   if (db) return db;
 

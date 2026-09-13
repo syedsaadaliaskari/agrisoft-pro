@@ -4,7 +4,8 @@ import { IPC, type ElectronAPI } from "../shared/ipc";
 const api: ElectronAPI = {
   ping: () => ipcRenderer.invoke(IPC.PING),
   getAppInfo: () => ipcRenderer.invoke(IPC.GET_APP_INFO),
-  login: (username, password) => ipcRenderer.invoke(IPC.AUTH_LOGIN, username, password),
+  login: (username, password, shopCode) =>
+    ipcRenderer.invoke(IPC.AUTH_LOGIN, username, password, shopCode ?? ""),
   logout: () => ipcRenderer.invoke(IPC.AUTH_LOGOUT),
   getCurrentUser: () => ipcRenderer.invoke(IPC.AUTH_CURRENT_USER),
   changePassword: (currentPassword, newPassword) =>

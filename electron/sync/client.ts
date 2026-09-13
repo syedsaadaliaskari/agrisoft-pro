@@ -159,21 +159,33 @@ function slugify(name: string): string {
 }
 
 /** Ensure this shop exists in public.tenants (idempotent upsert). */
-export async function ensureCloudTenant(id: string, name: string): Promise<void> {
+export async function ensureCloudTenant(
+  id: string,
+  name: string,
+  extra?: {
+    joinCode?: string;
+    plan?: string | null;
+    licenseExpiresAt?: string | null;
+    licenseName?: string | null;
+  }
+): Promise<void> {
   const now = new Date().toISOString();
+  const body: Record<string, unknown> = {
+    id,
+    name: name.trim() || "Shop",
+    slug: `${slugify(name)}-${id.slice(0, 8)}`,
+    is_active: true,
+    updated_at: now,
+    deleted_at: null,
+  };
+  if (extra?.joinCode) body.join_code = extra.joinCode;
+  if (extra?.plan !== undefined) body.plan = extra.plan;
+  if (extra?.licenseExpiresAt !== undefined) body.license_expires_at = extra.licenseExpiresAt;
+  if (extra?.licenseName !== undefined) body.license_name = extra.licenseName;
   await supabaseRest("tenants", {
     method: "POST",
     query: "on_conflict=id",
     prefer: "resolution=merge-duplicates,return=minimal",
-    body: [
-      {
-        id,
-        name: name.trim() || "Shop",
-        slug: `${slugify(name)}-${id.slice(0, 8)}`,
-        is_active: true,
-        updated_at: now,
-        deleted_at: null,
-      },
-    ],
+    body: [body],
   });
 }

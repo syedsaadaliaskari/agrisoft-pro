@@ -9,7 +9,7 @@ type AuthState = {
   loading: boolean;
   hydrated: boolean;
   hydrate: () => Promise<void>;
-  login: (username: string, password: string) => Promise<
+  login: (username: string, password: string, shopCode?: string) => Promise<
     { ok: true; user: SessionUser } | { ok: false; error?: string }
   >;
   logout: () => Promise<void>;
@@ -41,12 +41,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (gen !== hydrateGeneration) return;
     set({ user, hydrated: true });
   },
-  login: async (username, password) => {
+  login: async (username, password, shopCode) => {
     set({ loading: true });
     // Invalidate any in-flight hydrate so it cannot wipe a successful login
     hydrateGeneration += 1;
     const loginGen = hydrateGeneration;
-    const result = await getApi().login(username, password);
+    const result = await getApi().login(username, password, shopCode);
     if (loginGen !== hydrateGeneration) {
       set({ loading: false });
       return { ok: false, error: "Login interrupted" };

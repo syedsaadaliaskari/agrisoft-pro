@@ -36,6 +36,10 @@ export const CLOUD_SHOP_TABLES = [
   "purchase_return_items",
   "stock_movements",
   "document_counters",
+  "users",
+  "roles",
+  "role_permissions",
+  "settings",
 ] as const;
 
 export function rememberLocalDelete(table: string, ids: string | string[]) {

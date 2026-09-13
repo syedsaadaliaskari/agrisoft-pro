@@ -39,6 +39,7 @@ export default function SettingsPage() {
     lastSyncAt: string | null;
     lastError: string | null;
     localCustomerCount: number;
+    shopJoinCode: string;
   } | null>(null);
   const [vendorCode, setVendorCode] = useState("");
   const [vendorBusy, setVendorBusy] = useState(false);
@@ -415,6 +416,15 @@ export default function SettingsPage() {
               onChange={(e) => setForm((f) => ({ ...f, receipt_footer: e.target.value }))}
             />
           </div>
+
+          {syncInfo?.shopJoinCode ? (
+            <div className="sm:col-span-2">
+              <div className="mb-1.5 text-xs font-medium text-[var(--text-muted)]">Shop code</div>
+              <div className="font-mono text-lg tracking-[0.2em] text-[var(--text)]">
+                {syncInfo.shopJoinCode}
+              </div>
+            </div>
+          ) : null}
 
           <div className="sm:col-span-2 border-t border-[var(--border)] pt-4 text-sm font-semibold">
             Cloud sync

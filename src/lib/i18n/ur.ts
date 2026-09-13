@@ -169,6 +169,7 @@ export const ur: Dict = {
   "login.subtitle": "اپنے ورک اسپیس میں سائن ان کریں",
   "login.username": "صارف نام",
   "login.password": "پاس ورڈ",
+  "login.shopCode": "شاپ کوڈ",
   "login.enterBoth": "صارف نام اور پاس ورڈ درج کریں",
   "login.needElectron": "Agri Soft Pro ڈیسک ٹاپ ایپ کھول کر سائن ان کریں۔",
   "login.failed": "لاگ ان ناکام",

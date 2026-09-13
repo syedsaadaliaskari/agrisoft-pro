@@ -1481,7 +1481,7 @@ export type LicenseCreateInput = {
 export type ElectronAPI = {
   ping: () => Promise<string>;
   getAppInfo: () => Promise<AppInfo>;
-  login: (username: string, password: string) => Promise<LoginResult>;
+  login: (username: string, password: string, shopCode?: string) => Promise<LoginResult>;
   logout: () => Promise<void>;
   getCurrentUser: () => Promise<SessionUser | null>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<ActionResult>;
@@ -1667,6 +1667,7 @@ export type ElectronAPI = {
       lastSyncAt: string | null;
       lastError: string | null;
       localCustomerCount: number;
+      shopJoinCode: string;
     }>
   >;
   runCloudSyncNow: () => Promise<

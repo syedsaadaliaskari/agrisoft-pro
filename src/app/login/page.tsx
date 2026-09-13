@@ -16,6 +16,7 @@ export default function LoginPage() {
   const { t, locale, setLocale } = useI18n();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [shopCode, setShopCode] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [welcome, setWelcome] = useState(false);
@@ -34,12 +35,8 @@ export default function LoginPage() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const res = await getApi().getLicenseStatus();
+      await getApi().getLicenseStatus();
       if (cancelled) return;
-      if (res.ok && !res.data.allowed) {
-        router.replace("/activate");
-        return;
-      }
       setLicenseChecked(true);
     })();
     return () => {
@@ -79,13 +76,7 @@ export default function LoginPage() {
     setSubmitting(true);
     setWelcome(true);
     try {
-      const license = await getApi().getLicenseStatus();
-      if (license.ok && !license.data.allowed) {
-        setWelcome(false);
-        router.replace("/activate");
-        return;
-      }
-      const result = await login(username.trim(), password);
+      const result = await login(username.trim(), password, shopCode.trim() || undefined);
       if (result.ok) {
         const again = await getApi().getLicenseStatus();
         if (again.ok && !again.data.allowed) {
@@ -217,6 +208,18 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5 text-sm outline-none ring-[var(--accent)] focus:ring-1"
                 autoComplete="current-password"
+                disabled={busy}
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-[var(--text-muted)]">
+                {t("login.shopCode")}
+              </label>
+              <input
+                value={shopCode}
+                onChange={(e) => setShopCode(e.target.value)}
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5 text-sm uppercase tracking-wider outline-none ring-[var(--accent)] focus:ring-1"
+                autoComplete="off"
                 disabled={busy}
               />
             </div>

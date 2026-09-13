@@ -104,3 +104,8 @@ export function clearPendingWipe() {
   state.lastLiveIds = {};
   writeState(state);
 }
+
+/** Drop local tombstones when this PC joins another shop. */
+export function resetLocalSyncState() {
+  writeState({ tombstones: [], lastLiveIds: {}, pendingWipeTenantId: null });
+}
