@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.3 — 2026-09-14
 
 ### Cloud login
 - Login has **Shop code** under password. A new PC joins that shop, then signs in as admin / cashier / any shop user.
@@ -8,7 +8,7 @@
 - Paid status follows the shop. Users and passwords sync with the shop.
 
 ### Print
-- Print preview stays open with **Print** and **Close**. Print opens the Windows printer box. Save as image and WhatsApp are unchanged.
+- Print preview stays open with **Print** and **Close**. A connected printer uses the Windows print box. With no real printer, Print saves a PDF. Save as image and WhatsApp are unchanged.
 
 ### Removed
 - Journal screen and menu. Sales, purchases, receive, pay, income, expense, and owner draw are unchanged.
