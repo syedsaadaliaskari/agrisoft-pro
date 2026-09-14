@@ -34,17 +34,30 @@ function parseEnvFile(filePath: string): Record<string, string> {
   return out;
 }
 
-/** Load .env from project root (dev) or next to userData (optional later). */
+function envCandidatePaths(): string[] {
+  const out = [path.join(process.cwd(), ".env")];
+  try {
+    out.push(path.join(process.resourcesPath, "supabase.env"));
+    out.push(path.join(process.resourcesPath, ".env"));
+  } catch {
+    /* resourcesPath unavailable */
+  }
+  try {
+    out.push(path.join(app.getAppPath(), ".env"));
+    out.push(path.join(path.dirname(app.getPath("exe")), ".env"));
+    out.push(path.join(app.getPath("userData"), ".env"));
+  } catch {
+    /* app paths need ready() */
+  }
+  return out;
+}
+
+/** Dev: project .env. Installed app: supabase.env next to the exe resources. */
 export function loadSupabaseEnv(): SupabaseEnv | null {
   if (cached !== undefined) return cached;
 
-  const candidates = [
-    path.join(process.cwd(), ".env"),
-    path.join(app.getAppPath(), ".env"),
-  ];
-
   let fileVars: Record<string, string> = {};
-  for (const p of candidates) {
+  for (const p of envCandidatePaths()) {
     fileVars = { ...fileVars, ...parseEnvFile(p) };
   }
 
@@ -59,7 +72,16 @@ export function loadSupabaseEnv(): SupabaseEnv | null {
     fileVars.SUPABASE_SERVICE_ROLE_KEY ||
     ""
   ).trim();
-  const envTenantId = (process.env.SUPABASE_TENANT_ID || fileVars.SUPABASE_TENANT_ID || "").trim();
+  const packaged = (() => {
+    try {
+      return app.isPackaged;
+    } catch {
+      return false;
+    }
+  })();
+  const envTenantId = packaged
+    ? ""
+    : (process.env.SUPABASE_TENANT_ID || fileVars.SUPABASE_TENANT_ID || "").trim();
 
   if (!url || !serviceRoleKey) {
     cached = null;

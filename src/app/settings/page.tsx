@@ -27,6 +27,7 @@ export default function SettingsPage() {
     n8n_payment_days_before: "3",
     n8n_min_due_amount: "1",
   });
+  const [shopJoinCode, setShopJoinCode] = useState("");
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
   const [n8nBusy, setN8nBusy] = useState(false);
@@ -68,6 +69,7 @@ export default function SettingsPage() {
       n8n_min_due_amount: map.n8n_min_due_amount || "1",
     });
     setLogoPreview(map.shop_logo_data_url || null);
+    setShopJoinCode((map.shop_join_code || "").trim());
   };
 
   const load = useCallback(async () => {
@@ -417,11 +419,11 @@ export default function SettingsPage() {
             />
           </div>
 
-          {syncInfo?.shopJoinCode ? (
+          {shopJoinCode || syncInfo?.shopJoinCode ? (
             <div className="sm:col-span-2">
               <div className="mb-1.5 text-xs font-medium text-[var(--text-muted)]">Shop code</div>
               <div className="font-mono text-lg tracking-[0.2em] text-[var(--text)]">
-                {syncInfo.shopJoinCode}
+                {shopJoinCode || syncInfo?.shopJoinCode}
               </div>
             </div>
           ) : null}

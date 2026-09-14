@@ -13,7 +13,7 @@ import { syncReturns } from "./returns";
 import { syncSales } from "./sales";
 import { syncStockMovements } from "./stock";
 import { pushPendingShopWipe } from "./deletes";
-import { displayShopCode, ensureLocalShopCode, formatShopCode, normalizeShopCode, rememberShopCode } from "./shopCode";
+import { displayShopCode, ensureLocalShopCode, normalizeShopCode, rememberShopCode, shopJoinCodeForDisplay } from "./shopCode";
 import { getSetting, recordSyncError, setSetting } from "./store";
 import { syncShopSettings } from "./shopSettings";
 import { syncUsers } from "./users";
@@ -77,6 +77,7 @@ export function getCloudSyncStatus(): CloudSyncStatus {
   const cfg = getSyncConfig();
   const db = getDb();
   const localCustomerCount = db.select().from(customers).all().length;
+  const license = getLicenseStatus(db, false);
   return {
     configured: cfg.configured,
     url: cfg.url,
@@ -85,9 +86,7 @@ export function getCloudSyncStatus(): CloudSyncStatus {
     lastSyncAt: getSetting("cloud_last_sync_at") || null,
     lastError: getSetting("cloud_last_sync_error") || null,
     localCustomerCount,
-    shopJoinCode: cfg.configured
-      ? displayShopCode() || formatShopCode(ensureLocalShopCode())
-      : "",
+    shopJoinCode: shopJoinCodeForDisplay(cfg.tenantId || license.cloudTenantId),
   };
 }
 

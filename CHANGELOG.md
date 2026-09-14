@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.4 — 2026-09-14
+
+### Settings
+- Shop code always shows on the original shop PC (label + code). The installed app also loads cloud credentials from the installer so the code can be published for another PC.
+
 ## 0.3.3 — 2026-09-14
 
 ### Cloud login

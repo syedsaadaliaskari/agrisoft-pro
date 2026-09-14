@@ -44,3 +44,10 @@ export function ensureLocalShopCode(): string {
   rememberShopCode(next);
   return next;
 }
+
+/** Settings / status: generate a code once this PC belongs to a shop. */
+export function shopJoinCodeForDisplay(tenantId?: string | null): string {
+  const tid = String(tenantId ?? "").trim() || getSetting("supabase_tenant_id").trim();
+  if (tid) return displayShopCode() || formatShopCode(ensureLocalShopCode());
+  return displayShopCode();
+}

@@ -1,6 +1,6 @@
 {
   "name": "agri-soft-pro",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "private": true,
   "description": "Local desktop agri ERP — Electron + Next.js + SQLite",
   "author": "Agri Soft Pro",
@@ -82,7 +82,12 @@
       "**/*.{node,dll}",
       "node_modules/better-sqlite3/**/*"
     ],
-    "extraResources": [],
+    "extraResources": [
+      {
+        "from": ".env",
+        "to": "supabase.env"
+      }
+    ],
     "publish": [
       {
         "provider": "github",

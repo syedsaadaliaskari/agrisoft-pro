@@ -4,6 +4,7 @@ import type { Db } from "./index";
 import { settings } from "./schema";
 import type { SettingsMap, SettingsUpdateInput } from "../../shared/ipc";
 import { hasShopLogo, readShopLogoDataUrl } from "./branding";
+import { shopJoinCodeForDisplay } from "../sync/shopCode";
 
 const EDITABLE_KEYS = [
   "shop_name",
@@ -35,6 +36,9 @@ export function getSettingsMapWithBranding(db: Db): SettingsMap {
   const dataUrl = readShopLogoDataUrl();
   if (dataUrl) map.shop_logo_data_url = dataUrl;
   else delete map.shop_logo_data_url;
+  const joinCode = shopJoinCodeForDisplay(map.supabase_tenant_id);
+  if (joinCode) map.shop_join_code = joinCode;
+  else delete map.shop_join_code;
   return map;
 }
 
