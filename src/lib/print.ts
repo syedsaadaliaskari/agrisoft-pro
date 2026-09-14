@@ -40,7 +40,7 @@ function baseStyles(size: ReceiptSize) {
       .grand { font-weight: 700; font-size: 12px; border-top: 1px solid #222; padding-top: 5px; margin-top: 5px; }
       .footer { text-align: center; margin-top: 10px; font-size: 10px; color: #444; }
       .badge { text-align: center; font-size: 10px; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em; }
-      @page { size: 80mm auto; margin: 4mm; }
+      @page { size: 80mm 297mm; margin: 4mm; }
     `;
   }
 

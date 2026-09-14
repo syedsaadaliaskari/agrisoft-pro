@@ -185,6 +185,86 @@ function wrapPrintPreview(html: string): string {
   return `<!DOCTYPE html><html><head><meta charset="utf-8" /></head><body>${chrome}${html}</body></html>`;
 }
 
+const printPreviewSize = new Map<number, "thermal" | "a4">();
+
+function receiptPrintSize(html: string): "thermal" | "a4" {
+  if (/size:\s*80mm/i.test(html) || /width:\s*280px/i.test(html)) return "thermal";
+  return "a4";
+}
+
+function isVirtualOrBrokenPrinter(name: string) {
+  return /anydesk|\bfax\b|onenote|print to pdf|xps/i.test(name);
+}
+
+async function pickRealPrinter(win: BrowserWindow): Promise<string | undefined> {
+  try {
+    const printers = await win.webContents.getPrintersAsync();
+    const real = printers.filter(
+      (p) => !isVirtualOrBrokenPrinter(p.name) && !isVirtualOrBrokenPrinter(p.displayName || "")
+    );
+    const preferred = real.find((p) => p.isDefault) || real[0];
+    return preferred?.name;
+  } catch {
+    return undefined;
+  }
+}
+
+function printPageOptions(size: "thermal" | "a4", deviceName?: string) {
+  const options: Electron.WebContentsPrintOptions = {
+    silent: false,
+    printBackground: true,
+    margins: { marginType: "none" },
+    pageSize:
+      size === "thermal"
+        ? { width: 80_000, height: 297_000 }
+        : "A4",
+  };
+  if (deviceName) options.deviceName = deviceName;
+  return options;
+}
+
+function runWebContentsPrint(
+  win: BrowserWindow,
+  options: Electron.WebContentsPrintOptions
+): Promise<{ ok: boolean; reason: string }> {
+  return new Promise((resolve) => {
+    win.webContents.print(options, (ok, failureReason) => {
+      const reason = String(failureReason || "");
+      if (!ok && reason) console.warn("Print failed:", reason);
+      resolve({ ok: Boolean(ok), reason });
+    });
+  });
+}
+
+async function savePreviewPdf(win: BrowserWindow): Promise<boolean> {
+  try {
+    const data = await win.webContents.printToPDF({
+      printBackground: true,
+      pageSize: "A4",
+    });
+    const choice = await dialog.showSaveDialog(win, {
+      title: "Save receipt PDF",
+      defaultPath: path.join(app.getPath("documents"), "receipt.pdf"),
+      filters: [{ name: "PDF", extensions: ["pdf"] }],
+    });
+    if (choice.canceled || !choice.filePath) return false;
+    fs.writeFileSync(choice.filePath, data);
+    return true;
+  } catch (err) {
+    console.warn("Save PDF failed:", err);
+    if (!win.isDestroyed()) {
+      await dialog.showMessageBox(win, {
+        type: "error",
+        title: "Print",
+        message: "Could not save PDF.",
+        detail: err instanceof Error ? err.message : "Try Save as image from the Print menu.",
+        buttons: ["OK"],
+      });
+    }
+    return false;
+  }
+}
+
 let printPreviewIpcReady = false;
 
 function ensurePrintPreviewIpc() {
@@ -195,21 +275,21 @@ function ensurePrintPreviewIpc() {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win || win.isDestroyed()) return false;
     win.focus();
-    const success = await new Promise<boolean>((resolve) => {
-      win.webContents.print(
-        { silent: false, printBackground: true },
-        (ok, failureReason) => {
-          if (!ok && failureReason) {
-            console.warn("Print failed:", failureReason);
-          }
-          resolve(Boolean(ok));
-        }
-      );
-    });
-    if (success && !win.isDestroyed()) {
-      win.close();
+
+    const size = printPreviewSize.get(event.sender.id) ?? "a4";
+    const printer = await pickRealPrinter(win);
+
+    if (printer) {
+      const result = await runWebContentsPrint(win, printPageOptions(size, printer));
+      if (result.ok) {
+        if (!win.isDestroyed()) win.close();
+        return true;
+      }
     }
-    return success;
+
+    const saved = await savePreviewPdf(win);
+    if (saved && !win.isDestroyed()) win.close();
+    return saved;
   });
 
   ipcMain.handle("print-preview:close", (event) => {
@@ -238,6 +318,8 @@ async function printHtmlDocument(html: string): Promise<ActionResult> {
   });
 
   try {
+    printPreviewSize.set(printWin.webContents.id, receiptPrintSize(html));
+    printWin.on("closed", () => printPreviewSize.delete(printWin.webContents.id));
     await loadReceiptHtml(printWin, wrapPrintPreview(html));
     printWin.focus();
     return { ok: true, data: undefined };
