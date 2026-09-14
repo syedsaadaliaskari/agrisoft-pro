@@ -7,6 +7,12 @@
 - Settings shows **Shop code** and the code only.
 - Paid status follows the shop. Users and passwords sync with the shop.
 
+### Print
+- Print preview stays open with **Print** and **Close**. Print opens the Windows printer box. Save as image and WhatsApp are unchanged.
+
+### Removed
+- Journal screen and menu. Sales, purchases, receive, pay, income, expense, and owner draw are unchanged.
+
 ## 0.3.2 — 2026-09-10
 
 ### Products

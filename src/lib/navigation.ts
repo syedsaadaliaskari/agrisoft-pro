@@ -112,7 +112,6 @@ export const navigation: NavGroup[] = [
     titleKey: "nav.transactions",
     icon: ArrowDownLeft,
     items: [
-      { labelKey: "nav.journal", href: "/transactions/journal", icon: BookOpen, permission: "transactions.view" },
       {
         labelKey: "nav.receivePayment",
         href: "/transactions/receive",

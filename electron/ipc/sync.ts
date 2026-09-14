@@ -30,8 +30,6 @@ export function registerSyncHandlers() {
           "Shop";
         try {
           await publishShopCloudMeta(status.tenantId, shopName);
-          const { syncUsers } = await import("../sync/users");
-          await syncUsers();
         } catch {
           /* SQL not applied yet, or offline */
         }

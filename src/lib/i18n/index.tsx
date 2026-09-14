@@ -22,7 +22,6 @@ export const PAGE_META: Record<string, { title: string; subtitle?: string }> = {
   "/inventory": { title: "pages.inventory.title" },
   "/customers": { title: "pages.customers.title" },
   "/vendors": { title: "pages.vendors.title" },
-  "/transactions/journal": { title: "pages.journal.title" },
   "/transactions/receive": { title: "pages.receive.title" },
   "/transactions/pay": { title: "pages.pay.title" },
   "/transactions/expense": { title: "pages.expense.title" },

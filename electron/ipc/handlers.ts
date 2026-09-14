@@ -16,6 +16,7 @@ import {
   settings,
 } from "../db/schema";
 import { changeOwnPassword, unlockVendorSuperAdmin, UsersError } from "../db/users";
+import { ensurePermissions } from "../db/seed";
 import { registerMasterHandlers } from "./masters";
 import { registerProductHandlers } from "./products";
 import { registerPartyHandlers } from "./parties";
@@ -124,6 +125,8 @@ export function registerIpcHandlers(appVersion: string, isDev: boolean): void {
         .where(eq(users.id, user.id))
         .run();
 
+      ensurePermissions(db);
+
       const session = loadUserSession(user.id);
       if (!session) {
         return { ok: false, error: "Failed to load user session" };
@@ -158,7 +161,7 @@ export function registerIpcHandlers(appVersion: string, isDev: boolean): void {
   registerHandler(IPC.AUTH_CURRENT_USER, async (): Promise<SessionUser | null> => {
     const session = getCurrentSession();
     if (!session) return null;
-    // Refresh permissions from DB (RBAC / ensurePermissions may have changed on boot)
+    ensurePermissions(getDb());
     const fresh = loadUserSession(session.id);
     if (fresh) setCurrentSession(fresh);
     return fresh;

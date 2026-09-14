@@ -148,7 +148,10 @@ export async function syncUsers(): Promise<{ pushed: number; pulled: number }> {
 
   for (const row of db.select().from(roles).all()) {
     if (isSuperAdminRoleName(row.name)) continue;
-    if (deletedRoles.has(row.id) || shouldRemoveLocal("roles", row.id, row.updatedAt, cloudRoleIds)) {
+    const drop =
+      deletedRoles.has(row.id) ||
+      (remoteRoles.length > 0 && shouldRemoveLocal("roles", row.id, row.updatedAt, cloudRoleIds));
+    if (drop) {
       db.delete(rolePermissions).where(eq(rolePermissions.roleId, row.id)).run();
       db.delete(roles).where(eq(roles.id, row.id)).run();
     }
@@ -188,6 +191,7 @@ export async function syncUsers(): Promise<{ pushed: number; pulled: number }> {
   const cloudPermIds = new Set(remotePerms.map((row) => row.id));
   const deletedPerms = await fetchCloudDeletedIds("role_permissions");
   const shopRoleIds = new Set(remainingRoles.map((row) => row.id));
+  const now = new Date().toISOString();
 
   for (const row of remotePerms) {
     if (!shopRoleIds.has(row.role_id) && !db.select().from(roles).where(eq(roles.id, row.role_id)).get()) {
@@ -223,7 +227,7 @@ export async function syncUsers(): Promise<{ pushed: number; pulled: number }> {
     if (role && isSuperAdminRoleName(role.name)) continue;
     if (
       deletedPerms.has(row.id) ||
-      shouldRemoveLocal("role_permissions", row.id, row.id, cloudPermIds)
+      (remotePerms.length > 0 && shouldRemoveLocal("role_permissions", row.id, now, cloudPermIds))
     ) {
       db.delete(rolePermissions).where(eq(rolePermissions.id, row.id)).run();
     }
@@ -235,7 +239,6 @@ export async function syncUsers(): Promise<{ pushed: number; pulled: number }> {
       return role && !isSuperAdminRoleName(role.name);
     }
   );
-  const now = new Date().toISOString();
   await supabaseUpsert(
     "role_permissions",
     remainingRolePerms
@@ -303,7 +306,10 @@ export async function syncUsers(): Promise<{ pushed: number; pulled: number }> {
   for (const row of db.select().from(users).all()) {
     const role = db.select().from(roles).where(eq(roles.id, row.roleId)).get();
     if (role && isSuperAdminRoleName(role.name)) continue;
-    if (deletedUsers.has(row.id) || shouldRemoveLocal("users", row.id, row.updatedAt, cloudUserIds)) {
+    if (
+      deletedUsers.has(row.id) ||
+      (remoteUsers.length > 0 && shouldRemoveLocal("users", row.id, row.updatedAt, cloudUserIds))
+    ) {
       db.delete(users).where(eq(users.id, row.id)).run();
     }
   }
@@ -334,6 +340,9 @@ export async function syncUsers(): Promise<{ pushed: number; pulled: number }> {
     "users",
     remainingUsers.map((row) => row.id)
   );
+
+  const { ensurePermissions } = await import("../db/seed");
+  ensurePermissions(db);
 
   return { pushed, pulled };
 }

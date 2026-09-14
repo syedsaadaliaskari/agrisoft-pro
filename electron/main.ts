@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, protocol, dialog, nativeImage, clipboard } from "electron";
+import { app, BrowserWindow, ipcMain, shell, protocol, dialog, nativeImage, clipboard } from "electron";
 import path from "path";
 import fs from "fs";
 import { initDatabase, closeDatabase } from "./db";
@@ -125,17 +125,112 @@ async function loadReceiptHtml(win: BrowserWindow, html: string): Promise<void> 
   await win.loadFile(file);
 }
 
+function wrapPrintPreview(html: string): string {
+  const chrome = `
+<style id="asp-print-chrome">
+  #asp-print-toolbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: 0;
+    z-index: 2147483647;
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    align-items: center;
+    box-sizing: border-box;
+    width: 100vw;
+    padding: 10px 12px;
+    background: #f4f4f5;
+    border-bottom: 1px solid #d4d4d8;
+    font-family: "Segoe UI", Arial, sans-serif;
+  }
+  #asp-print-toolbar button {
+    border: 0;
+    border-radius: 8px;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #asp-print-print { background: #22c55e; color: #052e16; }
+  #asp-print-close { background: #e4e4e7; color: #18181b; }
+  body { padding-top: 56px !important; }
+  @media print {
+    #asp-print-toolbar { display: none !important; }
+    body { padding-top: 0 !important; }
+  }
+</style>
+<div id="asp-print-toolbar">
+  <button type="button" id="asp-print-close">Close</button>
+  <button type="button" id="asp-print-print">Print</button>
+</div>
+<script>
+(function () {
+  var printBtn = document.getElementById("asp-print-print");
+  var closeBtn = document.getElementById("asp-print-close");
+  if (printBtn) printBtn.onclick = function () {
+    if (window.aspPrint && window.aspPrint.print) window.aspPrint.print();
+    else window.print();
+  };
+  if (closeBtn) closeBtn.onclick = function () {
+    if (window.aspPrint && window.aspPrint.close) window.aspPrint.close();
+    else window.close();
+  };
+})();
+</script>`;
+  if (/<\/body>/i.test(html)) {
+    return html.replace(/<\/body>/i, `${chrome}</body>`);
+  }
+  return `<!DOCTYPE html><html><head><meta charset="utf-8" /></head><body>${chrome}${html}</body></html>`;
+}
+
+let printPreviewIpcReady = false;
+
+function ensurePrintPreviewIpc() {
+  if (printPreviewIpcReady) return;
+  printPreviewIpcReady = true;
+
+  ipcMain.handle("print-preview:print", async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win || win.isDestroyed()) return false;
+    win.focus();
+    const success = await new Promise<boolean>((resolve) => {
+      win.webContents.print(
+        { silent: false, printBackground: true },
+        (ok, failureReason) => {
+          if (!ok && failureReason) {
+            console.warn("Print failed:", failureReason);
+          }
+          resolve(Boolean(ok));
+        }
+      );
+    });
+    if (success && !win.isDestroyed()) {
+      win.close();
+    }
+    return success;
+  });
+
+  ipcMain.handle("print-preview:close", (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win && !win.isDestroyed()) win.close();
+  });
+}
+
 async function printHtmlDocument(html: string): Promise<ActionResult> {
+  ensurePrintPreviewIpc();
+
   const printWin = new BrowserWindow({
-    width: 420,
-    height: 640,
+    width: 720,
+    height: 860,
     show: true,
     autoHideMenuBar: true,
-    parent: mainWindow ?? undefined,
     modal: false,
     title: "Print preview",
     backgroundColor: "#ffffff",
     webPreferences: {
+      preload: path.join(__dirname, "print-preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -143,34 +238,17 @@ async function printHtmlDocument(html: string): Promise<ActionResult> {
   });
 
   try {
-    await loadReceiptHtml(printWin, html);
-    await new Promise((r) => setTimeout(r, 200));
-
-    const success = await new Promise<boolean>((resolve) => {
-      printWin.webContents.print(
-        { silent: false, printBackground: true },
-        (ok, failureReason) => {
-          if (!ok && failureReason) {
-            console.warn("Print failed:", failureReason);
-          }
-          resolve(ok);
-        }
-      );
-    });
-
-    if (!success) {
-      return { ok: false, error: "Print cancelled" };
-    }
+    await loadReceiptHtml(printWin, wrapPrintPreview(html));
+    printWin.focus();
     return { ok: true, data: undefined };
   } catch (err) {
+    if (!printWin.isDestroyed()) {
+      printWin.close();
+    }
     return {
       ok: false,
       error: err instanceof Error ? err.message : "Print failed",
     };
-  } finally {
-    if (!printWin.isDestroyed()) {
-      printWin.close();
-    }
   }
 }
 
