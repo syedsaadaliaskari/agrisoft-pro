@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.5 — 2026-09-15
+
+### Settings
+- Pro shops that were activated before shop codes get a shop id and show **Shop code** in Settings after update.
+
 ## 0.3.4 — 2026-09-14
 
 ### Settings

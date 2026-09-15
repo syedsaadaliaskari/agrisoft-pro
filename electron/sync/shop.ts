@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "../db";
-import { getLicenseStatus } from "../db/license";
+import { ensureShopCloudTenantId, getLicenseStatus } from "../db/license";
 import { customers, settings } from "../db/schema";
 import { ensureCloudTenant, getSyncConfig, supabaseRest, SyncError, tenantId, type TenantSource } from "./client";
 import { syncAccounts } from "./accounts";
@@ -74,10 +74,10 @@ export async function publishShopCloudMeta(tid: string, shopName: string) {
 }
 
 export function getCloudSyncStatus(): CloudSyncStatus {
-  const cfg = getSyncConfig();
   const db = getDb();
+  ensureShopCloudTenantId(db);
+  const cfg = getSyncConfig();
   const localCustomerCount = db.select().from(customers).all().length;
-  const license = getLicenseStatus(db, false);
   return {
     configured: cfg.configured,
     url: cfg.url,
@@ -86,7 +86,7 @@ export function getCloudSyncStatus(): CloudSyncStatus {
     lastSyncAt: getSetting("cloud_last_sync_at") || null,
     lastError: getSetting("cloud_last_sync_error") || null,
     localCustomerCount,
-    shopJoinCode: shopJoinCodeForDisplay(cfg.tenantId || license.cloudTenantId),
+    shopJoinCode: shopJoinCodeForDisplay(cfg.tenantId),
   };
 }
 

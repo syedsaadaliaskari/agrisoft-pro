@@ -342,6 +342,33 @@ function storeCloudTenantId(db: Db, tenantId: string) {
   setSetting(db, CLOUD_TENANT_SETTING_KEY, tenantId.trim(), "sync");
 }
 
+/**
+ * Pro shops activated before shop-code still have no settings.supabase_tenant_id.
+ * Create/store one so Settings can show a join code on the installed app.
+ */
+export function ensureShopCloudTenantId(db: Db): string {
+  const existing = getSetting(db, CLOUD_TENANT_SETTING_KEY)?.trim();
+  if (existing) return existing;
+
+  const status = getLicenseStatus(db, false);
+  if (status.mode !== "pro") return (status.cloudTenantId || "").trim();
+
+  const { installId } = ensureInstallIdentity(db);
+  const tid = (status.cloudTenantId || "").trim() || resolveTenantForInstall(db, installId);
+  storeCloudTenantId(db, tid);
+  const now = new Date().toISOString();
+  const rows = db.select().from(licenses).where(eq(licenses.installId, installId)).all();
+  for (const row of rows) {
+    if (!row.tenantId?.trim()) {
+      db.update(licenses)
+        .set({ tenantId: tid, updatedAt: now })
+        .where(eq(licenses.id, row.id))
+        .run();
+    }
+  }
+  return tid;
+}
+
 /** Second PC: same shop cloud ID, and Pro if that shop is paid. */
 export function applyJoinedShopLicense(
   db: Db,
