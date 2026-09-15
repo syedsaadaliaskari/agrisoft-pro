@@ -10,6 +10,7 @@ import {
   pushTableTombstones,
   shouldRemoveLocal,
 } from "./deletes";
+import { trySyncWrite } from "./constraints";
 import { fetchTenantRows, type SyncCounts } from "./pull";
 import { isNewer } from "./store";
 
@@ -60,8 +61,9 @@ async function syncUnits(): Promise<SyncCounts> {
       updatedAt: row.updated_at,
     };
     if (!existing) {
-      db.insert(units).values(mapped).run();
-      pulled += 1;
+      const nameClash = db.select().from(units).where(eq(units.name, mapped.name)).get();
+      if (nameClash) continue;
+      if (trySyncWrite(() => db.insert(units).values(mapped).run())) pulled += 1;
     } else if (isNewer(row.updated_at, existing.updatedAt)) {
       db.update(units).set(mapped).where(eq(units.id, row.id)).run();
       pulled += 1;
@@ -70,7 +72,7 @@ async function syncUnits(): Promise<SyncCounts> {
 
   for (const row of db.select().from(units).all()) {
     if (cloudDeletedIds.has(row.id) || shouldRemoveLocal(table, row.id, row.updatedAt, cloudLiveIds)) {
-      db.delete(units).where(eq(units.id, row.id)).run();
+      trySyncWrite(() => db.delete(units).where(eq(units.id, row.id)).run());
     }
   }
 
@@ -125,8 +127,9 @@ async function syncCategories(): Promise<SyncCounts> {
       updatedAt: row.updated_at,
     };
     if (!existing) {
-      db.insert(categories).values(mapped).run();
-      pulled += 1;
+      const nameClash = db.select().from(categories).where(eq(categories.name, mapped.name)).get();
+      if (nameClash) continue;
+      if (trySyncWrite(() => db.insert(categories).values(mapped).run())) pulled += 1;
     } else if (isNewer(row.updated_at, existing.updatedAt)) {
       db.update(categories).set(mapped).where(eq(categories.id, row.id)).run();
       pulled += 1;
@@ -135,7 +138,7 @@ async function syncCategories(): Promise<SyncCounts> {
 
   for (const row of db.select().from(categories).all()) {
     if (cloudDeletedIds.has(row.id) || shouldRemoveLocal(table, row.id, row.updatedAt, cloudLiveIds)) {
-      db.delete(categories).where(eq(categories.id, row.id)).run();
+      trySyncWrite(() => db.delete(categories).where(eq(categories.id, row.id)).run());
     }
   }
 
@@ -191,8 +194,7 @@ async function syncTaxes(): Promise<SyncCounts> {
       updatedAt: row.updated_at,
     };
     if (!existing) {
-      db.insert(taxes).values(mapped).run();
-      pulled += 1;
+      if (trySyncWrite(() => db.insert(taxes).values(mapped).run())) pulled += 1;
     } else if (isNewer(row.updated_at, existing.updatedAt)) {
       db.update(taxes).set(mapped).where(eq(taxes.id, row.id)).run();
       pulled += 1;
@@ -201,7 +203,7 @@ async function syncTaxes(): Promise<SyncCounts> {
 
   for (const row of db.select().from(taxes).all()) {
     if (cloudDeletedIds.has(row.id) || shouldRemoveLocal(table, row.id, row.updatedAt, cloudLiveIds)) {
-      db.delete(taxes).where(eq(taxes.id, row.id)).run();
+      trySyncWrite(() => db.delete(taxes).where(eq(taxes.id, row.id)).run());
     }
   }
 
@@ -257,8 +259,7 @@ async function syncDiscounts(): Promise<SyncCounts> {
       updatedAt: row.updated_at,
     };
     if (!existing) {
-      db.insert(discounts).values(mapped).run();
-      pulled += 1;
+      if (trySyncWrite(() => db.insert(discounts).values(mapped).run())) pulled += 1;
     } else if (isNewer(row.updated_at, existing.updatedAt)) {
       db.update(discounts).set(mapped).where(eq(discounts.id, row.id)).run();
       pulled += 1;
@@ -267,7 +268,7 @@ async function syncDiscounts(): Promise<SyncCounts> {
 
   for (const row of db.select().from(discounts).all()) {
     if (cloudDeletedIds.has(row.id) || shouldRemoveLocal(table, row.id, row.updatedAt, cloudLiveIds)) {
-      db.delete(discounts).where(eq(discounts.id, row.id)).run();
+      trySyncWrite(() => db.delete(discounts).where(eq(discounts.id, row.id)).run());
     }
   }
 
@@ -323,8 +324,7 @@ async function syncAdditions(): Promise<SyncCounts> {
       updatedAt: row.updated_at,
     };
     if (!existing) {
-      db.insert(additions).values(mapped).run();
-      pulled += 1;
+      if (trySyncWrite(() => db.insert(additions).values(mapped).run())) pulled += 1;
     } else if (isNewer(row.updated_at, existing.updatedAt)) {
       db.update(additions).set(mapped).where(eq(additions.id, row.id)).run();
       pulled += 1;
@@ -333,7 +333,7 @@ async function syncAdditions(): Promise<SyncCounts> {
 
   for (const row of db.select().from(additions).all()) {
     if (cloudDeletedIds.has(row.id) || shouldRemoveLocal(table, row.id, row.updatedAt, cloudLiveIds)) {
-      db.delete(additions).where(eq(additions.id, row.id)).run();
+      trySyncWrite(() => db.delete(additions).where(eq(additions.id, row.id)).run());
     }
   }
 

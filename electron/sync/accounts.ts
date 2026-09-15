@@ -10,6 +10,7 @@ import {
   pushTableTombstones,
   shouldRemoveLocal,
 } from "./deletes";
+import { trySyncWrite } from "./constraints";
 import { fetchTenantRows, type SyncCounts } from "./pull";
 import { isNewer } from "./store";
 
@@ -52,8 +53,7 @@ export async function syncAccounts(): Promise<SyncCounts> {
       updatedAt: row.updated_at,
     };
     if (!existing) {
-      db.insert(accounts).values(mapped).run();
-      pulled += 1;
+      if (trySyncWrite(() => db.insert(accounts).values(mapped).run())) pulled += 1;
     } else if (isNewer(row.updated_at, existing.updatedAt)) {
       db.update(accounts).set(mapped).where(eq(accounts.id, row.id)).run();
       pulled += 1;
@@ -62,7 +62,7 @@ export async function syncAccounts(): Promise<SyncCounts> {
 
   for (const row of db.select().from(accounts).all()) {
     if (cloudDeletedIds.has(row.id) || shouldRemoveLocal(table, row.id, row.updatedAt, cloudLiveIds)) {
-      db.delete(accounts).where(eq(accounts.id, row.id)).run();
+      trySyncWrite(() => db.delete(accounts).where(eq(accounts.id, row.id)).run());
     }
   }
 

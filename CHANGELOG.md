@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.6 — 2026-09-15
+
+### Cloud sync
+- Sync no longer stops the whole shop on a foreign-key or unique clash. Rows that are still used on bills stay; the rest continues to sync.
+
 ## 0.3.5 — 2026-09-15
 
 ### Settings

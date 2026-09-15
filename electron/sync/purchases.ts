@@ -11,13 +11,14 @@ import {
   rememberLocalDelete,
   shouldRemoveLocal,
 } from "./deletes";
+import { trySyncWrite } from "./constraints";
 import { fetchTenantRows, type SyncCounts } from "./pull";
 import { isNewer } from "./store";
 
 function removePurchaseLocal(id: string) {
   const db = getDb();
-  db.delete(purchaseItems).where(eq(purchaseItems.purchaseId, id)).run();
-  db.delete(purchases).where(eq(purchases.id, id)).run();
+  trySyncWrite(() => db.delete(purchaseItems).where(eq(purchaseItems.purchaseId, id)).run());
+  trySyncWrite(() => db.delete(purchases).where(eq(purchases.id, id)).run());
 }
 
 export async function syncPurchases(): Promise<SyncCounts> {
@@ -86,7 +87,7 @@ export async function syncPurchases(): Promise<SyncCounts> {
       updatedAt: row.updated_at,
     };
     if (!existing) {
-      db.insert(purchases).values(mapped).run();
+      if (trySyncWrite(() => db.insert(purchases).values(mapped).run())) pulled += 1;
       pulled += 1;
     } else if (isNewer(row.updated_at, existing.updatedAt)) {
       db.update(purchases).set(mapped).where(eq(purchases.id, row.id)).run();
@@ -177,7 +178,7 @@ export async function syncPurchases(): Promise<SyncCounts> {
       lineOrder: Number(row.line_order || 0),
     };
     if (!existing) {
-      db.insert(purchaseItems).values(mapped).run();
+      trySyncWrite(() => db.insert(purchaseItems).values(mapped).run());
     } else {
       db.update(purchaseItems).set(mapped).where(eq(purchaseItems.id, row.id)).run();
     }
@@ -187,7 +188,7 @@ export async function syncPurchases(): Promise<SyncCounts> {
     const parent = db.select().from(purchases).where(eq(purchases.id, row.purchaseId)).get();
     const stamp = parent?.updatedAt || parent?.createdAt || "";
     if (itemDeletedIds.has(row.id) || shouldRemoveLocal("purchase_items", row.id, stamp, itemLiveIds)) {
-      db.delete(purchaseItems).where(eq(purchaseItems.id, row.id)).run();
+      trySyncWrite(() => db.delete(purchaseItems).where(eq(purchaseItems.id, row.id)).run());
     }
   }
 

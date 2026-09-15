@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "../db";
-import { productVariants, products, stockMovements } from "../db/schema";
+import { categories, productVariants, products, stockMovements, units } from "../db/schema";
 import { supabaseUpsert, tenantId } from "./client";
+import { trySyncWrite } from "./constraints";
 import {
   beginTableDeletes,
   fetchCloudDeletedIds,
@@ -57,10 +58,10 @@ function removeProductLocal(id: string) {
   const db = getDb();
   const variants = db.select().from(productVariants).where(eq(productVariants.productId, id)).all();
   for (const variant of variants) {
-    db.delete(stockMovements).where(eq(stockMovements.variantId, variant.id)).run();
-    db.delete(productVariants).where(eq(productVariants.id, variant.id)).run();
+    trySyncWrite(() => db.delete(stockMovements).where(eq(stockMovements.variantId, variant.id)).run());
+    trySyncWrite(() => db.delete(productVariants).where(eq(productVariants.id, variant.id)).run());
   }
-  db.delete(products).where(eq(products.id, id)).run();
+  trySyncWrite(() => db.delete(products).where(eq(products.id, id)).run());
 }
 
 export async function syncProducts(): Promise<{
@@ -89,8 +90,11 @@ export async function syncProducts(): Promise<{
       barcode: row.barcode,
       name: row.name,
       description: row.description,
-      categoryId: row.category_id,
-      unitId: row.unit_id,
+      categoryId:
+        row.category_id && db.select().from(categories).where(eq(categories.id, row.category_id)).get()
+          ? row.category_id
+          : null,
+      unitId: row.unit_id && db.select().from(units).where(eq(units.id, row.unit_id)).get() ? row.unit_id : null,
       brand: row.brand,
       gender: row.gender,
       season: row.season,
@@ -104,8 +108,7 @@ export async function syncProducts(): Promise<{
       updatedAt: row.updated_at,
     };
     if (!existing) {
-      db.insert(products).values(mapped).run();
-      pulledProducts += 1;
+      if (trySyncWrite(() => db.insert(products).values(mapped).run())) pulledProducts += 1;
     } else if (isNewer(row.updated_at, existing.updatedAt)) {
       db.update(products).set(mapped).where(eq(products.id, row.id)).run();
       pulledProducts += 1;
@@ -174,8 +177,7 @@ export async function syncProducts(): Promise<{
       updatedAt: row.updated_at,
     };
     if (!existing) {
-      db.insert(productVariants).values(mapped).run();
-      pulledVariants += 1;
+      if (trySyncWrite(() => db.insert(productVariants).values(mapped).run())) pulledVariants += 1;
     } else if (isNewer(row.updated_at, existing.updatedAt)) {
       db.update(productVariants).set(mapped).where(eq(productVariants.id, row.id)).run();
       pulledVariants += 1;
@@ -184,8 +186,8 @@ export async function syncProducts(): Promise<{
 
   for (const row of db.select().from(productVariants).all()) {
     if (variantDeletedIds.has(row.id) || shouldRemoveLocal("product_variants", row.id, row.updatedAt, variantLiveIds)) {
-      db.delete(stockMovements).where(eq(stockMovements.variantId, row.id)).run();
-      db.delete(productVariants).where(eq(productVariants.id, row.id)).run();
+      trySyncWrite(() => db.delete(stockMovements).where(eq(stockMovements.variantId, row.id)).run());
+      trySyncWrite(() => db.delete(productVariants).where(eq(productVariants.id, row.id)).run());
     }
   }
 

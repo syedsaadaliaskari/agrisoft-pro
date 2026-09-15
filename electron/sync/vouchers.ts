@@ -10,6 +10,7 @@ import {
   pushTableTombstones,
   shouldRemoveLocal,
 } from "./deletes";
+import { trySyncWrite } from "./constraints";
 import { fetchTenantRows, type SyncCounts } from "./pull";
 import { isNewer } from "./store";
 import { tombstoneIdSet } from "./tombstones";
@@ -71,8 +72,7 @@ export async function syncVouchers(): Promise<SyncCounts> {
       updatedAt: row.updated_at,
     };
     if (!existing) {
-      db.insert(vouchers).values(mapped).run();
-      pulled += 1;
+      if (trySyncWrite(() => db.insert(vouchers).values(mapped).run())) pulled += 1;
     } else if (isNewer(row.updated_at, existing.updatedAt)) {
       db.update(vouchers).set(mapped).where(eq(vouchers.id, row.id)).run();
       pulled += 1;
@@ -81,8 +81,10 @@ export async function syncVouchers(): Promise<SyncCounts> {
 
   for (const row of db.select().from(vouchers).all()) {
     if (cloudDeletedIds.has(row.id) || shouldRemoveLocal("vouchers", row.id, row.updatedAt, cloudLiveIds)) {
-      db.delete(voucherEntries).where(eq(voucherEntries.voucherId, row.id)).run();
-      db.delete(vouchers).where(eq(vouchers.id, row.id)).run();
+      trySyncWrite(() => {
+        db.delete(voucherEntries).where(eq(voucherEntries.voucherId, row.id)).run();
+        db.delete(vouchers).where(eq(vouchers.id, row.id)).run();
+      });
     }
   }
 
@@ -151,7 +153,7 @@ export async function syncVouchers(): Promise<SyncCounts> {
       lineOrder: Number(row.line_order || 0),
     };
     if (!existing) {
-      db.insert(voucherEntries).values(mapped).run();
+      trySyncWrite(() => db.insert(voucherEntries).values(mapped).run());
     } else {
       db.update(voucherEntries).set(mapped).where(eq(voucherEntries.id, row.id)).run();
     }
@@ -161,7 +163,7 @@ export async function syncVouchers(): Promise<SyncCounts> {
     const parent = db.select().from(vouchers).where(eq(vouchers.id, row.voucherId)).get();
     const stamp = parent?.updatedAt || parent?.createdAt || "";
     if (entryDeletedIds.has(row.id) || shouldRemoveLocal("voucher_entries", row.id, stamp, entryLiveIds)) {
-      db.delete(voucherEntries).where(eq(voucherEntries.id, row.id)).run();
+      trySyncWrite(() => db.delete(voucherEntries).where(eq(voucherEntries.id, row.id)).run());
     }
   }
 

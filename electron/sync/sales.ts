@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "../db";
-import { productVariants, saleItems, sales, vouchers } from "../db/schema";
+import { customers, productVariants, saleItems, sales, vouchers } from "../db/schema";
 import { supabaseUpsert, tenantId } from "./client";
+import { trySyncWrite } from "./constraints";
 import {
   beginTableDeletes,
   fetchCloudDeletedIds,
@@ -16,8 +17,8 @@ import { isNewer } from "./store";
 
 function removeSaleLocal(id: string) {
   const db = getDb();
-  db.delete(saleItems).where(eq(saleItems.saleId, id)).run();
-  db.delete(sales).where(eq(sales.id, id)).run();
+  trySyncWrite(() => db.delete(saleItems).where(eq(saleItems.saleId, id)).run());
+  trySyncWrite(() => db.delete(sales).where(eq(sales.id, id)).run());
 }
 
 export async function syncSales(): Promise<SyncCounts> {
@@ -70,7 +71,10 @@ export async function syncSales(): Promise<SyncCounts> {
       voucherId: row.voucher_id,
       invoiceNo: row.invoice_no,
       invoiceDate: row.invoice_date,
-      customerId: row.customer_id,
+      customerId:
+        row.customer_id && db.select().from(customers).where(eq(customers.id, row.customer_id)).get()
+          ? row.customer_id
+          : null,
       paymentMode: row.payment_mode || "cash",
       subtotal: Number(row.subtotal || 0),
       discountAmount: Number(row.discount_amount || 0),
@@ -85,8 +89,7 @@ export async function syncSales(): Promise<SyncCounts> {
       updatedAt: row.updated_at,
     };
     if (!existing) {
-      db.insert(sales).values(mapped).run();
-      pulled += 1;
+      if (trySyncWrite(() => db.insert(sales).values(mapped).run())) pulled += 1;
     } else if (isNewer(row.updated_at, existing.updatedAt)) {
       db.update(sales).set(mapped).where(eq(sales.id, row.id)).run();
       pulled += 1;
@@ -178,7 +181,7 @@ export async function syncSales(): Promise<SyncCounts> {
       lineOrder: Number(row.line_order || 0),
     };
     if (!existing) {
-      db.insert(saleItems).values(mapped).run();
+      trySyncWrite(() => db.insert(saleItems).values(mapped).run());
     } else {
       db.update(saleItems).set(mapped).where(eq(saleItems.id, row.id)).run();
     }
@@ -188,7 +191,7 @@ export async function syncSales(): Promise<SyncCounts> {
     const parent = db.select().from(sales).where(eq(sales.id, row.saleId)).get();
     const stamp = parent?.updatedAt || parent?.createdAt || "";
     if (itemDeletedIds.has(row.id) || shouldRemoveLocal("sale_items", row.id, stamp, itemLiveIds)) {
-      db.delete(saleItems).where(eq(saleItems.id, row.id)).run();
+      trySyncWrite(() => db.delete(saleItems).where(eq(saleItems.id, row.id)).run());
     }
   }
 

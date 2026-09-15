@@ -10,6 +10,7 @@ import {
   pushTableTombstones,
   shouldRemoveLocal,
 } from "./deletes";
+import { trySyncWrite } from "./constraints";
 import { fetchTenantRows, type SyncCounts } from "./pull";
 import { isNewer } from "./store";
 
@@ -56,8 +57,7 @@ export async function syncVendors(): Promise<SyncCounts> {
       updatedAt: row.updated_at,
     };
     if (!existing) {
-      db.insert(vendors).values(mapped).run();
-      pulled += 1;
+      if (trySyncWrite(() => db.insert(vendors).values(mapped).run())) pulled += 1;
     } else if (isNewer(row.updated_at, existing.updatedAt)) {
       db.update(vendors).set(mapped).where(eq(vendors.id, row.id)).run();
       pulled += 1;
@@ -66,7 +66,7 @@ export async function syncVendors(): Promise<SyncCounts> {
 
   for (const row of db.select().from(vendors).all()) {
     if (cloudDeletedIds.has(row.id) || shouldRemoveLocal(table, row.id, row.updatedAt, cloudLiveIds)) {
-      db.delete(vendors).where(eq(vendors.id, row.id)).run();
+      trySyncWrite(() => db.delete(vendors).where(eq(vendors.id, row.id)).run());
     }
   }
 

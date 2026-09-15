@@ -11,6 +11,7 @@ import {
   shouldRemoveLocal,
 } from "./deletes";
 import { fetchTenantRows } from "./pull";
+import { trySyncWrite } from "./constraints";
 import { isNewer } from "./store";
 
 type CloudPermission = { id: string; code: string; module: string; description: string | null };
@@ -123,12 +124,6 @@ export async function syncUsers(): Promise<{ pushed: number; pulled: number }> {
   let pulled = 0;
   for (const row of remoteRoles) {
     const existing = db.select().from(roles).where(eq(roles.id, row.id)).get();
-    const nameClash = db.select().from(roles).where(eq(roles.name, row.name)).get();
-    if (nameClash && nameClash.id !== row.id) {
-      if (isSuperAdminRoleName(nameClash.name)) continue;
-      db.delete(rolePermissions).where(eq(rolePermissions.roleId, nameClash.id)).run();
-      db.delete(roles).where(eq(roles.id, nameClash.id)).run();
-    }
     const mapped = {
       id: row.id,
       name: row.name,
@@ -137,9 +132,19 @@ export async function syncUsers(): Promise<{ pushed: number; pulled: number }> {
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
+    const nameClash = db.select().from(roles).where(eq(roles.name, row.name)).get();
+    if (nameClash && nameClash.id !== row.id) {
+      if (isSuperAdminRoleName(nameClash.name)) continue;
+      if (!existing && trySyncWrite(() => db.insert(roles).values(mapped).run())) {
+        pulled += 1;
+      }
+      db.update(users).set({ roleId: row.id }).where(eq(users.roleId, nameClash.id)).run();
+      trySyncWrite(() => db.delete(rolePermissions).where(eq(rolePermissions.roleId, nameClash.id)).run());
+      trySyncWrite(() => db.delete(roles).where(eq(roles.id, nameClash.id)).run());
+      continue;
+    }
     if (!existing) {
-      db.insert(roles).values(mapped).run();
-      pulled += 1;
+      if (trySyncWrite(() => db.insert(roles).values(mapped).run())) pulled += 1;
     } else if (isNewer(row.updated_at, existing.updatedAt)) {
       db.update(roles).set(mapped).where(eq(roles.id, row.id)).run();
       pulled += 1;
@@ -152,8 +157,9 @@ export async function syncUsers(): Promise<{ pushed: number; pulled: number }> {
       deletedRoles.has(row.id) ||
       (remoteRoles.length > 0 && shouldRemoveLocal("roles", row.id, row.updatedAt, cloudRoleIds));
     if (drop) {
-      db.delete(rolePermissions).where(eq(rolePermissions.roleId, row.id)).run();
-      db.delete(roles).where(eq(roles.id, row.id)).run();
+      if (db.select().from(users).where(eq(users.roleId, row.id)).get()) continue;
+      trySyncWrite(() => db.delete(rolePermissions).where(eq(rolePermissions.roleId, row.id)).run());
+      trySyncWrite(() => db.delete(roles).where(eq(roles.id, row.id)).run());
     }
   }
 
@@ -215,10 +221,9 @@ export async function syncUsers(): Promise<{ pushed: number; pulled: number }> {
         .all()
         .find((p) => p.permissionId === localPermissionId);
       if (clash && clash.id !== row.id) {
-        db.delete(rolePermissions).where(eq(rolePermissions.id, clash.id)).run();
+        trySyncWrite(() => db.delete(rolePermissions).where(eq(rolePermissions.id, clash.id)).run());
       }
-      db.insert(rolePermissions).values(mapped).run();
-      pulled += 1;
+      if (trySyncWrite(() => db.insert(rolePermissions).values(mapped).run())) pulled += 1;
     }
   }
 
@@ -229,7 +234,7 @@ export async function syncUsers(): Promise<{ pushed: number; pulled: number }> {
       deletedPerms.has(row.id) ||
       (remotePerms.length > 0 && shouldRemoveLocal("role_permissions", row.id, now, cloudPermIds))
     ) {
-      db.delete(rolePermissions).where(eq(rolePermissions.id, row.id)).run();
+      trySyncWrite(() => db.delete(rolePermissions).where(eq(rolePermissions.id, row.id)).run());
     }
   }
 
@@ -279,7 +284,7 @@ export async function syncUsers(): Promise<{ pushed: number; pulled: number }> {
     const existing = db.select().from(users).where(eq(users.id, row.id)).get();
     const nameClash = db.select().from(users).where(eq(users.username, row.username.toLowerCase())).get();
     if (nameClash && nameClash.id !== row.id) {
-      db.delete(users).where(eq(users.id, nameClash.id)).run();
+      trySyncWrite(() => db.delete(users).where(eq(users.id, nameClash.id)).run());
     }
     const mapped = {
       id: row.id,
@@ -295,8 +300,7 @@ export async function syncUsers(): Promise<{ pushed: number; pulled: number }> {
       updatedAt: row.updated_at,
     };
     if (!existing) {
-      db.insert(users).values(mapped).run();
-      pulled += 1;
+      if (trySyncWrite(() => db.insert(users).values(mapped).run())) pulled += 1;
     } else if (isNewer(row.updated_at, existing.updatedAt)) {
       db.update(users).set(mapped).where(eq(users.id, row.id)).run();
       pulled += 1;
@@ -310,7 +314,7 @@ export async function syncUsers(): Promise<{ pushed: number; pulled: number }> {
       deletedUsers.has(row.id) ||
       (remoteUsers.length > 0 && shouldRemoveLocal("users", row.id, row.updatedAt, cloudUserIds))
     ) {
-      db.delete(users).where(eq(users.id, row.id)).run();
+      trySyncWrite(() => db.delete(users).where(eq(users.id, row.id)).run());
     }
   }
 
