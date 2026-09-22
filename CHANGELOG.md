@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.7 — 2026-09-22
+
+### About
+- Admin-only **About** page: Agri Soft Pro logo, version, Install ID, and WhatsApp support.
+
+### Super Admin
+- Activated list shows phone, start, end, and Active/Ended. Export includes PDF.
+- **Messages**: pick companies, English or Urdu templates, open WhatsApp with the text filled in (tap Send).
+- **Upload to phone** publishes the activated list to the cloud so the phone Super Admin screen can show the same companies.
+
 ## 0.3.6 — 2026-09-15
 
 ### Cloud sync
