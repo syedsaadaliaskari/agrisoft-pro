@@ -27,6 +27,7 @@ import {
   KeyRound,
   Lock,
   MessageCircle,
+  Info,
   type LucideIcon,
 } from "lucide-react";
 
@@ -43,6 +44,8 @@ export type NavItem = {
   anyOfPermissions?: string[];
   /** Who should see this link. Default: shop */
   audience?: NavAudience;
+  /** Shop Admin role only (not Cashier / Accountant / Super Admin) */
+  adminOnly?: boolean;
 };
 
 export type NavGroup = {
@@ -222,6 +225,13 @@ export const navigation: NavGroup[] = [
         icon: Settings,
         permission: "settings.manage",
         audience: "both",
+      },
+      {
+        labelKey: "nav.about",
+        href: "/settings/about",
+        icon: Info,
+        adminOnly: true,
+        audience: "shop",
       },
     ],
   },

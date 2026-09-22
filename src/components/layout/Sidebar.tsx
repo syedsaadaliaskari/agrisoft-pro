@@ -32,6 +32,7 @@ function canSeeItem(
   vendor: boolean
 ) {
   if (!audienceAllows(item.audience, vendor)) return false;
+  if (item.adminOnly && user?.roleName !== "Admin") return false;
   if (vendor) return true;
   if (item.anyOfPermissions?.length) {
     return hasAnyPermission(user, item.anyOfPermissions);

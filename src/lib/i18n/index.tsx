@@ -45,6 +45,7 @@ export const PAGE_META: Record<string, { title: string; subtitle?: string }> = {
   "/settings/password": { title: "pages.password.title" },
   "/settings/backup": { title: "pages.backup.title" },
   "/settings/audit": { title: "pages.audit.title" },
+  "/settings/about": { title: "pages.about.title", subtitle: "pages.about.subtitle" },
   "/settings": { title: "pages.settings.title" },
 };
 

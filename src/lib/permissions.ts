@@ -14,6 +14,11 @@ export function isSuperAdminUser(user: SessionUser | null | undefined): boolean 
   return user?.roleName === "Super Admin";
 }
 
+/** Shop owner Admin — not Cashier, Accountant, or vendor Super Admin. */
+export function isShopAdminUser(user: SessionUser | null | undefined): boolean {
+  return user?.roleName === "Admin";
+}
+
 export function hasPermission(user: SessionUser | null | undefined, code: string): boolean {
   if (!user) return false;
   if (user.roleName === "Super Admin") return true;

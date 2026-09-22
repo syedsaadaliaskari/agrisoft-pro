@@ -6,7 +6,7 @@ import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { AppShellSkeleton } from "@/components/ui/Skeleton";
 import { useAuthStore } from "@/store/auth";
-import { canAccessScreen, isSuperAdminUser } from "@/lib/permissions";
+import { canAccessScreen, isShopAdminUser, isSuperAdminUser } from "@/lib/permissions";
 import { normalizePath, PAGE_META, useI18n } from "@/lib/i18n";
 import { getApi } from "@/lib/api";
 
@@ -15,9 +15,11 @@ type Props = {
   subtitle?: string;
   children: React.ReactNode;
   permission?: string;
+  /** Shop Admin role only */
+  adminOnly?: boolean;
 };
 
-export function AppShell({ title, subtitle, children, permission }: Props) {
+export function AppShell({ title, subtitle, children, permission, adminOnly }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, hydrated, hydrate, logout } = useAuthStore();
@@ -105,7 +107,7 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
     return <AppShellSkeleton />;
   }
 
-  const allowed = canAccessScreen(user, permission);
+  const allowed = (!adminOnly || isShopAdminUser(user)) && canAccessScreen(user, permission);
 
   if (!allowed) {
     return (

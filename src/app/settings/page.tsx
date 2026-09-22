@@ -2,18 +2,19 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ClipboardList, ImagePlus, KeyRound, Shield } from "lucide-react";
+import { ClipboardList, ImagePlus, Info, KeyRound, Shield } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Alert, Button, DataTable, Input, Select } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
 import { formatAuditAction, formatAuditModule, formatAuditWhen } from "@/lib/auditLabels";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission, isShopAdminUser } from "@/lib/permissions";
 import { useAuthStore } from "@/store/auth";
 import type { AuditLogRow, SettingsMap } from "@shared/ipc";
 
 export default function SettingsPage() {
   const user = useAuthStore((s) => s.user);
   const canManageUsers = hasPermission(user, "users.manage");
+  const isAdmin = isShopAdminUser(user);
   const [form, setForm] = useState({
     shop_name: "",
     shop_phone: "",
@@ -305,6 +306,21 @@ export default function SettingsPage() {
               <div>
                 <div className="text-sm font-semibold text-[var(--text)] group-hover:text-[var(--accent)]">
                   Users
+                </div>
+              </div>
+            </Link>
+          ) : null}
+          {isAdmin ? (
+            <Link
+              href="/settings/about"
+              className="group flex items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-4 transition hover:border-[var(--accent)]/50 hover:bg-[var(--accent-soft)]/30 sm:col-span-2"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent)]">
+                <Info size={18} />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-[var(--text)] group-hover:text-[var(--accent)]">
+                  About
                 </div>
               </div>
             </Link>
