@@ -53,6 +53,7 @@ export const ur: Dict = {
 
   "nav.dashboard": "ڈیش بورڈ",
   "nav.licenses": "فعال فہرست",
+  "nav.messages": "پیغامات",
   "nav.sale": "سیل",
   "nav.saleReturn": "سیل واپسی",
   "nav.purchase": "پرچیز",
@@ -153,6 +154,8 @@ export const ur: Dict = {
   "pages.password.subtitle": "اپنے سائن ان اکاؤنٹ کا پاس ورڈ اپ ڈیٹ کریں",
   "pages.licenses.title": "فعال فہرست",
   "pages.licenses.subtitle": "پرو کے لیے فعال کردہ کمپنیاں",
+  "pages.messages.title": "پیغامات",
+  "pages.messages.subtitle": "فعال کمپنیوں کو مفت واٹس ایپ",
   "pages.licenseInfo.title": "لائسنس",
   "pages.licenseInfo.subtitle": "آپ کی انسٹال آئی ڈی اور کمپنی ایکٹیویشن",
   "pages.backup.title": "بیک اپ و بحالی",

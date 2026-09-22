@@ -26,6 +26,7 @@ import {
   HardDrive,
   KeyRound,
   Lock,
+  MessageCircle,
   type LucideIcon,
 } from "lucide-react";
 
@@ -66,6 +67,13 @@ export const navigation: NavGroup[] = [
         labelKey: "nav.licenses",
         href: "/platform/licenses",
         icon: KeyRound,
+        anyOfPermissions: ["license.view", "platform.view", "license.manage"],
+        audience: "platform",
+      },
+      {
+        labelKey: "nav.messages",
+        href: "/platform/messages",
+        icon: MessageCircle,
         anyOfPermissions: ["license.view", "platform.view", "license.manage"],
         audience: "platform",
       },

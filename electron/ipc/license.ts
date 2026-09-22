@@ -79,6 +79,9 @@ export function registerLicenseHandlers(isDev: boolean): void {
             .then((m) => m.ensureCloudTenant(row.tenantId!, row.name))
             .catch((err) => console.warn("Cloud tenant upsert failed:", err));
         }
+        void import("../sync/vendorLicenses")
+          .then((m) => m.publishVendorLicense(row))
+          .catch((err) => console.warn("Cloud license publish failed:", err));
         return row;
       })
   );
@@ -86,7 +89,21 @@ export function registerLicenseHandlers(isDev: boolean): void {
   registerHandler(IPC.LICENSE_DELETE, async (_e, id: string): Promise<ActionResult> =>
     guarded(() => requireAnyPermission("license.manage", "platform.view"), async () => {
       deleteLicense(getDb(), id);
+      void import("../sync/vendorLicenses")
+        .then((m) => m.unpublishVendorLicense(id))
+        .catch((err) => console.warn("Cloud license unpublish failed:", err));
     })
+  );
+
+  registerHandler(
+    IPC.LICENSE_PUBLISH_CLOUD,
+    async (): Promise<ActionResult<{ published: number }>> =>
+      guarded(() => requireAnyPermission("license.manage", "platform.view", "license.view"), async () => {
+        const rows = listLicenses(getDb());
+        const { publishAllVendorLicenses } = await import("../sync/vendorLicenses");
+        const published = await publishAllVendorLicenses(rows);
+        return { published };
+      })
   );
 
   registerHandler(IPC.LICENSE_EXPIRE_TRIAL, async (): Promise<ActionResult<LicenseStatus>> =>

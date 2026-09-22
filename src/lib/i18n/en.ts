@@ -53,6 +53,7 @@ export const en: Dict = {
 
   "nav.dashboard": "Dashboard",
   "nav.licenses": "Activated list",
+  "nav.messages": "Messages",
   "nav.sale": "Sale",
   "nav.saleReturn": "Sale Return",
   "nav.purchase": "Purchase",
@@ -153,6 +154,8 @@ export const en: Dict = {
   "pages.password.subtitle": "Update the password for your signed-in account",
   "pages.licenses.title": "Activated list",
   "pages.licenses.subtitle": "Companies activated for Pro",
+  "pages.messages.title": "Messages",
+  "pages.messages.subtitle": "Free WhatsApp to activated companies",
   "pages.licenseInfo.title": "License",
   "pages.licenseInfo.subtitle": "Your Install ID and activate companies",
   "pages.backup.title": "Backup & Restore",

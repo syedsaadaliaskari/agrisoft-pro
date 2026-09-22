@@ -13,6 +13,7 @@ const dictionaries = { en, ur } as const;
 export const PAGE_META: Record<string, { title: string; subtitle?: string }> = {
   "/dashboard": { title: "pages.dashboard.title" },
   "/platform/licenses": { title: "pages.licenses.title" },
+  "/platform/messages": { title: "pages.messages.title" },
   "/settings/license": { title: "pages.licenseInfo.title" },
   "/sales": { title: "pages.sales.title" },
   "/sales/returns": { title: "pages.salesReturns.title" },

@@ -153,6 +153,7 @@ const api: ElectronAPI = {
   expireTrialForTesting: () => ipcRenderer.invoke(IPC.LICENSE_EXPIRE_TRIAL),
   lockThisInstallNow: () => ipcRenderer.invoke(IPC.LICENSE_LOCK_NOW),
   applyActivationCode: (code) => ipcRenderer.invoke(IPC.LICENSE_APPLY_CODE, code),
+  publishLicensesToCloud: () => ipcRenderer.invoke(IPC.LICENSE_PUBLISH_CLOUD),
 
   getN8nStatus: () => ipcRenderer.invoke(IPC.N8N_STATUS),
   flushN8nQueue: () => ipcRenderer.invoke(IPC.N8N_FLUSH),

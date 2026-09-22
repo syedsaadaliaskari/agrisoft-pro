@@ -166,6 +166,7 @@ export const IPC = {
   LICENSE_EXPIRE_TRIAL: "license:expireTrial",
   LICENSE_LOCK_NOW: "license:lockNow",
   LICENSE_APPLY_CODE: "license:applyCode",
+  LICENSE_PUBLISH_CLOUD: "license:publishCloud",
 
   N8N_STATUS: "n8n:status",
   N8N_FLUSH: "n8n:flush",
@@ -1647,6 +1648,7 @@ export type ElectronAPI = {
   expireTrialForTesting: () => Promise<ActionResult<LicenseStatus>>;
   lockThisInstallNow: () => Promise<ActionResult<LicenseStatus>>;
   applyActivationCode: (code: string) => Promise<ActionResult<LicenseStatus>>;
+  publishLicensesToCloud: () => Promise<ActionResult<{ published: number }>>;
 
   getN8nStatus: () => Promise<
     ActionResult<{ enabled: boolean; webhookUrl: string; paymentDaysBefore: number; minDueAmount: number }>

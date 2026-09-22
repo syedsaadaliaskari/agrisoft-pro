@@ -562,6 +562,7 @@ create table if not exists public.licenses (
 );
 
 create index if not exists licenses_install_idx on public.licenses (install_id);
+create index if not exists licenses_deleted_idx on public.licenses (deleted_at);
 
 -- ─── Dev seed: one demo tenant (optional) ────────────────────
 

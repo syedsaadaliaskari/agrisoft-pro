@@ -74,7 +74,13 @@ export function AppShell({ title, subtitle, children, permission }: Props) {
       "/customers",
       "/reports/sales",
     ];
-    const vendorRoutes = ["/dashboard", "/platform/licenses", "/settings/license", "/settings"];
+    const vendorRoutes = [
+      "/dashboard",
+      "/platform/licenses",
+      "/platform/messages",
+      "/settings/license",
+      "/settings",
+    ];
     const routes = isSuperAdminUser(user) ? vendorRoutes : shopRoutes;
     for (const href of routes) {
       try {
