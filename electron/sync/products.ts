@@ -171,7 +171,10 @@ export async function syncProducts(): Promise<{
       color: row.color || "Default",
       costPrice: row.cost_price == null ? null : Number(row.cost_price),
       salePrice: row.sale_price == null ? null : Number(row.sale_price),
-      stockQty: Number(row.stock_qty || 0),
+      stockQty:
+        existing && Number(existing.stockQty) > 0 && Number(row.stock_qty || 0) === 0
+          ? Number(existing.stockQty)
+          : Number(row.stock_qty || 0),
       isActive: Boolean(row.is_active),
       createdAt: row.created_at,
       updatedAt: row.updated_at,

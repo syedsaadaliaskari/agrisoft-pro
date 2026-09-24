@@ -258,6 +258,26 @@ export function ensurePermissions(db: Db): void {
 
   ensureSimpleAccountNames(db);
   ensureOwnerDrawSupport(db);
+  ensureDefaultAccounts(db);
+}
+
+/** Put back Cash/Bank and the rest of the chart if a shop wipe removed them. */
+export function ensureDefaultAccounts(db: Db): void {
+  for (const a of DEFAULT_ACCOUNTS) {
+    const row = db.select().from(accounts).where(eq(accounts.code, a.code)).get();
+    if (row) continue;
+    db.insert(accounts)
+      .values({
+        id: randomUUID(),
+        code: a.code,
+        name: a.name,
+        accountType: a.accountType,
+        isSystem: true,
+        isActive: true,
+        openingBalance: 0,
+      })
+      .run();
+  }
 }
 
 /** Insert Owner Draw equity account + document counter on existing installs. */

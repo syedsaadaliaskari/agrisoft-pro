@@ -3,6 +3,7 @@ import { getSetting } from "./store";
 import {
   captureVanished,
   clearPendingWipe,
+  getLastLiveIds,
   getPendingWipeTenantId,
   isTombstoned,
   markShopWipe,
@@ -92,6 +93,8 @@ export async function fetchCloudDeletedIds(table: string): Promise<Set<string>> 
 export function shouldRemoveLocal(table: string, id: string, localUpdatedAt: string, cloudLiveIds: Set<string>) {
   if (cloudLiveIds.has(id)) return false;
   if (isTombstoned(table, id)) return true;
+  // Never delete work that this PC created and the cloud has never listed.
+  if (!getLastLiveIds(table).includes(id)) return false;
   const lastPull = getSetting("cloud_last_sync_at");
   if (!lastPull) return false;
   if (new Date(localUpdatedAt).getTime() > new Date(lastPull).getTime()) return false;

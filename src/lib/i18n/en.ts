@@ -208,6 +208,7 @@ export const en: Dict = {
   "login.username": "Username",
   "login.password": "Password",
   "login.shopCode": "Shop code",
+  "login.shopCodeHint": "Use only once on a new computer. After that leave it empty.",
   "login.enterBoth": "Enter username and password",
   "login.needElectron": "Open the Agri Soft Pro desktop app to sign in.",
   "login.failed": "Login failed",

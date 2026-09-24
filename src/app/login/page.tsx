@@ -222,6 +222,9 @@ export default function LoginPage() {
                 autoComplete="off"
                 disabled={busy}
               />
+              <p className="mt-1.5 text-[11px] leading-snug text-[var(--text-muted)]">
+                {t("login.shopCodeHint")}
+              </p>
             </div>
 
             {error ? (

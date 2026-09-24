@@ -1,7 +1,8 @@
 import { getDb } from "../db";
-import { clearLocalShopData } from "../db/shop-clear";
+import { clearLocalShopData, localShopHasWork } from "../db/shop-clear";
 import { applyJoinedShopLicense } from "../db/license";
 import { ensurePermissions } from "../db/seed";
+import { ensureDocumentPrefixes } from "../db/counters";
 import { supabaseRest, SyncError, resolveTenant } from "./client";
 import { normalizeShopCode, rememberShopCode } from "./shopCode";
 import { setSetting } from "./store";
@@ -41,27 +42,7 @@ export async function lookupShopByJoinCode(rawCode: string): Promise<CloudTenant
   }
 }
 
-/** Connect this PC to the shop for `code`, then pull that shop. */
-export async function joinShopByCode(rawCode: string): Promise<void> {
-  const shop = await lookupShopByJoinCode(rawCode);
-  const current = resolveTenant().tenantId;
-  rememberShopCode(shop.join_code || rawCode);
-  applyJoinedShopLicense(getDb(), {
-    tenantId: shop.id,
-    plan: shop.plan,
-    expiresAt: shop.license_expires_at,
-    name: shop.license_name || shop.name,
-  });
-
-  if (current === shop.id) {
-    await syncUsers();
-    return;
-  }
-
-  resetLocalSyncState();
-  setSetting("cloud_last_sync_at", "");
-  setSetting("cloud_last_sync_error", "");
-  clearLocalShopData();
+function attachShop(shop: CloudTenant, rawCode: string): void {
   rememberShopCode(shop.join_code || rawCode);
   applyJoinedShopLicense(getDb(), {
     tenantId: shop.id,
@@ -72,6 +53,39 @@ export async function joinShopByCode(rawCode: string): Promise<void> {
   if (shop.name?.trim()) {
     setSetting("shop_name", shop.name.trim());
   }
+}
+
+/** Connect this PC to the shop for `code`. Never wipe a PC that already has customers/sales. */
+export async function joinShopByCode(rawCode: string): Promise<void> {
+  const shop = await lookupShopByJoinCode(rawCode);
+  const current = resolveTenant().tenantId;
+  const sameShop = Boolean(current) && current === shop.id;
+  const firstPcWithWork = !current && localShopHasWork();
+
+  if (current && current !== shop.id && localShopHasWork()) {
+    throw new SyncError(
+      "This PC already has shop data. Leave shop code empty to keep it. Shop code is only for a new empty computer."
+    );
+  }
+
+  if (sameShop || firstPcWithWork) {
+    attachShop(shop, rawCode);
+    try {
+      await runShopCloudSync();
+    } catch {
+      await syncUsers();
+    }
+    ensureDocumentPrefixes(getDb());
+    ensurePermissions(getDb());
+    return;
+  }
+
+  resetLocalSyncState();
+  setSetting("cloud_last_sync_at", "");
+  setSetting("cloud_last_sync_error", "");
+  clearLocalShopData();
+  attachShop(shop, rawCode);
   await runShopCloudSync();
+  ensureDocumentPrefixes(getDb());
   ensurePermissions(getDb());
 }

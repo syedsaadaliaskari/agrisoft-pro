@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.8 — 2026-09-24
+
+### Shop data
+- Login no longer clears customers, products, sales, or purchases on a PC that already has shop work.
+- Shop code stays on the login screen. Use it only once on a new computer; after that leave it empty.
+
+### Sales
+- Missing bill-number rows are created again (fixes "Document counter not found for type: sale").
+- Initial stock stays on the sale screen. Cloud sync does not zero local stock just because the cloud still has 0.
+
 ## 0.3.7 — 2026-09-22
 
 ### About

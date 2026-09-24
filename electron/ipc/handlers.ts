@@ -35,8 +35,8 @@ import { registerSyncHandlers } from "./sync";
 import { getCurrentSession, setCurrentSession, PermissionError, requireSession } from "./session";
 import { writeAuditLog } from "../db/audit";
 import { joinShopByCode } from "../sync/join";
-import { displayShopCode, normalizeShopCode } from "../sync/shopCode";
-import { resolveTenant, SyncError } from "../sync/client";
+import { normalizeShopCode } from "../sync/shopCode";
+import { SyncError } from "../sync/client";
 
 function loadUserSession(userId: string): SessionUser | null {
   const db = getDb();
@@ -90,16 +90,12 @@ export function registerIpcHandlers(appVersion: string, isDev: boolean): void {
     async (_e, username: string, password: string, shopCode?: string): Promise<LoginResult> => {
       const code = normalizeShopCode(shopCode);
       if (code) {
-        const already = normalizeShopCode(displayShopCode());
-        const sameShop = Boolean(resolveTenant().tenantId) && already === code;
-        if (!sameShop) {
-          try {
-            await joinShopByCode(code);
-          } catch (err) {
-            const message =
-              err instanceof SyncError || err instanceof Error ? err.message : "Could not join shop";
-            return { ok: false, error: message };
-          }
+        try {
+          await joinShopByCode(code);
+        } catch (err) {
+          const message =
+            err instanceof SyncError || err instanceof Error ? err.message : "Could not join shop";
+          return { ok: false, error: message };
         }
       }
 

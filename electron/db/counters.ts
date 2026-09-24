@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { eq, sql } from "drizzle-orm";
 import type { Db } from "./index";
 import { documentCounters, vouchers } from "./schema";
@@ -43,6 +44,7 @@ function formatDocumentNumber(prefix: string | null, number: number, padLength: 
 
 /** Atomically allocate the next document number (e.g. S00001). */
 export function nextDocumentNumber(db: Db, docType: DocType): string {
+  ensureDocumentPrefixes(db);
   const row = db.select().from(documentCounters).where(eq(documentCounters.docType, docType)).get();
 
   if (!row) {
@@ -73,6 +75,7 @@ export function nextDocumentNumber(db: Db, docType: DocType): string {
 
 /** Peek next number without consuming it */
 export function peekDocumentNumber(db: Db, docType: DocType): string {
+  ensureDocumentPrefixes(db);
   const row = db.select().from(documentCounters).where(eq(documentCounters.docType, docType)).get();
   if (!row) {
     throw new Error(`Document counter not found for type: ${docType}`);
@@ -80,14 +83,24 @@ export function peekDocumentNumber(db: Db, docType: DocType): string {
   return formatDocumentNumber(row.prefix, row.nextNumber, row.padLength);
 }
 
-/** Give every document type its own prefix so numbers stay unique across types. */
+/** Create any missing bill-number rows and keep prefixes correct. */
 export function ensureDocumentPrefixes(db: Db): void {
-  const rows = db.select().from(documentCounters).all();
-  for (const row of rows) {
-    const wanted = DOC_PREFIXES[row.docType as DocType];
-    if (!wanted || row.prefix === wanted) continue;
+  for (const [docType, prefix] of Object.entries(DOC_PREFIXES) as [DocType, string][]) {
+    const row = db.select().from(documentCounters).where(eq(documentCounters.docType, docType)).get();
+    if (!row) {
+      db.insert(documentCounters)
+        .values({
+          id: randomUUID(),
+          docType,
+          prefix,
+          nextNumber: 1,
+        })
+        .run();
+      continue;
+    }
+    if (row.prefix === prefix) continue;
     db.update(documentCounters)
-      .set({ prefix: wanted, updatedAt: sql`(datetime('now'))` })
+      .set({ prefix, updatedAt: sql`(datetime('now'))` })
       .where(eq(documentCounters.id, row.id))
       .run();
   }

@@ -204,6 +204,7 @@ export function registerProductHandlers(): void {
 
       const id = randomUUID();
       const sku = allocateSku(input.sku);
+      const ts = nowIso();
       db.insert(products)
         .values({
           id,
@@ -225,6 +226,8 @@ export function registerProductHandlers(): void {
           taxId: input.taxId ?? null,
           reorderLevel: Number(input.reorderLevel ?? 0),
           isActive: input.isActive ?? true,
+          createdAt: ts,
+          updatedAt: ts,
         })
         .run();
 
@@ -246,6 +249,8 @@ export function registerProductHandlers(): void {
           salePrice: Number(input.salePrice),
           stockQty: initialStock,
           isActive: true,
+          createdAt: ts,
+          updatedAt: ts,
         })
         .run();
 

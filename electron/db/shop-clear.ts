@@ -6,6 +6,16 @@ const KEEP_SETTINGS = new Set([
   "vendor_unlocked",
 ]);
 
+/** True when this PC already has real shop work (not just the empty seed). */
+export function localShopHasWork(): boolean {
+  const sqlite = getSqlite();
+  for (const table of ["customers", "sales", "purchases", "products", "vendors"]) {
+    const row = sqlite.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number };
+    if (Number(row?.n || 0) > 0) return true;
+  }
+  return false;
+}
+
 /** Empty local shop tables so a join can pull the cloud shop. Does not touch cloud. */
 export function clearLocalShopData(): void {
   const sqlite = getSqlite();

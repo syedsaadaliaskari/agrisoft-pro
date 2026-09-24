@@ -178,8 +178,8 @@ export default function SalesPage() {
         value: r.variantId,
         label:
           r.costPrice > 0 && r.salePrice < r.costPrice
-            ? `${r.productName} (${r.size}/${r.color}) — selling at a loss`
-            : `${r.productName} (${r.size}/${r.color})`,
+            ? `${r.productName} (${r.size}/${r.color}) — ${r.stockQty} in stock — selling at a loss`
+            : `${r.productName} (${r.size}/${r.color}) — ${r.stockQty} in stock`,
       })),
     ],
     [inventory]
@@ -222,6 +222,7 @@ export default function SalesPage() {
     resetComposer();
     setEditingId(null);
     setComposer(true);
+    void load();
   };
 
   const openEdit = async (row: Sale) => {

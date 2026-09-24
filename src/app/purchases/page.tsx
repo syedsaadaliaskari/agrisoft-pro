@@ -181,7 +181,7 @@ export default function PurchasesPage() {
       { value: "", label: "Select product" },
       ...inventory.map((r) => ({
         value: r.variantId,
-        label: `${r.productName} (${r.size}/${r.color})`,
+        label: `${r.productName} (${r.size}/${r.color}) — ${r.stockQty} in stock`,
       })),
     ],
     [inventory]
@@ -226,6 +226,7 @@ export default function PurchasesPage() {
     resetComposer();
     setEditingId(null);
     setComposer(true);
+    void load();
   };
 
   const openEdit = async (row: Purchase) => {

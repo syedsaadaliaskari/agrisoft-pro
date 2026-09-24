@@ -208,6 +208,7 @@ export const ur: Dict = {
   "login.username": "صارف نام",
   "login.password": "پاس ورڈ",
   "login.shopCode": "شاپ کوڈ",
+  "login.shopCodeHint": "صرف نئے کمپیوٹر پر ایک بار بھریں۔ اس کے بعد خالی چھوڑیں۔",
   "login.enterBoth": "صارف نام اور پاس ورڈ درج کریں",
   "login.needElectron": "Agri Soft Pro ڈیسک ٹاپ ایپ کھول کر سائن ان کریں۔",
   "login.failed": "لاگ ان ناکام",
