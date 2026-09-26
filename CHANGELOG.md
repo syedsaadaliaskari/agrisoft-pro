@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.9 — 2026-09-26
+
+### Shop data
+- Sign-in ignores a shop code when this PC already has customers, products, or bills, so autofill cannot erase the shop.
+- An empty cloud list no longer deletes local shop rows.
+
+### About
+- Removed the This PC block (plan, dates, Install ID).
+- About now describes the software and SoftPro, with a new layout and “All rights reserved” at the bottom.
+
 ## 0.3.8 — 2026-09-24
 
 ### Shop data
