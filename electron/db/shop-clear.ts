@@ -18,6 +18,9 @@ export function localShopHasWork(): boolean {
 
 /** Empty local shop tables so a join can pull the cloud shop. Does not touch cloud. */
 export function clearLocalShopData(): void {
+  if (localShopHasWork()) {
+    throw new Error("Refusing to erase shop data that is already on this PC");
+  }
   const sqlite = getSqlite();
   sqlite.pragma("foreign_keys = OFF");
   sqlite.exec(`

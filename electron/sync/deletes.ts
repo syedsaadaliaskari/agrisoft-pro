@@ -1,9 +1,7 @@
 import { supabasePatch, supabaseRest, tenantId } from "./client";
-import { getSetting } from "./store";
 import {
   captureVanished,
   clearPendingWipe,
-  getLastLiveIds,
   getPendingWipeTenantId,
   isTombstoned,
   markShopWipe,
@@ -89,16 +87,19 @@ export async function fetchCloudDeletedIds(table: string): Promise<Set<string>> 
   }
 }
 
-/** Local row is gone from the live cloud set and should not be kept or re-uploaded. */
-export function shouldRemoveLocal(table: string, id: string, localUpdatedAt: string, cloudLiveIds: Set<string>) {
+/**
+ * Remove a local row only when this PC already marked it deleted.
+ * A cloud list that comes back empty must not erase the shop.
+ * Real cloud deletes are applied separately from deleted_at.
+ */
+export function shouldRemoveLocal(
+  table: string,
+  id: string,
+  _localUpdatedAt: string,
+  cloudLiveIds: Set<string>
+) {
   if (cloudLiveIds.has(id)) return false;
-  if (isTombstoned(table, id)) return true;
-  // Never delete work that this PC created and the cloud has never listed.
-  if (!getLastLiveIds(table).includes(id)) return false;
-  const lastPull = getSetting("cloud_last_sync_at");
-  if (!lastPull) return false;
-  if (new Date(localUpdatedAt).getTime() > new Date(lastPull).getTime()) return false;
-  return true;
+  return isTombstoned(table, id);
 }
 
 export function skipLivePush(table: string, id: string): boolean {

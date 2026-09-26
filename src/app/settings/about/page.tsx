@@ -1,154 +1,144 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Copy, MessageCircle } from "lucide-react";
+import {
+  BarChart3,
+  BookOpen,
+  Languages,
+  MessageCircle,
+  Package,
+  ShoppingCart,
+  Users,
+  WifiOff,
+  type LucideIcon,
+} from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
-import { Alert, Button } from "@/components/ui/form";
+import { Button } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { VENDOR_SUPPORT, whatsappVendorHelpUrl } from "@shared/support";
-import type { LicenseStatus } from "@shared/ipc";
 
-const FEATURE_KEYS = [
-  "about.feature.sales",
-  "about.feature.stock",
-  "about.feature.parties",
-  "about.feature.ledgers",
-  "about.feature.reports",
-  "about.feature.language",
-  "about.feature.offline",
-] as const;
-
-function planLabel(status: LicenseStatus | null, t: (key: string) => string): string {
-  if (!status) return "—";
-  if (status.mode === "pro") {
-    if (status.plan === "forever") return t("about.planForever");
-    if (status.plan === "yearly") return t("about.planYearly");
-    if (status.plan === "monthly") return t("about.planMonthly");
-    return t("about.planPro");
-  }
-  if (status.mode === "trial") return t("about.planTrial");
-  return t("about.planLocked");
-}
-
-function validUntil(status: LicenseStatus | null, t: (key: string) => string): string {
-  if (!status) return "—";
-  if (status.mode === "pro" && (status.plan === "forever" || !status.expiresAt)) {
-    return t("about.never");
-  }
-  if (status.expiresAt) return status.expiresAt;
-  if (status.mode === "trial" && status.trialEndsAt) return status.trialEndsAt;
-  return "—";
-}
+const FEATURES: { key: string; icon: LucideIcon }[] = [
+  { key: "about.feature.sales", icon: ShoppingCart },
+  { key: "about.feature.stock", icon: Package },
+  { key: "about.feature.parties", icon: Users },
+  { key: "about.feature.ledgers", icon: BookOpen },
+  { key: "about.feature.reports", icon: BarChart3 },
+  { key: "about.feature.language", icon: Languages },
+  { key: "about.feature.offline", icon: WifiOff },
+];
 
 export default function AboutPage() {
   const { t } = useI18n();
   const [version, setVersion] = useState("—");
-  const [status, setStatus] = useState<LicenseStatus | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [error, setError] = useState("");
 
   const load = useCallback(async () => {
-    setError("");
-    const [info, license] = await Promise.all([getApi().getAppInfo(), getApi().getLicenseStatus()]);
-    setVersion(info.version || "—");
-    if (!license.ok) {
-      setError(license.error);
-      return;
+    try {
+      const info = await getApi().getAppInfo();
+      setVersion(info.version || "—");
+    } catch {
+      setVersion("—");
     }
-    setStatus(license.data);
   }, []);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const onCopyId = async () => {
-    if (!status?.installId) return;
-    try {
-      await navigator.clipboard.writeText(status.installId);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      setError(t("about.copyFailed"));
-    }
-  };
-
   const onWhatsApp = () => {
-    window.open(whatsappVendorHelpUrl(status?.installId), "_blank", "noopener,noreferrer");
+    window.open(whatsappVendorHelpUrl(), "_blank", "noopener,noreferrer");
   };
 
   return (
     <AppShell title="About" adminOnly>
-      <div className="mx-auto max-w-2xl space-y-5">
-        {error ? <Alert>{error}</Alert> : null}
-
-        <section className="rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] p-6 text-center">
-          <img
-            src="/logo.png"
-            alt="Agri Soft Pro"
-            className="mx-auto h-auto w-44 object-contain"
+      <div className="mx-auto max-w-4xl">
+        <section className="relative overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--bg-elevated)]">
+          <div className="pointer-events-none absolute -end-24 -top-24 h-64 w-64 rounded-full bg-[var(--accent-soft)]" />
+          <div
+            className="pointer-events-none absolute -start-16 bottom-0 h-48 w-48 rounded-full"
+            style={{ background: "var(--atmosphere-2)" }}
           />
-          <h1 className="mt-4 text-xl font-semibold tracking-tight">Agri Soft Pro</h1>
-          <p className="mt-2 text-sm text-[var(--text-muted)]">{t("about.tagline")}</p>
-          <p className="mt-3 text-xs text-[var(--text-muted)]">
-            {t("about.version")}: {version} · {t("about.desktop")}
-          </p>
-        </section>
-
-        <section className="rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5">
-          <h2 className="text-sm font-semibold">{t("about.helpTitle")}</h2>
-          <p className="mt-1 text-sm text-[var(--text-muted)]">{t("about.helpHint")}</p>
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <Button type="button" onClick={onWhatsApp}>
-              <MessageCircle size={14} /> {t("about.whatsapp")} {VENDOR_SUPPORT.aboutWhatsappDisplay}
-            </Button>
+          <div className="relative grid gap-8 p-8 sm:p-10 lg:grid-cols-[1.3fr_0.7fr] lg:items-end">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
+                {t("about.house")}
+              </p>
+              <div className="mt-4 flex items-center gap-4">
+                <img
+                  src="/logo-mark.png"
+                  alt=""
+                  className="h-14 w-14 shrink-0 object-contain"
+                />
+                <div>
+                  <h1 className="text-3xl font-semibold tracking-tight">Agri Soft Pro</h1>
+                  <p className="mt-1 max-w-md text-sm leading-relaxed text-[var(--text-muted)]">
+                    {t("about.tagline")}
+                  </p>
+                </div>
+              </div>
+              <p className="mt-6 inline-flex rounded-full border border-[var(--border)] bg-[var(--bg)] px-3 py-1 text-xs text-[var(--text-muted)]">
+                {t("about.version")} {version} · {t("about.desktop")}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)]/80 p-5 backdrop-blur">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">
+                {t("about.houseLine")}
+              </p>
+              <p className="mt-2 text-2xl font-semibold tracking-tight">{t("about.house")}</p>
+              <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">{t("about.productOf")}</p>
+            </div>
           </div>
         </section>
 
-        <section className="rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5">
-          <h2 className="text-sm font-semibold">{t("about.thisPc")}</h2>
-          <dl className="mt-3 space-y-2 text-sm">
-            <div className="flex justify-between gap-3">
-              <dt className="text-[var(--text-muted)]">{t("about.plan")}</dt>
-              <dd className="font-medium">{planLabel(status, t)}</dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-[var(--text-muted)]">{t("about.validUntil")}</dt>
-              <dd className="font-medium">{validUntil(status, t)}</dd>
-            </div>
-            <div className="flex items-start justify-between gap-3">
-              <dt className="pt-1 text-[var(--text-muted)]">{t("about.installId")}</dt>
-              <dd className="text-right font-mono text-xs font-semibold">{status?.installId ?? "—"}</dd>
-            </div>
-          </dl>
-          <div className="mt-3">
-            <Button variant="secondary" size="sm" onClick={() => void onCopyId()} disabled={!status?.installId}>
-              <Copy size={14} /> {copied ? t("about.copied") : t("about.copyId")}
-            </Button>
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5">
-          <h2 className="text-sm font-semibold">{t("about.includes")}</h2>
-          <ul className="mt-3 list-disc space-y-1.5 ps-5 text-sm text-[var(--text)]">
-            {FEATURE_KEYS.map((key) => (
-              <li key={key}>{t(key)}</li>
+        <section className="mt-5">
+          <h2 className="mb-3 text-sm font-semibold">{t("about.includes")}</h2>
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {FEATURES.map(({ key, icon: Icon }) => (
+              <li
+                key={key}
+                className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-3.5"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
+                  <Icon size={16} strokeWidth={1.75} />
+                </span>
+                <span className="text-sm">{t(key)}</span>
+              </li>
             ))}
           </ul>
         </section>
 
-        <section className="rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5">
-          <h2 className="text-sm font-semibold">{t("about.dataTitle")}</h2>
-          <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">{t("about.dataBody")}</p>
+        <section className="mt-5 grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="rounded-3xl border border-[var(--border)] bg-[var(--bg-elevated)] p-6">
+            <h2 className="text-lg font-semibold tracking-tight">{t("about.aboutUsTitle")}</h2>
+            <p className="mt-3 text-sm leading-7 text-[var(--text-muted)]">{t("about.aboutUsBody")}</p>
+            <div className="mt-6 space-y-4 border-t border-[var(--border)] pt-5">
+              <div>
+                <h3 className="text-sm font-semibold">{t("about.dataTitle")}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-[var(--text-muted)]">{t("about.dataBody")}</p>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold">{t("about.licenseTitle")}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-[var(--text-muted)]">{t("about.licenseBody")}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col justify-between rounded-3xl border border-[var(--border)] bg-[var(--bg-elevated)] p-6">
+            <div>
+              <h2 className="text-lg font-semibold tracking-tight">{t("about.helpTitle")}</h2>
+              <p className="mt-3 text-sm leading-7 text-[var(--text-muted)]">{t("about.helpHint")}</p>
+            </div>
+            <Button type="button" className="mt-6 w-full" onClick={onWhatsApp}>
+              <MessageCircle size={15} /> {t("about.whatsapp")} {VENDOR_SUPPORT.aboutWhatsappDisplay}
+            </Button>
+          </div>
         </section>
 
-        <section className="rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5">
-          <h2 className="text-sm font-semibold">{t("about.licenseTitle")}</h2>
-          <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">{t("about.licenseBody")}</p>
-        </section>
-
-        <p className="px-1 text-center text-xs text-[var(--text-muted)]">{t("about.credit")}</p>
+        <footer className="mt-8 border-t border-[var(--border)] pt-6 text-center">
+          <p className="text-sm font-semibold tracking-[0.16em] text-[var(--accent)]">{t("about.house")}</p>
+          <p className="mt-2 text-sm text-[var(--text)]">{t("about.rights")}</p>
+          <p className="mt-1 text-xs text-[var(--text-muted)]">{t("about.productOf")}</p>
+        </footer>
       </div>
     </AppShell>
   );

@@ -37,6 +37,7 @@ import { writeAuditLog } from "../db/audit";
 import { joinShopByCode } from "../sync/join";
 import { normalizeShopCode } from "../sync/shopCode";
 import { SyncError } from "../sync/client";
+import { localShopHasWork } from "../db/shop-clear";
 
 function loadUserSession(userId: string): SessionUser | null {
   const db = getDb();
@@ -89,7 +90,9 @@ export function registerIpcHandlers(appVersion: string, isDev: boolean): void {
     IPC.AUTH_LOGIN,
     async (_e, username: string, password: string, shopCode?: string): Promise<LoginResult> => {
       const code = normalizeShopCode(shopCode);
-      if (code) {
+      // Shop code is only for a new empty computer. A filled box on a working
+      // shop (including Windows autofill) must not join, sync, or erase data.
+      if (code && !localShopHasWork()) {
         try {
           await joinShopByCode(code);
         } catch (err) {
