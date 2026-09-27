@@ -167,8 +167,13 @@ export async function syncVouchers(): Promise<SyncCounts> {
     }
   }
 
+  const cloudVoucherIds = new Set((await fetchTenantRows<{ id: string }>("vouchers")).map((row) => row.id));
+  const cloudAccountIds = new Set((await fetchTenantRows<{ id: string }>("accounts")).map((row) => row.id));
   const remainingEntries = liveRows("voucher_entries", db.select().from(voucherEntries).all()).filter(
-    (row) => liveVoucherIds.has(row.voucherId) && accountIds.has(row.accountId)
+    (row) =>
+      liveVoucherIds.has(row.voucherId) &&
+      cloudVoucherIds.has(row.voucherId) &&
+      cloudAccountIds.has(row.accountId)
   );
   const stamp = new Date().toISOString();
   await supabaseUpsert(

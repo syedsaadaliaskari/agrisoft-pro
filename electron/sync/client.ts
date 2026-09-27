@@ -104,9 +104,27 @@ export async function supabasePatch(table: string, query: string, body: unknown)
   });
 }
 
+function isCloudRowConflict(message: string): boolean {
+  return (
+    message.includes("23505") ||
+    message.includes("23503") ||
+    message.includes("duplicate key") ||
+    message.includes("violates foreign key")
+  );
+}
+
+function cloudRowId(row: unknown): string {
+  if (row && typeof row === "object" && "id" in row) {
+    const id = (row as { id?: unknown }).id;
+    if (typeof id === "string" && id) return id;
+  }
+  return "?";
+}
+
 export async function supabaseUpsert(table: string, rows: unknown[]): Promise<number> {
   if (!rows.length) return 0;
   const chunkSize = 200;
+  let pushed = 0;
   for (let i = 0; i < rows.length; i += chunkSize) {
     const chunk = rows.slice(i, i + chunkSize);
     try {
@@ -116,10 +134,10 @@ export async function supabaseUpsert(table: string, rows: unknown[]): Promise<nu
         prefer: "resolution=merge-duplicates,return=minimal",
         body: chunk,
       });
+      pushed += chunk.length;
     } catch (err) {
       const message = err instanceof Error ? err.message : "";
-      const duplicate = message.includes("23505") || message.includes("duplicate key");
-      if (!duplicate) throw err;
+      if (!isCloudRowConflict(message)) throw err;
       for (const row of chunk) {
         try {
           await supabaseRest(table, {
@@ -128,15 +146,19 @@ export async function supabaseUpsert(table: string, rows: unknown[]): Promise<nu
             prefer: "resolution=merge-duplicates,return=minimal",
             body: [row],
           });
+          pushed += 1;
         } catch (rowErr) {
           const rowMessage = rowErr instanceof Error ? rowErr.message : "";
-          if (rowMessage.includes("23505") || rowMessage.includes("duplicate key")) continue;
+          if (isCloudRowConflict(rowMessage)) {
+            console.warn(`Cloud sync skipped ${table} ${cloudRowId(row)}: ${rowMessage.slice(0, 180)}`);
+            continue;
+          }
           throw rowErr;
         }
       }
     }
   }
-  return rows.length;
+  return pushed;
 }
 
 export function tenantId(): string {

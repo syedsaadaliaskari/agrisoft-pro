@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0 — 2026-09-27
+
+### Cloud sync
+- A voucher line whose parent voucher is missing in the cloud no longer stops the whole shop sync.
+- Ledger lines upload only when that voucher and account are already in the cloud. One clashing row is skipped and the rest continues.
+
 ## 0.3.9 — 2026-09-26
 
 ### Shop data
