@@ -507,3 +507,105 @@ export function applyActivationCode(db: Db, rawCode: string): LicenseStatus {
 
   return getLicenseStatus(db, false);
 }
+
+export type SharedShopLicense = {
+  install_id?: string | null;
+  trial_started_at?: string | null;
+  plan?: string | null;
+  license_expires_at?: string | null;
+  license_name?: string | null;
+};
+
+/** This PC's Install ID, trial start, and live activation. Join placeholders are not an activation. */
+export function readLocalShopLicense(db: Db): {
+  installId: string;
+  installedAt: string;
+  plan: LicensePlan | null;
+  expiresAt: string | null;
+  licenseName: string | null;
+} {
+  const { installId, installedAt } = ensureInstallIdentity(db);
+  const active = findActiveLicense(db, installId);
+  if (!active || active.notes === "Joined shop") {
+    return { installId, installedAt, plan: null, expiresAt: null, licenseName: null };
+  }
+  return {
+    installId,
+    installedAt,
+    plan: active.plan,
+    expiresAt: active.expiresAt,
+    licenseName: active.name,
+  };
+}
+
+function removeLicensesForInstall(db: Db, installId: string) {
+  const id = installId.trim();
+  if (!id) return;
+  const rows = db.select().from(licenses).where(eq(licenses.installId, id)).all();
+  for (const row of rows) {
+    db.delete(licenses).where(eq(licenses.id, row.id)).run();
+  }
+}
+
+/**
+ * Save the row returned by sync_shop_license. The SQL already merged the shop and this PC.
+ */
+export function applySharedShopLicense(db: Db, shop: SharedShopLicense, previousInstallId: string): void {
+  const installId = shop.install_id?.trim() || "";
+  const installedAt = shop.trial_started_at?.trim() || "";
+  if (!installId || !installedAt) return;
+
+  setSetting(db, "license_install_id", installId);
+  setSetting(db, "license_installed_at", installedAt);
+
+  const previous = previousInstallId.trim();
+  if (previous && previous !== installId) {
+    removeLicensesForInstall(db, previous);
+  }
+
+  const rawPlan = shop.plan?.trim() || "";
+  const plan: LicensePlan | null =
+    rawPlan === "monthly" || rawPlan === "yearly" || rawPlan === "forever" ? rawPlan : null;
+
+  if (!plan) {
+    removeLicensesForInstall(db, installId);
+    return;
+  }
+
+  const expiresAt = plan === "forever" ? null : shop.license_expires_at?.trim() || null;
+  const name = shop.license_name?.trim() || "Activated";
+  const tenantId = getSetting(db, CLOUD_TENANT_SETTING_KEY)?.trim() || null;
+  const rows = db.select().from(licenses).where(eq(licenses.installId, installId)).all();
+  const match = rows.find((row) => row.plan === plan && (row.expiresAt ?? null) === expiresAt);
+  if (match) {
+    for (const row of rows) {
+      if (row.id !== match.id) {
+        db.delete(licenses).where(eq(licenses.id, row.id)).run();
+      }
+    }
+    if (match.name !== name || (match.tenantId ?? null) !== tenantId) {
+      db.update(licenses)
+        .set({ name, tenantId, updatedAt: new Date().toISOString() })
+        .where(eq(licenses.id, match.id))
+        .run();
+    }
+    return;
+  }
+
+  removeLicensesForInstall(db, installId);
+  const now = new Date().toISOString();
+  db.insert(licenses)
+    .values({
+      id: randomUUID(),
+      name,
+      installId,
+      plan,
+      activatedAt: todayIsoDate(),
+      expiresAt,
+      notes: "Shop license",
+      tenantId,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .run();
+}

@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "../db";
-import { ensureShopCloudTenantId, getLicenseStatus } from "../db/license";
+import { ensureShopCloudTenantId } from "../db/license";
+import { syncDesktopShopLicense } from "./shopLicense";
 import { customers, settings } from "../db/schema";
 import { ensureCloudTenant, getSyncConfig, supabaseRest, SyncError, tenantId, type TenantSource } from "./client";
 import { syncAccounts } from "./accounts";
@@ -64,13 +65,7 @@ export async function publishShopCloudMeta(tid: string, shopName: string) {
     /* join_code column missing until shop-join.sql is run */
   }
   if (joinCode.length !== 8) joinCode = ensureLocalShopCode();
-  const license = getLicenseStatus(getDb(), false);
-  await ensureCloudTenant(tid, shopName, {
-    joinCode,
-    plan: license.mode === "pro" ? license.plan : null,
-    licenseExpiresAt: license.expiresAt,
-    licenseName: license.licenseName,
-  });
+  await ensureCloudTenant(tid, shopName, { joinCode });
 }
 
 export function getCloudSyncStatus(): CloudSyncStatus {
@@ -105,6 +100,7 @@ export async function runShopCloudSync(): Promise<CloudSyncResult> {
     db.select().from(settings).where(eq(settings.key, "shop_name")).get()?.value?.trim() || "Shop";
 
   await publishShopCloudMeta(tid, shopName);
+  await syncDesktopShopLicense();
   await pushPendingShopWipe();
   await syncUsers();
   await syncShopSettings();

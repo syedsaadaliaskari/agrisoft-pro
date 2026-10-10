@@ -104,6 +104,26 @@ export async function supabasePatch(table: string, query: string, body: unknown)
   });
 }
 
+/** Call a Postgres function with the service role. auth.uid() is null; auth.role() is service_role. */
+export async function supabaseRpc<T>(fn: string, args: Record<string, unknown>): Promise<T> {
+  const env = requireCredentials();
+  const res = await fetch(`${env.url}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: {
+      apikey: env.serviceRoleKey,
+      Authorization: `Bearer ${env.serviceRoleKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(args),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new SyncError(`Supabase RPC ${fn} failed (${res.status}): ${text.slice(0, 240)}`);
+  }
+  if (!text) return null as T;
+  return JSON.parse(text) as T;
+}
+
 function isCloudRowConflict(message: string): boolean {
   return (
     message.includes("23505") ||
@@ -119,6 +139,76 @@ function cloudRowId(row: unknown): string {
     if (typeof id === "string" && id) return id;
   }
   return "?";
+}
+
+/** Unique columns that stay taken even after a soft delete. */
+const NATURAL_KEY: Record<string, string> = {
+  settings: "key",
+  units: "name",
+  categories: "name",
+  taxes: "name",
+  discounts: "name",
+  additions: "name",
+  customers: "code",
+  vendors: "code",
+  accounts: "code",
+  products: "sku",
+  product_variants: "sku",
+  vouchers: "voucher_no",
+  sales: "invoice_no",
+  purchases: "invoice_no",
+  sale_returns: "return_no",
+  purchase_returns: "return_no",
+  document_counters: "doc_type",
+};
+
+const SOFT_DELETE_CHILDREN: Record<string, { table: string; column: string }[]> = {
+  products: [{ table: "product_variants", column: "product_id" }],
+  product_variants: [
+    { table: "sale_items", column: "variant_id" },
+    { table: "purchase_items", column: "variant_id" },
+    { table: "stock_movements", column: "variant_id" },
+  ],
+  sales: [{ table: "sale_items", column: "sale_id" }],
+  purchases: [{ table: "purchase_items", column: "purchase_id" }],
+  vouchers: [{ table: "voucher_entries", column: "voucher_id" }],
+  accounts: [{ table: "voucher_entries", column: "account_id" }],
+};
+
+function isUniqueViolation(message: string): boolean {
+  return message.includes("23505") || message.includes("duplicate key") || message.includes("unique constraint");
+}
+
+/** A deleted cloud row still owns the shop code/sku/invoice. Drop it so the current row can upload. */
+async function releaseSoftDeletedKey(table: string, row: Record<string, unknown>): Promise<boolean> {
+  const keyColumn = NATURAL_KEY[table];
+  const tenant = row.tenant_id;
+  const key = keyColumn ? row[keyColumn] : undefined;
+  const id = row.id;
+  if (!keyColumn || typeof tenant !== "string" || key == null || key === "" || typeof id !== "string") return false;
+  const found = await supabaseRest<{ id: string; deleted_at: string | null }[]>(table, {
+    query: `tenant_id=eq.${encodeURIComponent(tenant)}&${keyColumn}=eq.${encodeURIComponent(String(key))}&select=id,deleted_at`,
+  });
+  const blocker = (found || []).find((item) => item.id !== id && item.deleted_at);
+  if (!blocker) return false;
+  await deleteSoftDeletedRow(table, blocker.id);
+  return true;
+}
+
+async function deleteSoftDeletedRow(table: string, id: string): Promise<void> {
+  for (const child of SOFT_DELETE_CHILDREN[table] || []) {
+    const kids = await supabaseRest<{ id: string; deleted_at: string | null }[]>(child.table, {
+      query: `${child.column}=eq.${encodeURIComponent(id)}&select=id,deleted_at`,
+    });
+    for (const kid of kids || []) {
+      if (!kid.deleted_at) continue;
+      await deleteSoftDeletedRow(child.table, kid.id);
+    }
+  }
+  await supabaseRest(table, {
+    method: "DELETE",
+    query: `id=eq.${encodeURIComponent(id)}&deleted_at=not.is.null`,
+  });
 }
 
 export async function supabaseUpsert(table: string, rows: unknown[]): Promise<number> {
@@ -149,9 +239,28 @@ export async function supabaseUpsert(table: string, rows: unknown[]): Promise<nu
           pushed += 1;
         } catch (rowErr) {
           const rowMessage = rowErr instanceof Error ? rowErr.message : "";
-          if (isCloudRowConflict(rowMessage)) {
-            console.warn(`Cloud sync skipped ${table} ${cloudRowId(row)}: ${rowMessage.slice(0, 180)}`);
+          if (
+            isUniqueViolation(rowMessage) &&
+            row &&
+            typeof row === "object" &&
+            (await releaseSoftDeletedKey(table, row as Record<string, unknown>))
+          ) {
+            await supabaseRest(table, {
+              method: "POST",
+              query: "on_conflict=id",
+              prefer: "resolution=merge-duplicates,return=minimal",
+              body: [row],
+            });
+            pushed += 1;
             continue;
+          }
+          if (isUniqueViolation(rowMessage)) {
+            throw new SyncError(
+              `Cloud sync could not save ${table} ${cloudRowId(row)}. An older shop row still uses that code.`
+            );
+          }
+          if (isCloudRowConflict(rowMessage)) {
+            throw new SyncError(`Cloud sync could not save ${table} ${cloudRowId(row)}.`);
           }
           throw rowErr;
         }

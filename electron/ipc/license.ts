@@ -16,6 +16,7 @@ import {
   listLicenses,
   lockThisInstallNow,
 } from "../db/license";
+import { syncDesktopShopLicense } from "../sync/shopLicense";
 import { enqueueLicenseActivated, flushN8nQueue } from "../db/n8n";
 import { PermissionError, requireAnyPermission } from "./session";
 
@@ -43,6 +44,7 @@ export function registerLicenseHandlers(isDev: boolean): void {
 
   registerHandler(IPC.LICENSE_STATUS, async (): Promise<ActionResult<LicenseStatus>> => {
     try {
+      await syncDesktopShopLicense();
       return { ok: true, data: getLicenseStatus(getDb(), isDevFlag) };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : "License status failed" };
@@ -124,7 +126,10 @@ export function registerLicenseHandlers(isDev: boolean): void {
     IPC.LICENSE_APPLY_CODE,
     async (_e, code: string): Promise<ActionResult<LicenseStatus>> => {
       try {
-        return { ok: true, data: applyActivationCode(getDb(), String(code ?? "")) };
+        await syncDesktopShopLicense();
+        applyActivationCode(getDb(), String(code ?? ""));
+        await syncDesktopShopLicense();
+        return { ok: true, data: getLicenseStatus(getDb(), isDevFlag) };
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : "Activation failed" };
       }
