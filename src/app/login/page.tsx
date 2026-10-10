@@ -17,6 +17,11 @@ export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [shopCode, setShopCode] = useState("");
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [info, setInfo] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [welcome, setWelcome] = useState(false);
@@ -90,6 +95,45 @@ export default function LoginPage() {
         setWelcome(false);
         setError(result.error ?? t("login.failed"));
       }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const onForgot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (submitting) return;
+    setError("");
+    setInfo("");
+    if (!username.trim()) {
+      setError(t("login.enterUsername"));
+      return;
+    }
+    if (!newPassword) {
+      setError(t("login.enterNewPassword"));
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError(t("login.passwordMismatch"));
+      return;
+    }
+    if (!isElectron()) {
+      setError(t("login.needElectron"));
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const result = await getApi().forgotPassword(username.trim(), forgotEmail.trim(), newPassword);
+      if (!result.ok) {
+        setError(result.error ?? t("login.failed"));
+        return;
+      }
+      setForgotOpen(false);
+      setPassword("");
+      setForgotEmail("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setInfo(t("login.passwordUpdated"));
     } finally {
       setSubmitting(false);
     }
@@ -180,6 +224,95 @@ export default function LoginPage() {
             />
           </div>
 
+          {forgotOpen ? (
+            <form
+              onSubmit={onForgot}
+              className="space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)]/95 p-7 shadow-2xl shadow-black/15 backdrop-blur"
+              autoComplete="off"
+            >
+              <div>
+                <h2 className="text-base font-semibold">{t("login.forgotTitle")}</h2>
+                <p className="mt-1.5 text-[11px] leading-snug text-[var(--text-muted)]">{t("login.forgotHint")}</p>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-[var(--text-muted)]">
+                  {t("login.username")}
+                </label>
+                <input
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5 text-sm outline-none ring-[var(--accent)] focus:ring-1"
+                  autoComplete="username"
+                  autoFocus
+                  disabled={submitting}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-[var(--text-muted)]">
+                  {t("login.email")}
+                </label>
+                <input
+                  type="email"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5 text-sm outline-none ring-[var(--accent)] focus:ring-1"
+                  autoComplete="off"
+                  disabled={submitting}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-[var(--text-muted)]">
+                  {t("login.newPassword")}
+                </label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5 text-sm outline-none ring-[var(--accent)] focus:ring-1"
+                  autoComplete="new-password"
+                  disabled={submitting}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-[var(--text-muted)]">
+                  {t("login.confirmPassword")}
+                </label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5 text-sm outline-none ring-[var(--accent)] focus:ring-1"
+                  autoComplete="new-password"
+                  disabled={submitting}
+                />
+              </div>
+              {error ? (
+                <div className="rounded-lg border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-3 py-2 text-sm text-[var(--danger)]">
+                  {error}
+                </div>
+              ) : null}
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full rounded-lg bg-[var(--accent)] py-2.5 text-sm font-semibold text-[var(--logo-ink)] transition hover:bg-[var(--accent-hover)] disabled:opacity-60"
+              >
+                {t("login.reset")}
+              </button>
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => {
+                  setForgotOpen(false);
+                  setError("");
+                  setNewPassword("");
+                  setConfirmPassword("");
+                }}
+                className="w-full text-center text-xs text-[var(--text-muted)] hover:text-[var(--accent)]"
+              >
+                {t("login.backToSignIn")}
+              </button>
+            </form>
+          ) : (
           <form
             onSubmit={onSubmit}
             className="space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)]/95 p-7 shadow-2xl shadow-black/15 backdrop-blur"
@@ -232,6 +365,11 @@ export default function LoginPage() {
                 {error}
               </div>
             ) : null}
+            {info ? (
+              <div className="rounded-lg border border-[var(--accent)]/40 bg-[var(--accent-soft)] px-3 py-2 text-sm text-[var(--text)]">
+                {info}
+              </div>
+            ) : null}
 
             <button
               type="submit"
@@ -240,7 +378,20 @@ export default function LoginPage() {
             >
               {t("login.signIn")}
             </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setForgotOpen(true);
+                setError("");
+                setInfo("");
+              }}
+              className="w-full text-center text-xs text-[var(--text-muted)] hover:text-[var(--accent)]"
+            >
+              {t("login.forgot")}
+            </button>
           </form>
+          )}
         </div>
       )}
     </div>

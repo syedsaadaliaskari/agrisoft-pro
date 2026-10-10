@@ -10,6 +10,8 @@ const api: ElectronAPI = {
   getCurrentUser: () => ipcRenderer.invoke(IPC.AUTH_CURRENT_USER),
   changePassword: (currentPassword, newPassword) =>
     ipcRenderer.invoke(IPC.AUTH_CHANGE_PASSWORD, currentPassword, newPassword),
+  forgotPassword: (username, email, newPassword) =>
+    ipcRenderer.invoke(IPC.AUTH_FORGOT_PASSWORD, username, email, newPassword),
   vendorUnlock: (code) => ipcRenderer.invoke(IPC.AUTH_VENDOR_UNLOCK, code),
   getDbStats: () => ipcRenderer.invoke(IPC.DB_STATS),
 

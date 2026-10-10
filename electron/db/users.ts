@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import { and, asc, count, eq } from "drizzle-orm";
+import { and, asc, count, eq, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import type { Db } from "./index";
 import { permissions, rolePermissions, roles, settings, users } from "./schema";
@@ -337,6 +337,62 @@ export async function setUserPassword(
     module: "users",
     entityId: id,
     details: `Password reset for ${user.username}`,
+  });
+}
+
+/**
+ * Login screen reset. No user list.
+ * Admin changes only when the email saved on that account matches.
+ * Any other role can change only the username they type.
+ * Super Admin cannot be reset here.
+ */
+export async function resetForgottenPassword(
+  db: Db,
+  input: { username: string; email?: string | null; newPassword: string }
+): Promise<void> {
+  const username = input.username?.trim().toLowerCase() || "";
+  const email = input.email?.trim().toLowerCase() || "";
+  const newPassword = input.newPassword ?? "";
+  if (!username) throw new UsersError("Enter the username");
+  if (newPassword.length < 4) throw new UsersError("New password must be at least 4 characters");
+
+  const user = db
+    .select()
+    .from(users)
+    .where(sql`lower(${users.username}) = ${username}`)
+    .get();
+  if (!user || !user.isActive) throw new UsersError("No active account with that username");
+
+  const role = db.select().from(roles).where(eq(roles.id, user.roleId)).get();
+  const roleName = role?.name ?? "";
+  if (roleName === "Super Admin") {
+    throw new UsersError("This account cannot be reset from the login screen");
+  }
+
+  const savedEmail = user.email?.trim().toLowerCase() || "";
+  if (roleName === "Admin") {
+    if (!savedEmail) {
+      throw new UsersError(
+        "This admin account has no email saved. A signed-in admin must add that email in Users before forgot password can be used."
+      );
+    }
+    if (email !== savedEmail) throw new UsersError("Email does not match this admin account");
+  } else if (savedEmail && email !== savedEmail) {
+    throw new UsersError("Email does not match this account");
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  db.update(users)
+    .set({ passwordHash, updatedAt: new Date().toISOString() })
+    .where(eq(users.id, user.id))
+    .run();
+
+  writeAuditLog(db, {
+    userId: user.id,
+    action: "forgot_password",
+    module: "auth",
+    entityId: user.id,
+    details: `Password reset from the login screen for ${user.username}`,
   });
 }
 

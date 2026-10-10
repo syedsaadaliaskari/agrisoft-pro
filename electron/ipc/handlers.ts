@@ -15,7 +15,7 @@ import {
   purchases,
   settings,
 } from "../db/schema";
-import { changeOwnPassword, unlockVendorSuperAdmin, UsersError } from "../db/users";
+import { changeOwnPassword, resetForgottenPassword, unlockVendorSuperAdmin, UsersError } from "../db/users";
 import { ensurePermissions } from "../db/seed";
 import { registerMasterHandlers } from "./masters";
 import { registerProductHandlers } from "./products";
@@ -156,6 +156,27 @@ export function registerIpcHandlers(appVersion: string, isDev: boolean): void {
     }
     setCurrentSession(null);
   });
+
+  registerHandler(
+    IPC.AUTH_FORGOT_PASSWORD,
+    async (_e, username: string, email: string, newPassword: string): Promise<ActionResult> => {
+      try {
+        await resetForgottenPassword(getDb(), {
+          username: String(username ?? ""),
+          email: String(email ?? ""),
+          newPassword: String(newPassword ?? ""),
+        });
+        void import("../sync/scheduler")
+          .then((m) => m.maybeRunCustomerCloudSync("password-reset", { force: true }))
+          .catch(() => undefined);
+        return { ok: true, data: undefined };
+      } catch (err) {
+        const message =
+          err instanceof UsersError || err instanceof Error ? err.message : "Could not reset password";
+        return { ok: false, error: message };
+      }
+    }
+  );
 
   registerHandler(IPC.AUTH_CURRENT_USER, async (): Promise<SessionUser | null> => {
     const session = getCurrentSession();
