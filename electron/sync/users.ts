@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { getDb } from "../db";
+import { getDb, getSqlite } from "../db";
 import { permissions, rolePermissions, roles, users } from "../db/schema";
 import { supabaseRest, supabaseUpsert, tenantId } from "./client";
 import {
@@ -10,6 +10,7 @@ import {
   pushTableTombstones,
   shouldRemoveLocal,
 } from "./deletes";
+import { forgetTombstone } from "./tombstones";
 import { fetchTenantRows } from "./pull";
 import { trySyncWrite } from "./constraints";
 import { isNewer } from "./store";
@@ -52,6 +53,64 @@ type CloudUser = {
 
 function isSuperAdminRoleName(name: string) {
   return name.trim().toLowerCase() === "super admin";
+}
+
+/** Shop roles every install keeps so the shop Admin can add staff. */
+function isBuiltinShopRole(name: string) {
+  return name === "Admin" || name === "Cashier" || name === "Accountant";
+}
+
+/**
+ * If the cloud still has Admin, Cashier, or Accountant under another id
+ * (including a soft-deleted row), keep that id so the name can be saved again.
+ * Returns role ids that were deleted in the cloud and are being put back.
+ */
+async function alignBuiltinShopRoles(db: ReturnType<typeof getDb>): Promise<string[]> {
+  const revived: string[] = [];
+  let cloud: { id: string; name: string; deleted_at: string | null }[] = [];
+  try {
+    cloud =
+      (await supabaseRest<{ id: string; name: string; deleted_at: string | null }[]>("roles", {
+        query: `tenant_id=eq.${encodeURIComponent(tenantId())}&select=id,name,deleted_at`,
+      })) || [];
+  } catch {
+    cloud = [];
+  }
+  const sqlite = getSqlite();
+  for (const name of ["Admin", "Cashier", "Accountant"]) {
+    const local = db.select().from(roles).where(eq(roles.name, name)).get();
+    if (!local) continue;
+    const match = cloud.find((row) => row.name === name);
+    let id = local.id;
+    if (match && match.id !== local.id) {
+      sqlite.pragma("foreign_keys = OFF");
+      try {
+        sqlite.prepare("UPDATE users SET role_id = ? WHERE role_id = ?").run(match.id, local.id);
+        sqlite
+          .prepare("UPDATE role_permissions SET role_id = ? WHERE role_id = ?")
+          .run(match.id, local.id);
+        sqlite.prepare("UPDATE roles SET id = ? WHERE id = ?").run(match.id, local.id);
+      } finally {
+        sqlite.pragma("foreign_keys = ON");
+      }
+      id = match.id;
+    }
+    if (match?.deleted_at) revived.push(id);
+    forgetTombstone("roles", id);
+  }
+  return revived;
+}
+
+async function clearDeletedRolePermissions(roleId: string) {
+  const stale = await supabaseRest<{ id: string }[]>("role_permissions", {
+    query: `role_id=eq.${encodeURIComponent(roleId)}&deleted_at=not.is.null&select=id`,
+  });
+  for (const row of stale || []) {
+    await supabaseRest("role_permissions", {
+      method: "DELETE",
+      query: `id=eq.${encodeURIComponent(row.id)}&deleted_at=not.is.null`,
+    });
+  }
 }
 
 async function permissionCodeMaps() {
@@ -152,7 +211,7 @@ export async function syncUsers(): Promise<{ pushed: number; pulled: number }> {
   }
 
   for (const row of db.select().from(roles).all()) {
-    if (isSuperAdminRoleName(row.name)) continue;
+    if (isSuperAdminRoleName(row.name) || isBuiltinShopRole(row.name)) continue;
     const drop =
       deletedRoles.has(row.id) ||
       (remoteRoles.length > 0 && shouldRemoveLocal("roles", row.id, row.updatedAt, cloudRoleIds));
@@ -162,6 +221,10 @@ export async function syncUsers(): Promise<{ pushed: number; pulled: number }> {
       trySyncWrite(() => db.delete(roles).where(eq(roles.id, row.id)).run());
     }
   }
+
+  const { ensurePermissions } = await import("../db/seed");
+  ensurePermissions(db);
+  const revivedRoleIds = await alignBuiltinShopRoles(db);
 
   const remainingRoles = liveRows(
     "roles",
@@ -244,6 +307,9 @@ export async function syncUsers(): Promise<{ pushed: number; pulled: number }> {
       return role && !isSuperAdminRoleName(role.name);
     }
   );
+  for (const roleId of revivedRoleIds) {
+    await clearDeletedRolePermissions(roleId);
+  }
   await supabaseUpsert(
     "role_permissions",
     remainingRolePerms
@@ -345,7 +411,6 @@ export async function syncUsers(): Promise<{ pushed: number; pulled: number }> {
     remainingUsers.map((row) => row.id)
   );
 
-  const { ensurePermissions } = await import("../db/seed");
   ensurePermissions(db);
 
   return { pushed, pulled };

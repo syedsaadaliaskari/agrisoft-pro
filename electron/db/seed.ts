@@ -62,6 +62,38 @@ export const SUPER_ADMIN_ONLY_PERMISSIONS = new Set([
   "platform.view",
 ]);
 
+/** Default access for a new Cashier. A shop Admin can change these later in Users. */
+const CASHIER_PERMISSIONS = new Set([
+  "dashboard.view",
+  "products.view",
+  "inventory.view",
+  "customers.view",
+  "customers.manage",
+  "sales.view",
+  "sales.create",
+  "sales.return",
+  "transactions.view",
+  "transactions.create",
+  "ledgers.view",
+  "reports.view",
+]);
+
+/** Default access for a new Accountant. A shop Admin can change these later in Users. */
+const ACCOUNTANT_PERMISSIONS = new Set([
+  "dashboard.view",
+  "products.view",
+  "inventory.view",
+  "customers.view",
+  "vendors.view",
+  "sales.view",
+  "purchases.view",
+  "transactions.view",
+  "transactions.create",
+  "ledgers.view",
+  "reports.view",
+  "settings.manage",
+]);
+
 const DEFAULT_ACCOUNTS = [
   { code: "1000", name: "Assets", accountType: "asset" },
   { code: "1100", name: "Cash", accountType: "asset" },
@@ -96,6 +128,27 @@ function upsertSystemSetting(db: Db, key: string, value: string) {
       .values({ id: randomUUID(), key, value, groupName: "system", createdAt: now, updatedAt: now })
       .run();
   }
+}
+
+function ensureNamedRole(
+  db: Db,
+  name: string,
+  description: string,
+  permRows: { id: string; code: string }[],
+  allowCodes: Set<string>
+) {
+  const existing = db.select().from(roles).where(eq(roles.name, name)).get();
+  if (existing) return;
+  const id = randomUUID();
+  db.insert(roles)
+    .values({
+      id,
+      name,
+      description,
+      isSystem: true,
+    })
+    .run();
+  grantMissingPermissions(db, id, permRows, allowCodes);
 }
 
 function grantMissingPermissions(
@@ -172,6 +225,18 @@ export function ensurePermissions(db: Db): void {
   );
 
   const adminRole = db.select().from(roles).where(eq(roles.name, "Admin")).get();
+
+  // Shop Admin adds cashiers and accountants. Put the roles back if a sync or join removed them.
+  // Existing roles keep whatever the shop Admin already ticked.
+  ensureNamedRole(db, "Cashier", "Sales and basic views", allPermRows, CASHIER_PERMISSIONS);
+  ensureNamedRole(
+    db,
+    "Accountant",
+    "Ledgers, transactions, reports",
+    allPermRows,
+    ACCOUNTANT_PERMISSIONS
+  );
+
   if (!adminRole) return;
 
   // Ensure Super Admin role exists (full access including License / Activated list)
@@ -417,24 +482,10 @@ export async function seedDatabase(
   // Never force password change — vendor gives the password; users keep it.
   upsertSystemSetting(db, "must_change_password", "0");
 
-  const cashierCodes = new Set([
-    "dashboard.view",
-    "products.view",
-    "inventory.view",
-    "customers.view",
-    "customers.manage",
-    "sales.view",
-    "sales.create",
-    "sales.return",
-    "transactions.view",
-    "transactions.create",
-    "ledgers.view",
-    "reports.view",
-  ]);
   db.insert(rolePermissions)
     .values(
       permissionRows
-        .filter((p) => cashierCodes.has(p.code))
+        .filter((p) => CASHIER_PERMISSIONS.has(p.code))
         .map((p) => ({
           id: randomUUID(),
           roleId: cashierRoleId,
@@ -443,24 +494,10 @@ export async function seedDatabase(
     )
     .run();
 
-  const accountantCodes = new Set([
-    "dashboard.view",
-    "products.view",
-    "inventory.view",
-    "customers.view",
-    "vendors.view",
-    "sales.view",
-    "purchases.view",
-    "transactions.view",
-    "transactions.create",
-    "ledgers.view",
-    "reports.view",
-    "settings.manage",
-  ]);
   db.insert(rolePermissions)
     .values(
       permissionRows
-        .filter((p) => accountantCodes.has(p.code))
+        .filter((p) => ACCOUNTANT_PERMISSIONS.has(p.code))
         .map((p) => ({
           id: randomUUID(),
           roleId: accountantRoleId,

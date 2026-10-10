@@ -59,6 +59,16 @@ export function rememberTombstones(table: string, ids: string[], at = new Date()
   for (const id of ids) rememberTombstone(table, id, at);
 }
 
+/** Drop a local delete mark so a built-in shop role can be saved again. */
+export function forgetTombstone(table: string, id: string) {
+  if (!table || !id) return;
+  const state = readState();
+  const next = state.tombstones.filter((row) => !(row.table === table && row.id === id));
+  if (next.length === state.tombstones.length) return;
+  state.tombstones = next;
+  writeState(state);
+}
+
 export function isTombstoned(table: string, id: string): boolean {
   return readState().tombstones.some((row) => row.table === table && row.id === id);
 }
