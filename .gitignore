@@ -19,6 +19,7 @@
 # local data
 /data/*.db
 /data/*.db-*
+/data/cloud-sync-state.json
 
 # misc
 .DS_Store

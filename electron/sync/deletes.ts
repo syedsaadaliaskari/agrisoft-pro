@@ -1,3 +1,4 @@
+import { localShopHasWork } from "../db/shop-clear";
 import { supabasePatch, supabaseRest, tenantId } from "./client";
 import {
   captureVanished,
@@ -114,6 +115,15 @@ export function liveRows<T extends { id: string }>(table: string, rows: T[]): T[
 export function beginTableDeletes(table: string, currentIds: string[], extraDeletedIds: string[] = []) {
   const at = new Date().toISOString();
   if (extraDeletedIds.length) rememberTombstones(table, extraDeletedIds, at);
+  // An empty shop is not a delete. A new build or a dev database must not
+  // tell the cloud that the real customers, sales, and products are gone.
+  if (currentIds.length === 0) {
+    try {
+      if (!localShopHasWork()) return;
+    } catch {
+      return;
+    }
+  }
   captureVanished(table, currentIds, at);
 }
 

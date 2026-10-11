@@ -14,9 +14,18 @@ const EMPTY: SyncState = { tombstones: [], lastLiveIds: {}, pendingWipeTenantId:
 
 function statePath(): string {
   try {
+    // Dev and the installed app must not share this file. An empty dev database
+    // used to mark the real shop's rows as deleted.
+    if (!app.isPackaged) {
+      const dir = path.join(process.cwd(), "data");
+      fs.mkdirSync(dir, { recursive: true });
+      return path.join(dir, "cloud-sync-state.json");
+    }
     return path.join(app.getPath("userData"), "cloud-sync-state.json");
   } catch {
-    return path.join(process.cwd(), "cloud-sync-state.json");
+    const dir = path.join(process.cwd(), "data");
+    fs.mkdirSync(dir, { recursive: true });
+    return path.join(dir, "cloud-sync-state.json");
   }
 }
 
