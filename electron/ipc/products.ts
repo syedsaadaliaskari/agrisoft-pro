@@ -18,6 +18,7 @@ import {
   productVariants,
   categories,
   units,
+  stockBatches,
   taxes,
   stockMovements,
   saleItems,
@@ -107,6 +108,8 @@ function enrichProduct(id: string): Product | null {
     wholesalePrice: row.wholesalePrice,
     taxId: row.taxId,
     reorderLevel: row.reorderLevel,
+    trackBatch: row.trackBatch,
+    isCrop: row.isCrop,
     isActive: row.isActive,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -225,6 +228,8 @@ export function registerProductHandlers(): void {
               : Number(input.wholesalePrice),
           taxId: input.taxId ?? null,
           reorderLevel: Number(input.reorderLevel ?? 0),
+          trackBatch: Boolean(input.trackBatch) && !input.isCrop,
+          isCrop: Boolean(input.isCrop),
           isActive: input.isActive ?? true,
           createdAt: ts,
           updatedAt: ts,
@@ -333,6 +338,9 @@ export function registerProductHandlers(): void {
             taxId: input.taxId === undefined ? current.taxId : input.taxId,
             reorderLevel:
               input.reorderLevel === undefined ? current.reorderLevel : Number(input.reorderLevel),
+            trackBatch:
+              input.trackBatch === undefined ? current.trackBatch : Boolean(input.trackBatch) && !input.isCrop,
+            isCrop: input.isCrop === undefined ? current.isCrop : Boolean(input.isCrop),
             isActive: input.isActive ?? current.isActive,
             updatedAt: nowIso(),
           })
@@ -583,6 +591,8 @@ export function registerProductHandlers(): void {
           salePrice: sql<number>`coalesce(${productVariants.salePrice}, ${products.salePrice})`,
           reorderLevel: products.reorderLevel,
           isActive: productVariants.isActive,
+          trackBatch: products.trackBatch,
+          isCrop: products.isCrop,
         })
         .from(productVariants)
         .innerJoin(products, eq(productVariants.productId, products.id))
@@ -607,6 +617,8 @@ export function registerProductHandlers(): void {
           salePrice: Number(r.salePrice),
           reorderLevel: Number(r.reorderLevel),
           isLowStock: Number(r.stockQty) <= Number(r.reorderLevel),
+          trackBatch: Boolean(r.trackBatch),
+          isCrop: Boolean(r.isCrop),
           isActive: r.isActive,
         }))
       );
@@ -670,9 +682,44 @@ export function registerProductHandlers(): void {
           salePrice: Number(variant.salePrice ?? product.salePrice),
           reorderLevel: product.reorderLevel,
           isLowStock: newQty <= product.reorderLevel,
+          trackBatch: product.trackBatch,
+          isCrop: product.isCrop,
           isActive: variant.isActive,
         };
         return ok(row);
       })
+  );
+
+  registerHandler(IPC.INVENTORY_BATCHES, async (): Promise<ActionResult<import("../../shared/ipc").StockBatch[]>> =>
+    guarded(() => requirePermission("inventory.view"), async () => {
+      const db = getDb();
+      const rows = db
+        .select({
+          id: stockBatches.id,
+          variantId: stockBatches.variantId,
+          productName: products.name,
+          batchNo: stockBatches.batchNo,
+          expiryDate: stockBatches.expiryDate,
+          qty: stockBatches.qty,
+          unit: units.shortName,
+        })
+        .from(stockBatches)
+        .innerJoin(productVariants, eq(stockBatches.variantId, productVariants.id))
+        .innerJoin(products, eq(productVariants.productId, products.id))
+        .leftJoin(units, eq(products.unitId, units.id))
+        .orderBy(asc(stockBatches.expiryDate))
+        .all();
+      return ok(
+        rows.map((row) => ({
+          id: row.id,
+          variantId: row.variantId,
+          productName: row.productName,
+          batchNo: row.batchNo,
+          expiryDate: row.expiryDate,
+          qty: Number(row.qty),
+          unit: row.unit ?? null,
+        }))
+      );
+    })
   );
 }

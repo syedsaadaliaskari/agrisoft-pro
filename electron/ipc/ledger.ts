@@ -495,6 +495,8 @@ export function registerLedgerHandlers(): void {
             if (t === "sale_return") return { debit: 0, credit: creditPart };
             if (t === "receipt") return { debit: 0, credit: money(v.paidAmount || v.grandTotal) };
             if (t === "income") return { debit: 0, credit: 0 };
+            if (t === "crop_purchase") return { debit: 0, credit: creditPart };
+            if (t === "crop_sale") return { debit: amt, credit: cashSettled };
             return { debit: 0, credit: 0 };
           }
           // vendor

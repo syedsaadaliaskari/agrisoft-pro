@@ -37,9 +37,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     const gen = ++hydrateGeneration;
-    const user = await getApi().getCurrentUser();
-    if (gen !== hydrateGeneration) return;
-    set({ user, hydrated: true });
+    try {
+      const user = await getApi().getCurrentUser();
+      if (gen !== hydrateGeneration) return;
+      set({ user, hydrated: true });
+    } catch {
+      if (gen !== hydrateGeneration) return;
+      set({ user: null, hydrated: true });
+    }
   },
   login: async (username, password, shopCode) => {
     set({ loading: true });

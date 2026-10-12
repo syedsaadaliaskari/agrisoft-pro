@@ -55,6 +55,11 @@ const api: ElectronAPI = {
 
   listInventory: () => ipcRenderer.invoke(IPC.INVENTORY_LIST),
   adjustStock: (input) => ipcRenderer.invoke(IPC.INVENTORY_ADJUST, input),
+  listStockBatches: () => ipcRenderer.invoke(IPC.INVENTORY_BATCHES),
+  listCropPurchases: (partyType) => ipcRenderer.invoke(IPC.CROP_PURCHASES_LIST, partyType),
+  createCropPurchase: (input) => ipcRenderer.invoke(IPC.CROP_PURCHASES_CREATE, input),
+  listCropSales: () => ipcRenderer.invoke(IPC.CROP_SALES_LIST),
+  createCropSale: (input) => ipcRenderer.invoke(IPC.CROP_SALES_CREATE, input),
   listCustomers: () => ipcRenderer.invoke(IPC.CUSTOMERS_LIST),
   createCustomer: (input) => ipcRenderer.invoke(IPC.CUSTOMERS_CREATE, input),
   updateCustomer: (id, input) => ipcRenderer.invoke(IPC.CUSTOMERS_UPDATE, id, input),

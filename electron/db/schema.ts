@@ -119,6 +119,10 @@ export const products = sqliteTable(
     wholesalePrice: real("wholesale_price").default(0),
     taxId: text("tax_id"),
     reorderLevel: real("reorder_level").notNull().default(0),
+    /** Packed goods: purchase and sale keep a batch number and expiry date. */
+    trackBatch: integer("track_batch", { mode: "boolean" }).notNull().default(false),
+    /** Crop slip (weight, kaat, deductions). Hidden from the normal purchase and sale. */
+    isCrop: integer("is_crop", { mode: "boolean" }).notNull().default(false),
     isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
     ...timestamps,
   },
@@ -170,6 +174,26 @@ export const stockMovements = sqliteTable(
       .default(sql`(datetime('now'))`),
   },
   (t) => [index("stock_variant_idx").on(t.variantId)]
+);
+
+/** Quantity of one pack sitting in a named batch. */
+export const stockBatches = sqliteTable(
+  "stock_batches",
+  {
+    id: text("id").primaryKey(),
+    variantId: text("variant_id")
+      .notNull()
+      .references(() => productVariants.id),
+    batchNo: text("batch_no").notNull(),
+    expiryDate: text("expiry_date"),
+    qty: real("qty").notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("stock_batch_unique").on(t.variantId, t.batchNo),
+    index("stock_batch_variant_idx").on(t.variantId),
+    index("stock_batch_expiry_idx").on(t.expiryDate),
+  ]
 );
 
 // ─── Parties ─────────────────────────────────────────────────
@@ -354,6 +378,8 @@ export const saleItems = sqliteTable("sale_items", {
   taxAmount: real("tax_amount").notNull().default(0),
   lineTotal: real("line_total").notNull(),
   lineOrder: integer("line_order").notNull().default(0),
+  batchNo: text("batch_no"),
+  expiryDate: text("expiry_date"),
 });
 
 export const saleReturns = sqliteTable("sale_returns", {
@@ -432,6 +458,8 @@ export const purchaseItems = sqliteTable("purchase_items", {
   taxAmount: real("tax_amount").notNull().default(0),
   lineTotal: real("line_total").notNull(),
   lineOrder: integer("line_order").notNull().default(0),
+  batchNo: text("batch_no"),
+  expiryDate: text("expiry_date"),
 });
 
 export const purchaseReturns = sqliteTable("purchase_returns", {
@@ -507,4 +535,79 @@ export const licenses = sqliteTable(
     ...timestamps,
   },
   (t) => [index("licenses_install_idx").on(t.installId)]
+);
+
+/** Crop buy slip. Farmer uses partyType customer. Supplier uses vendor. */
+export const cropPurchases = sqliteTable(
+  "crop_purchases",
+  {
+    id: text("id").primaryKey(),
+    voucherId: text("voucher_id")
+      .notNull()
+      .references(() => vouchers.id),
+    docNo: text("doc_no").notNull().unique(),
+    docDate: text("doc_date").notNull(),
+    partyType: text("party_type").notNull(), // customer | vendor
+    partyId: text("party_id").notNull(),
+    variantId: text("variant_id")
+      .notNull()
+      .references(() => productVariants.id),
+    productName: text("product_name").notNull(),
+    safiWeight: real("safi_weight").notNull().default(0),
+    grossAmount: real("gross_amount").notNull().default(0),
+    commission: real("commission").notNull().default(0),
+    brokerage: real("brokerage").notNull().default(0),
+    mazdoori: real("mazdoori").notNull().default(0),
+    fees: real("fees").notNull().default(0),
+    bardana: real("bardana").notNull().default(0),
+    deductionAmount: real("deduction_amount").notNull().default(0),
+    netPayable: real("net_payable").notNull().default(0),
+    paidAmount: real("paid_amount").notNull().default(0),
+    remarks: text("remarks"),
+    status: text("status").notNull().default("completed"),
+    createdBy: text("created_by").references(() => users.id),
+    ...timestamps,
+  },
+  (t) => [index("crop_purchases_date_idx").on(t.docDate), index("crop_purchases_party_idx").on(t.partyType, t.partyId)]
+);
+
+export const cropPurchaseVehicles = sqliteTable("crop_purchase_vehicles", {
+  id: text("id").primaryKey(),
+  cropPurchaseId: text("crop_purchase_id")
+    .notNull()
+    .references(() => cropPurchases.id, { onDelete: "cascade" }),
+  vehicleNo: text("vehicle_no").notNull(),
+  bags: real("bags").notNull().default(0),
+  totalWeight: real("total_weight").notNull(),
+  kaat: real("kaat").notNull().default(0),
+  safiWeight: real("safi_weight").notNull(),
+  rate: real("rate").notNull(),
+  amount: real("amount").notNull(),
+  lineOrder: integer("line_order").notNull().default(0),
+});
+
+export const cropSales = sqliteTable(
+  "crop_sales",
+  {
+    id: text("id").primaryKey(),
+    voucherId: text("voucher_id")
+      .notNull()
+      .references(() => vouchers.id),
+    docNo: text("doc_no").notNull().unique(),
+    docDate: text("doc_date").notNull(),
+    customerId: text("customer_id").references(() => customers.id),
+    variantId: text("variant_id")
+      .notNull()
+      .references(() => productVariants.id),
+    productName: text("product_name").notNull(),
+    weight: real("weight").notNull(),
+    rate: real("rate").notNull(),
+    amount: real("amount").notNull(),
+    paidAmount: real("paid_amount").notNull().default(0),
+    remarks: text("remarks"),
+    status: text("status").notNull().default("completed"),
+    createdBy: text("created_by").references(() => users.id),
+    ...timestamps,
+  },
+  (t) => [index("crop_sales_date_idx").on(t.docDate)]
 );

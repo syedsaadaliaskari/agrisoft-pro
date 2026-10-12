@@ -572,12 +572,7 @@ app.whenReady().then(async () => {
   void runN8nPass();
   setInterval(() => void runN8nPass(), 6 * 60 * 60 * 1000);
 
-  // Cloud sync customers when online (startup, every 15 min, network return)
-  try {
-    startCloudSyncScheduler();
-  } catch (err) {
-    console.warn("Cloud sync scheduler failed to start:", err);
-  }
+  // Scheduler starts after the window so the first screen is not waiting on sync.
 
   registerHandler(
     IPC.APP_PRINT_HTML,
@@ -653,6 +648,12 @@ app.whenReady().then(async () => {
   );
 
   await createWindow();
+
+  try {
+    startCloudSyncScheduler();
+  } catch (err) {
+    console.warn("Cloud sync scheduler failed to start:", err);
+  }
 
   setupAutoUpdater();
 

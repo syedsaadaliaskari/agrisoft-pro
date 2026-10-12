@@ -23,6 +23,7 @@ import { registerPartyHandlers } from "./parties";
 import { registerAccountHandlers } from "./accounts";
 import { registerSalesHandlers } from "./sales";
 import { registerPurchaseHandlers } from "./purchases";
+import { registerCropHandlers } from "./crop";
 import { registerLedgerHandlers } from "./ledger";
 import { registerDashboardHandlers } from "./dashboard";
 import { registerSettingsHandlers } from "./settings";
@@ -264,6 +265,7 @@ export function registerIpcHandlers(appVersion: string, isDev: boolean): void {
   registerAccountHandlers();
   registerSalesHandlers();
   registerPurchaseHandlers();
+  registerCropHandlers();
   registerLedgerHandlers();
   registerDashboardHandlers();
   registerSettingsHandlers();

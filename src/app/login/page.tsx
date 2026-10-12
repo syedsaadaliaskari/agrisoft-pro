@@ -39,13 +39,20 @@ export default function LoginPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const timer = setTimeout(() => {
+      if (!cancelled) setLicenseChecked(true);
+    }, 4000);
     void (async () => {
-      await getApi().getLicenseStatus();
-      if (cancelled) return;
-      setLicenseChecked(true);
+      try {
+        await getApi().getLicenseStatus();
+      } catch {
+        /* show the login form anyway */
+      }
+      if (!cancelled) setLicenseChecked(true);
     })();
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   }, [router]);
 

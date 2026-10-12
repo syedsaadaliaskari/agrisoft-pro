@@ -32,6 +32,8 @@ const emptyProduct = {
   taxId: "",
   reorderLevel: "0",
   initialStock: "0",
+  trackBatch: false,
+  isCrop: false,
   isActive: true,
 };
 
@@ -129,6 +131,8 @@ export default function ProductsPage() {
       taxId: row.taxId ?? "",
       reorderLevel: String(row.reorderLevel),
       initialStock: "0",
+      trackBatch: row.trackBatch,
+      isCrop: row.isCrop,
       isActive: row.isActive,
     });
     setError("");
@@ -147,6 +151,8 @@ export default function ProductsPage() {
       salePrice: Number(form.salePrice),
       taxId: form.taxId || null,
       reorderLevel: Number(form.reorderLevel),
+      trackBatch: form.isCrop ? false : form.trackBatch,
+      isCrop: form.isCrop,
       isActive: form.isActive,
     };
     const api = getApi();
@@ -375,7 +381,14 @@ export default function ProductsPage() {
         >
           {filtered.map((row) => (
             <tr key={row.id} className="border-b border-[var(--border)] last:border-0">
-              <td className="px-4 py-3 font-medium">{row.name}</td>
+              <td className="px-4 py-3 font-medium">
+                {row.name}
+                {row.isCrop ? (
+                  <div className="text-xs font-medium text-amber-700">Crop</div>
+                ) : row.trackBatch ? (
+                  <div className="text-xs font-medium text-sky-700">Batch and expiry</div>
+                ) : null}
+              </td>
               <td className="px-4 py-3 text-[var(--text-muted)]">{row.categoryName || "—"}</td>
               <td className="px-4 py-3 text-[var(--text-muted)]">{row.unitName || "—"}</td>
               <td className="px-4 py-3">{row.costPrice.toLocaleString()}</td>
@@ -531,6 +544,23 @@ export default function ProductsPage() {
           value={form.description}
           onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
         />
+        <Checkbox
+          label="This is a crop (wheat, cotton, and other weighed crops)"
+          checked={form.isCrop}
+          onChange={(checked) =>
+            setForm((f) => ({ ...f, isCrop: checked, trackBatch: checked ? false : f.trackBatch }))
+          }
+        />
+        <Checkbox
+          label="Track batch number and expiry"
+          checked={form.trackBatch}
+          onChange={(checked) => setForm((f) => ({ ...f, trackBatch: f.isCrop ? false : checked }))}
+        />
+        <p className="text-xs text-[var(--text-muted)]">
+          {form.isCrop
+            ? "A crop opens its own slip: vehicles, kaat, then commission, brokerage, mazdoori, fees, and bardana."
+            : "Batch and expiry show on the normal purchase and sale. A crop does not use them."}
+        </p>
         <Checkbox
           label="Active"
           checked={form.isActive}

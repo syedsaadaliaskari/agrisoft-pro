@@ -492,6 +492,95 @@ export async function initDatabase(): Promise<Db> {
       // column already exists
     }
   }
+  for (const statement of [
+    "ALTER TABLE products ADD COLUMN track_batch INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE products ADD COLUMN is_crop INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE purchase_items ADD COLUMN batch_no TEXT",
+    "ALTER TABLE purchase_items ADD COLUMN expiry_date TEXT",
+    "ALTER TABLE sale_items ADD COLUMN batch_no TEXT",
+    "ALTER TABLE sale_items ADD COLUMN expiry_date TEXT",
+  ]) {
+    try {
+      sqlite.exec(statement);
+    } catch {
+      // column already exists
+    }
+  }
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS stock_batches (
+      id TEXT PRIMARY KEY,
+      variant_id TEXT NOT NULL REFERENCES product_variants(id),
+      batch_no TEXT NOT NULL,
+      expiry_date TEXT,
+      qty REAL NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS stock_batch_unique ON stock_batches(variant_id, batch_no);
+    CREATE INDEX IF NOT EXISTS stock_batch_variant_idx ON stock_batches(variant_id);
+    CREATE INDEX IF NOT EXISTS stock_batch_expiry_idx ON stock_batches(expiry_date);
+
+    CREATE TABLE IF NOT EXISTS crop_purchases (
+      id TEXT PRIMARY KEY,
+      voucher_id TEXT NOT NULL REFERENCES vouchers(id),
+      doc_no TEXT NOT NULL UNIQUE,
+      doc_date TEXT NOT NULL,
+      party_type TEXT NOT NULL,
+      party_id TEXT NOT NULL,
+      variant_id TEXT NOT NULL REFERENCES product_variants(id),
+      product_name TEXT NOT NULL,
+      safi_weight REAL NOT NULL DEFAULT 0,
+      gross_amount REAL NOT NULL DEFAULT 0,
+      commission REAL NOT NULL DEFAULT 0,
+      brokerage REAL NOT NULL DEFAULT 0,
+      mazdoori REAL NOT NULL DEFAULT 0,
+      fees REAL NOT NULL DEFAULT 0,
+      bardana REAL NOT NULL DEFAULT 0,
+      deduction_amount REAL NOT NULL DEFAULT 0,
+      net_payable REAL NOT NULL DEFAULT 0,
+      paid_amount REAL NOT NULL DEFAULT 0,
+      remarks TEXT,
+      status TEXT NOT NULL DEFAULT 'completed',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS crop_purchases_date_idx ON crop_purchases(doc_date);
+    CREATE INDEX IF NOT EXISTS crop_purchases_party_idx ON crop_purchases(party_type, party_id);
+
+    CREATE TABLE IF NOT EXISTS crop_purchase_vehicles (
+      id TEXT PRIMARY KEY,
+      crop_purchase_id TEXT NOT NULL REFERENCES crop_purchases(id) ON DELETE CASCADE,
+      vehicle_no TEXT NOT NULL,
+      bags REAL NOT NULL DEFAULT 0,
+      total_weight REAL NOT NULL,
+      kaat REAL NOT NULL DEFAULT 0,
+      safi_weight REAL NOT NULL,
+      rate REAL NOT NULL,
+      amount REAL NOT NULL,
+      line_order INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS crop_sales (
+      id TEXT PRIMARY KEY,
+      voucher_id TEXT NOT NULL REFERENCES vouchers(id),
+      doc_no TEXT NOT NULL UNIQUE,
+      doc_date TEXT NOT NULL,
+      customer_id TEXT REFERENCES customers(id),
+      variant_id TEXT NOT NULL REFERENCES product_variants(id),
+      product_name TEXT NOT NULL,
+      weight REAL NOT NULL,
+      rate REAL NOT NULL,
+      amount REAL NOT NULL,
+      paid_amount REAL NOT NULL DEFAULT 0,
+      remarks TEXT,
+      status TEXT NOT NULL DEFAULT 'completed',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS crop_sales_date_idx ON crop_sales(doc_date);
+  `);
 
   db = drizzle(sqlite, { schema });
 

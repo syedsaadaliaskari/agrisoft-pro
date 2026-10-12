@@ -49,6 +49,7 @@ import type {
   PaymentMode,
   ReceiptSize,
   Sale,
+  StockBatch,
   Unit,
 } from "@shared/ipc";
 
@@ -61,6 +62,8 @@ type DraftLine = {
   unit: string;
   unitPrice: string;
   costPrice: number;
+  trackBatch: boolean;
+  batchNo: string;
 };
 
 type ModeFilter = "all" | "cash" | "bank" | "credit" | "split" | "today";
@@ -80,6 +83,7 @@ export default function SalesPage() {
   const [rows, setRows] = useState<Sale[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [inventory, setInventory] = useState<InventoryRow[]>([]);
+  const [batches, setBatches] = useState<StockBatch[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [search, setSearch] = useState("");
   const [modeFilter, setModeFilter] = useState<ModeFilter>("all");
@@ -109,17 +113,19 @@ export default function SalesPage() {
     setLoading(true);
     setError("");
     const api = getApi();
-    const [salesRes, custRes, invRes, unitRes] = await Promise.all([
+    const [salesRes, custRes, invRes, unitRes, batchRes] = await Promise.all([
       api.listSales(),
       api.listCustomers(),
       api.listInventory(),
       api.listUnits(),
+      api.listStockBatches(),
     ]);
     if (!salesRes.ok) setError(salesRes.error);
     else setRows(salesRes.data);
     if (custRes.ok) setCustomers(custRes.data.filter((c) => c.isActive));
     if (invRes.ok) setInventory(invRes.data.filter((r) => r.isActive));
     if (unitRes.ok) setUnits(unitRes.data.filter((u) => u.isActive));
+    if (batchRes.ok) setBatches(batchRes.data.filter((row) => row.qty > 0));
     setLoading(false);
   }, []);
 
@@ -174,7 +180,7 @@ export default function SalesPage() {
   const productOptions = useMemo(
     () => [
       { value: "", label: "Select product" },
-      ...inventory.map((r) => ({
+      ...inventory.filter((r) => !r.isCrop).map((r) => ({
         value: r.variantId,
         label:
           r.costPrice > 0 && r.salePrice < r.costPrice
@@ -269,6 +275,8 @@ export default function SalesPage() {
           unit: it.unit ?? inv?.unit ?? "",
           unitPrice: String(it.unitPrice),
           costPrice: inv?.costPrice ?? 0,
+          trackBatch: inv?.trackBatch ?? Boolean(it.batchNo),
+          batchNo: it.batchNo ?? "",
         };
       })
     );
@@ -294,6 +302,11 @@ export default function SalesPage() {
         unit: row.unit ?? "",
         unitPrice: String(row.salePrice),
         costPrice: row.costPrice,
+        trackBatch: row.trackBatch,
+        batchNo:
+          batches
+            .filter((batch) => batch.variantId === row.variantId)
+            .sort((a, b) => (a.expiryDate || "9999").localeCompare(b.expiryDate || "9999"))[0]?.batchNo ?? "",
       },
     ]);
     setPickVariantId("");
@@ -384,6 +397,7 @@ export default function SalesPage() {
         quantity: Number(l.quantity),
         unit: l.unit || null,
         unitPrice: Number(l.unitPrice),
+        batchNo: l.trackBatch ? l.batchNo || null : null,
       })),
     };
     const res = editingId
@@ -753,7 +767,11 @@ export default function SalesPage() {
           }
         >
             <LineItemsTable
-                headers={["Product", "Stock", "Qty", "Unit", "Price", "Total", ""]}
+                headers={
+                  lines.some((line) => line.trackBatch)
+                    ? ["Product", "Stock", "Qty", "Unit", "Price", "Batch", "Total", ""]
+                    : ["Product", "Stock", "Qty", "Unit", "Price", "Total", ""]
+                }
                 empty={lines.length === 0}
               >
                 {lines.map((line) => {
@@ -841,6 +859,33 @@ export default function SalesPage() {
                           }`}
                         />
                       </td>
+                      {lines.some((item) => item.trackBatch) ? (
+                        <td className="px-3 py-2.5 w-[160px]">
+                          {line.trackBatch ? (
+                            <select
+                              value={line.batchNo}
+                              onChange={(e) =>
+                                setLines((prev) =>
+                                  prev.map((l) => (l.key === line.key ? { ...l, batchNo: e.target.value } : l))
+                                )
+                              }
+                              className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1.5 text-sm outline-none ring-[var(--accent)] focus:ring-1"
+                            >
+                              <option value="">Oldest batch</option>
+                              {batches
+                                .filter((batch) => batch.variantId === line.variantId)
+                                .map((batch) => (
+                                  <option key={batch.id} value={batch.batchNo}>
+                                    {batch.batchNo}
+                                    {batch.expiryDate ? ` · ${batch.expiryDate}` : ""} ({batch.qty})
+                                  </option>
+                                ))}
+                            </select>
+                          ) : (
+                            <span className="text-[var(--text-muted)]">—</span>
+                          )}
+                        </td>
+                      ) : null}
                       <td className="px-3 py-2.5 font-medium tabular-nums">{money(lineTotal)}</td>
                       <td className="px-3 py-2.5">
                         <Button variant="ghost" size="sm" onClick={() => removeLine(line.key)}>

@@ -60,6 +60,9 @@ type DraftLine = {
   quantity: string;
   unit: string;
   unitCost: string;
+  trackBatch: boolean;
+  batchNo: string;
+  expiryDate: string;
 };
 
 type ModeFilter = "all" | "cash" | "bank" | "credit" | "split" | "today";
@@ -179,7 +182,7 @@ export default function PurchasesPage() {
   const productOptions = useMemo(
     () => [
       { value: "", label: "Select product" },
-      ...inventory.map((r) => ({
+      ...inventory.filter((r) => !r.isCrop).map((r) => ({
         value: r.variantId,
         label: `${r.productName} (${r.size}/${r.color}) — ${r.stockQty} in stock`,
       })),
@@ -272,6 +275,9 @@ export default function PurchasesPage() {
           quantity: String(it.quantity),
           unit: it.unit ?? inv?.unit ?? "",
           unitCost: String(it.unitCost),
+          trackBatch: inv?.trackBatch ?? Boolean(it.batchNo),
+          batchNo: it.batchNo ?? "",
+          expiryDate: it.expiryDate ?? "",
         };
       })
     );
@@ -295,6 +301,9 @@ export default function PurchasesPage() {
         quantity: "1",
         unit: row.unit ?? "",
         unitCost: String(row.costPrice),
+        trackBatch: row.trackBatch,
+        batchNo: "",
+        expiryDate: "",
       },
     ]);
     setPickVariantId("");
@@ -330,6 +339,8 @@ export default function PurchasesPage() {
         quantity: Number(l.quantity),
         unit: l.unit || null,
         unitCost: Number(l.unitCost),
+        batchNo: l.trackBatch ? l.batchNo : null,
+        expiryDate: l.trackBatch ? l.expiryDate : null,
       })),
     };
     const res = editingId
@@ -694,11 +705,16 @@ export default function PurchasesPage() {
           }
         >
             <LineItemsTable
-                headers={["Product", "In stock", "Qty", "Unit", "Unit cost", "Line total", ""]}
+                headers={
+                  lines.some((line) => line.trackBatch)
+                    ? ["Product", "In stock", "Qty", "Unit", "Unit cost", "Batch", "Expiry", "Line total", ""]
+                    : ["Product", "In stock", "Qty", "Unit", "Unit cost", "Line total", ""]
+                }
                 empty={lines.length === 0}
               >
                 {lines.map((line) => {
                   const lineTotal = Number(line.quantity || 0) * Number(line.unitCost || 0);
+                  const showBatch = lines.some((item) => item.trackBatch);
                   return (
                     <tr key={line.key}>
                       <td className="px-3 py-2.5 font-medium">{line.label}</td>
@@ -763,6 +779,41 @@ export default function PurchasesPage() {
                           className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1.5 text-sm outline-none ring-[var(--accent)] focus:ring-1"
                         />
                       </td>
+                      {showBatch ? (
+                        line.trackBatch ? (
+                          <>
+                            <td className="px-3 py-2.5 w-[120px]">
+                              <input
+                                value={line.batchNo}
+                                placeholder="Batch"
+                                onChange={(e) =>
+                                  setLines((prev) =>
+                                    prev.map((l) => (l.key === line.key ? { ...l, batchNo: e.target.value } : l))
+                                  )
+                                }
+                                className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1.5 text-sm outline-none ring-[var(--accent)] focus:ring-1"
+                              />
+                            </td>
+                            <td className="px-3 py-2.5 w-[150px]">
+                              <input
+                                type="date"
+                                value={line.expiryDate}
+                                onChange={(e) =>
+                                  setLines((prev) =>
+                                    prev.map((l) => (l.key === line.key ? { ...l, expiryDate: e.target.value } : l))
+                                  )
+                                }
+                                className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1.5 text-sm outline-none ring-[var(--accent)] focus:ring-1"
+                              />
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-3 py-2.5 text-[var(--text-muted)]">—</td>
+                            <td className="px-3 py-2.5 text-[var(--text-muted)]">—</td>
+                          </>
+                        )
+                      ) : null}
                       <td className="px-3 py-2.5 font-medium tabular-nums">{money(lineTotal)}</td>
                       <td className="px-3 py-2.5">
                         <Button

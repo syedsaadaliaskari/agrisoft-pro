@@ -44,6 +44,7 @@ import {
 } from "../db/schema";
 import { requirePermission, getCurrentSession, PermissionError } from "./session";
 import { rememberLocalDelete } from "../sync/deletes";
+import { takeBatch } from "../db/batches";
 
 function ok<T>(data: T): ActionResult<T> {
   return { ok: true, data };
@@ -102,6 +103,8 @@ function mapSaleItem(row: typeof saleItems.$inferSelect): SaleItem {
     taxAmount: row.taxAmount,
     lineTotal: row.lineTotal,
     lineOrder: row.lineOrder,
+    batchNo: row.batchNo,
+    expiryDate: row.expiryDate,
   };
 }
 
@@ -310,6 +313,9 @@ export function registerSalesHandlers(): void {
         discountAmount: number;
         taxAmount: number;
         lineTotal: number;
+        trackBatch: boolean;
+        batchNo: string | null;
+        expiryDate: string | null;
       };
 
       const built: BuiltLine[] = [];
@@ -342,6 +348,9 @@ export function registerSalesHandlers(): void {
 
         const product = db.select().from(products).where(eq(products.id, variant.productId)).get();
         if (!product || !product.isActive) return fail(`Line ${i + 1}: product not found or inactive`);
+        if (product.isCrop) {
+          return fail(`Line ${i + 1}: ${product.name} is a crop. Open Crop trading and use Sell crop.`);
+        }
 
         const discountAmount = money(Number(line.discountAmount ?? 0));
         const taxAmount = money(Number(line.taxAmount ?? 0));
@@ -360,6 +369,9 @@ export function registerSalesHandlers(): void {
           discountAmount,
           taxAmount,
           lineTotal,
+          trackBatch: product.trackBatch,
+          batchNo: product.trackBatch ? String(line.batchNo ?? "").trim() || null : null,
+          expiryDate: product.trackBatch ? String(line.expiryDate ?? "").trim() || null : null,
         });
         computedSubtotal = money(computedSubtotal + qty * unitPrice);
         lineTaxSum = money(lineTaxSum + taxAmount);
@@ -464,9 +476,19 @@ export function registerSalesHandlers(): void {
         .run();
 
       built.forEach((line, idx) => {
+        const itemId = randomUUID();
+        let batchNo = line.batchNo;
+        let expiryDate = line.expiryDate;
+        if (line.trackBatch) {
+          const taken = takeBatch(db, line.variantId, line.batchNo, line.quantity, ts);
+          if (taken) {
+            batchNo = taken.batchNo;
+            expiryDate = taken.expiryDate;
+          }
+        }
         db.insert(saleItems)
           .values({
-            id: randomUUID(),
+            id: itemId,
             saleId,
             variantId: line.variantId,
             productName: line.productName,
@@ -480,6 +502,8 @@ export function registerSalesHandlers(): void {
             taxAmount: line.taxAmount,
             lineTotal: line.lineTotal,
             lineOrder: idx,
+            batchNo,
+            expiryDate,
           })
           .run();
 

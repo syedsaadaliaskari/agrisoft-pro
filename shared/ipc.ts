@@ -59,6 +59,11 @@ export const IPC = {
   // Inventory
   INVENTORY_LIST: "inventory:list",
   INVENTORY_ADJUST: "inventory:adjust",
+  INVENTORY_BATCHES: "inventory:batches",
+  CROP_PURCHASES_LIST: "crop:purchases:list",
+  CROP_PURCHASES_CREATE: "crop:purchases:create",
+  CROP_SALES_LIST: "crop:sales:list",
+  CROP_SALES_CREATE: "crop:sales:create",
   // Customers
   CUSTOMERS_LIST: "customers:list",
   CUSTOMERS_CREATE: "customers:create",
@@ -227,7 +232,9 @@ export type DocType =
   | "owner_draw"
   | "customer"
   | "vendor"
-  | "product";
+  | "product"
+  | "crop_purchase"
+  | "crop_sale";
 
 export type Unit = {
   id: string;
@@ -332,6 +339,8 @@ export type Product = {
   wholesalePrice: number | null;
   taxId: string | null;
   reorderLevel: number;
+  trackBatch: boolean;
+  isCrop: boolean;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -357,6 +366,8 @@ export type ProductInput = {
   wholesalePrice?: number | null;
   taxId?: string | null;
   reorderLevel?: number;
+  trackBatch?: boolean;
+  isCrop?: boolean;
   isActive?: boolean;
   /** Opening qty on the default pack when creating a product (already in the shop). */
   initialStock?: number;
@@ -407,6 +418,18 @@ export type InventoryRow = {
   reorderLevel: number;
   isLowStock: boolean;
   isActive: boolean;
+  trackBatch: boolean;
+  isCrop: boolean;
+};
+
+export type StockBatch = {
+  id: string;
+  variantId: string;
+  productName: string;
+  batchNo: string;
+  expiryDate: string | null;
+  qty: number;
+  unit: string | null;
 };
 
 export type StockAdjustInput = {
@@ -519,7 +542,9 @@ export type VoucherType =
   | "journal"
   | "expense"
   | "income"
-  | "owner_draw";
+  | "owner_draw"
+  | "crop_purchase"
+  | "crop_sale";
 
 export type VoucherStatus = "draft" | "posted" | "cancelled";
 
@@ -729,6 +754,8 @@ export type PurchaseLineInput = {
   unitCost: number;
   discountAmount?: number;
   taxAmount?: number;
+  batchNo?: string | null;
+  expiryDate?: string | null;
 };
 
 export type CreatePurchaseInput = {
@@ -765,6 +792,8 @@ export type PurchaseItem = {
   taxAmount: number;
   lineTotal: number;
   lineOrder: number;
+  batchNo?: string | null;
+  expiryDate?: string | null;
 };
 
 export type Purchase = {
@@ -863,6 +892,8 @@ export type SaleLineInput = {
   unitPrice: number;
   discountAmount?: number;
   taxAmount?: number;
+  batchNo?: string | null;
+  expiryDate?: string | null;
 };
 
 export type CreateSaleInput = {
@@ -898,6 +929,8 @@ export type SaleItem = {
   taxAmount: number;
   lineTotal: number;
   lineOrder: number;
+  batchNo?: string | null;
+  expiryDate?: string | null;
 };
 
 export type Sale = {
@@ -1480,6 +1513,82 @@ export type LicenseCreateInput = {
   phone?: string | null;
 };
 
+export type CropVehicleInput = {
+  vehicleNo: string;
+  bags: number;
+  totalWeight: number;
+  kaat: number;
+  rate: number;
+};
+
+export type CropVehicle = CropVehicleInput & {
+  safiWeight: number;
+  amount: number;
+};
+
+export type CreateCropPurchaseInput = {
+  docDate: string;
+  partyType: "customer" | "vendor";
+  partyId: string;
+  variantId: string;
+  commission?: number;
+  brokerage?: number;
+  mazdoori?: number;
+  fees?: number;
+  bardana?: number;
+  cashPaid?: number;
+  bankPaid?: number;
+  remarks?: string | null;
+  vehicles: CropVehicleInput[];
+};
+
+export type CropPurchase = {
+  id: string;
+  docNo: string;
+  docDate: string;
+  partyType: "customer" | "vendor";
+  partyId: string;
+  partyName: string | null;
+  productName: string;
+  safiWeight: number;
+  grossAmount: number;
+  commission: number;
+  brokerage: number;
+  mazdoori: number;
+  fees: number;
+  bardana: number;
+  deductionAmount: number;
+  netPayable: number;
+  paidAmount: number;
+  remarks: string | null;
+  vehicles: CropVehicle[];
+};
+
+export type CreateCropSaleInput = {
+  docDate: string;
+  customerId: string;
+  variantId: string;
+  weight: number;
+  rate: number;
+  cashPaid?: number;
+  bankPaid?: number;
+  remarks?: string | null;
+};
+
+export type CropSale = {
+  id: string;
+  docNo: string;
+  docDate: string;
+  customerId: string | null;
+  customerName: string | null;
+  productName: string;
+  weight: number;
+  rate: number;
+  amount: number;
+  paidAmount: number;
+  remarks: string | null;
+};
+
 export type ElectronAPI = {
   ping: () => Promise<string>;
   getAppInfo: () => Promise<AppInfo>;
@@ -1531,6 +1640,11 @@ export type ElectronAPI = {
 
   listInventory: () => Promise<ActionResult<InventoryRow[]>>;
   adjustStock: (input: StockAdjustInput) => Promise<ActionResult<InventoryRow>>;
+  listStockBatches: () => Promise<ActionResult<StockBatch[]>>;
+  listCropPurchases: (partyType?: "customer" | "vendor") => Promise<ActionResult<CropPurchase[]>>;
+  createCropPurchase: (input: CreateCropPurchaseInput) => Promise<ActionResult<CropPurchase>>;
+  listCropSales: () => Promise<ActionResult<CropSale[]>>;
+  createCropSale: (input: CreateCropSaleInput) => Promise<ActionResult<CropSale>>;
   listCustomers: () => Promise<ActionResult<Customer[]>>;
   createCustomer: (input: CustomerInput) => Promise<ActionResult<Customer>>;
   updateCustomer: (id: string, input: CustomerInput) => Promise<ActionResult<Customer>>;

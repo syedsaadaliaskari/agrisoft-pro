@@ -205,10 +205,24 @@ async function deleteSoftDeletedRow(table: string, id: string): Promise<void> {
       await deleteSoftDeletedRow(child.table, kid.id);
     }
   }
-  await supabaseRest(table, {
-    method: "DELETE",
-    query: `id=eq.${encodeURIComponent(id)}&deleted_at=not.is.null`,
-  });
+  try {
+    await supabaseRest(table, {
+      method: "DELETE",
+      query: `id=eq.${encodeURIComponent(id)}&deleted_at=not.is.null`,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "";
+    if (!message.includes("23503")) throw err;
+    const keyColumn = NATURAL_KEY[table];
+    if (!keyColumn) throw err;
+    // A live voucher still points at this deleted row. Keep the row and free its code.
+    await supabaseRest(table, {
+      method: "PATCH",
+      query: `id=eq.${encodeURIComponent(id)}&deleted_at=not.is.null`,
+      prefer: "return=minimal",
+      body: { [keyColumn]: `retired-${id.slice(0, 8)}` },
+    });
+  }
 }
 
 export async function supabaseUpsert(table: string, rows: unknown[]): Promise<number> {

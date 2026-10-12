@@ -23,6 +23,7 @@ import {
   Receipt,
   Trash2,
   ClipboardList,
+  Wheat,
   HardDrive,
   KeyRound,
   Lock,
@@ -100,6 +101,30 @@ export const navigation: NavGroup[] = [
         href: "/purchases/returns",
         icon: PackageMinus,
         permission: "purchases.return",
+      },
+    ],
+  },
+  {
+    titleKey: "nav.crop",
+    icon: Wheat,
+    items: [
+      {
+        labelKey: "nav.cropBuyFarmer",
+        href: "/crop/buy-farmer",
+        icon: Wheat,
+        permission: "purchases.view",
+      },
+      {
+        labelKey: "nav.cropBuySupplier",
+        href: "/crop/buy-supplier",
+        icon: Truck,
+        permission: "purchases.view",
+      },
+      {
+        labelKey: "nav.cropSell",
+        href: "/crop/sell",
+        icon: ShoppingCart,
+        permission: "sales.view",
       },
     ],
   },

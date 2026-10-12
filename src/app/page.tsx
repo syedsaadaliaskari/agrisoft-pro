@@ -18,17 +18,26 @@ export default function HomePage() {
   useEffect(() => {
     if (!hydrated) return;
     let cancelled = false;
+    const go = (path: string) => {
+      if (!cancelled) router.replace(path);
+    };
+    const timer = setTimeout(() => go(user ? "/dashboard" : "/login"), 4000);
     void (async () => {
-      const res = await getApi().getLicenseStatus();
-      if (cancelled) return;
-      if (res.ok && !res.data.allowed && user) {
-        router.replace("/activate");
-        return;
+      try {
+        const res = await getApi().getLicenseStatus();
+        if (cancelled) return;
+        if (res.ok && !res.data.allowed && user) {
+          go("/activate");
+          return;
+        }
+        go(user ? "/dashboard" : "/login");
+      } catch {
+        go(user ? "/dashboard" : "/login");
       }
-      router.replace(user ? "/dashboard" : "/login");
     })();
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   }, [hydrated, user, router]);
 

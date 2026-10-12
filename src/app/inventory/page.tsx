@@ -16,10 +16,11 @@ import {
 } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { InventoryRow } from "@shared/ipc";
+import type { InventoryRow, StockBatch } from "@shared/ipc";
 
 export default function InventoryPage() {
   const [rows, setRows] = useState<InventoryRow[]>([]);
+  const [batches, setBatches] = useState<StockBatch[]>([]);
   const [search, setSearch] = useState("");
   const [lowOnly, setLowOnly] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -33,9 +34,11 @@ export default function InventoryPage() {
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
-    const res = await getApi().listInventory();
+    const api = getApi();
+    const [res, batchRes] = await Promise.all([api.listInventory(), api.listStockBatches()]);
     if (!res.ok) setError(res.error);
     else setRows(res.data);
+    if (batchRes.ok) setBatches(batchRes.data.filter((row) => row.qty > 0));
     setLoading(false);
   }, []);
 
@@ -57,6 +60,13 @@ export default function InventoryPage() {
       );
     });
   }, [rows, search, lowOnly]);
+
+  const expiring = useMemo(() => {
+    const limit = new Date();
+    limit.setDate(limit.getDate() + 30);
+    const cutoff = limit.toISOString().slice(0, 10);
+    return batches.filter((batch) => batch.expiryDate && batch.expiryDate <= cutoff);
+  }, [batches]);
 
   const openAdjust = (row: InventoryRow) => {
     setEditing(row);
@@ -134,6 +144,37 @@ export default function InventoryPage() {
           </>
         }
       />
+
+      {expiring.length ? (
+        <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <h2 className="text-sm font-semibold text-amber-900">Batches expiring in 30 days</h2>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs text-amber-800">
+                <tr>
+                  <th className="py-1 pr-3">Product</th>
+                  <th className="py-1 pr-3">Batch</th>
+                  <th className="py-1 pr-3">Expiry</th>
+                  <th className="py-1">Qty</th>
+                </tr>
+              </thead>
+              <tbody>
+                {expiring.map((batch) => (
+                  <tr key={batch.id} className="border-t border-amber-100">
+                    <td className="py-2 pr-3 font-medium text-amber-950">{batch.productName}</td>
+                    <td className="py-2 pr-3">{batch.batchNo}</td>
+                    <td className="py-2 pr-3">{batch.expiryDate}</td>
+                    <td className="py-2">
+                      {batch.qty}
+                      {batch.unit ? ` ${batch.unit}` : ""}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
 
       {loading ? (
         <p className="text-sm text-[var(--text-muted)]">Loading...</p>

@@ -45,6 +45,7 @@ import {
 } from "../db/schema";
 import { requirePermission, getCurrentSession, PermissionError } from "./session";
 import { rememberLocalDelete } from "../sync/deletes";
+import { receiveBatch } from "../db/batches";
 
 function ok<T>(data: T): ActionResult<T> {
   return { ok: true, data };
@@ -93,6 +94,8 @@ function mapItem(row: typeof purchaseItems.$inferSelect): PurchaseItem {
     taxAmount: row.taxAmount,
     lineTotal: row.lineTotal,
     lineOrder: row.lineOrder,
+    batchNo: row.batchNo,
+    expiryDate: row.expiryDate,
   };
 }
 
@@ -271,6 +274,8 @@ export function registerPurchaseHandlers(): void {
         discountAmount: number;
         taxAmount: number;
         lineTotal: number;
+        batchNo: string | null;
+        expiryDate: string | null;
       };
       const built: Built[] = [];
       let computedSubtotal = 0;
@@ -288,6 +293,13 @@ export function registerPurchaseHandlers(): void {
         if (!variant || !variant.isActive) return fail(`Line ${i + 1}: pack not found`);
         const product = db.select().from(products).where(eq(products.id, variant.productId)).get();
         if (!product) return fail(`Line ${i + 1}: product not found`);
+        if (product.isCrop) {
+          return fail(`Line ${i + 1}: ${product.name} is a crop. Open Crop trading and use the crop slip.`);
+        }
+        const batchNo = product.trackBatch ? String(line.batchNo ?? "").trim() : "";
+        const expiryDate = product.trackBatch ? String(line.expiryDate ?? "").trim() : "";
+        if (product.trackBatch && !batchNo) return fail(`Line ${i + 1}: batch number is required`);
+        if (product.trackBatch && !expiryDate) return fail(`Line ${i + 1}: expiry date is required`);
 
         const discountAmount = money(Number(line.discountAmount ?? 0));
         const taxAmount = money(Number(line.taxAmount ?? 0));
@@ -303,6 +315,8 @@ export function registerPurchaseHandlers(): void {
           discountAmount,
           taxAmount,
           lineTotal,
+          batchNo: batchNo || null,
+          expiryDate: expiryDate || null,
         });
         computedSubtotal = money(computedSubtotal + qty * unitCost);
         lineTaxSum = money(lineTaxSum + taxAmount);
@@ -418,8 +432,11 @@ export function registerPurchaseHandlers(): void {
             taxAmount: line.taxAmount,
             lineTotal: line.lineTotal,
             lineOrder: idx,
+            batchNo: line.batchNo,
+            expiryDate: line.expiryDate,
           })
           .run();
+        if (line.batchNo) receiveBatch(db, line.variantId, line.batchNo, line.expiryDate, line.quantity, ts);
 
         const variant = db.select().from(productVariants).where(eq(productVariants.id, line.variantId)).get()!;
         db.update(productVariants)

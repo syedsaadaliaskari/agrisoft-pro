@@ -23,6 +23,8 @@ export const DOC_PREFIXES: Record<DocType, string> = {
   customer: "C",
   vendor: "V",
   product: "PRD",
+  crop_purchase: "CP",
+  crop_sale: "CS",
 };
 
 const VOUCHER_DOC_TYPES = new Set<DocType>([
@@ -36,6 +38,8 @@ const VOUCHER_DOC_TYPES = new Set<DocType>([
   "expense",
   "income",
   "owner_draw",
+  "crop_purchase",
+  "crop_sale",
 ]);
 
 function formatDocumentNumber(prefix: string | null, number: number, padLength: number): string {
