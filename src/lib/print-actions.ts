@@ -2,7 +2,7 @@ import { getApi } from "@/lib/api";
 import { buildVoucherPrintHtml, type ReceiptSize } from "@/lib/print";
 import type { Voucher } from "@shared/ipc";
 
-async function shopBits() {
+export async function shopBits() {
   const res = await getApi().getSettings();
   if (!res.ok) return {};
   const m = res.data;

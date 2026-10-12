@@ -4,10 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { SettlementPanel } from "@/components/ops/DocumentWorkspace";
+import { PrintMenu } from "@/components/PrintMenu";
 import { Alert, Button, Input, Select } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
+import { buildCropPurchasePrintHtml } from "@/lib/print";
+import { shopBits } from "@/lib/print-actions";
 import { formatMoney } from "@/lib/utils";
-import type { CropPurchase, Customer, InventoryRow, Vendor } from "@shared/ipc";
+import type { CropPurchase, Customer, InventoryRow, ReceiptSize, Vendor } from "@shared/ipc";
 
 type Party = "customer" | "vendor";
 
@@ -103,7 +106,22 @@ export function CropPurchaseSlip({
   const deductions = n(commission) + n(brokerage) + n(mazdoori) + n(fees) + n(bardana);
   const net = gross - deductions;
 
-  const save = async () => {
+  const purchaseHtml = async (row: CropPurchase, size: ReceiptSize) => {
+    const shop = await shopBits();
+    return buildCropPurchasePrintHtml({ ...row, ...shop }, size);
+  };
+
+  const printPurchase = async (row: CropPurchase, size: ReceiptSize = "a4") => {
+    try {
+      const html = await purchaseHtml(row, size);
+      const res = await getApi().printHtml(html);
+      if (!res.ok) setError(res.error);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Print failed");
+    }
+  };
+
+  const save = async (andPrint: boolean) => {
     setSaving(true);
     setError("");
     const res = await getApi().createCropPurchase({
@@ -141,6 +159,7 @@ export function CropPurchaseSlip({
     setCashPaid("0");
     setBankPaid("0");
     setRemarks("");
+    if (andPrint) await printPurchase(res.data);
     await load();
   };
 
@@ -307,9 +326,14 @@ export function CropPurchaseSlip({
           </div>
           <SettlementPanel compact grandTotal={Math.max(0, net)} cashPaid={cashPaid} bankPaid={bankPaid} onCashPaid={setCashPaid} onBankPaid={setBankPaid} dueLabel="Left on khata" />
         </div>
-        <Button onClick={() => void save()} disabled={saving}>
-          {saving ? "Saving..." : "Save crop purchase"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={() => void save(true)} disabled={saving}>
+            {saving ? "Saving..." : "Save & print"}
+          </Button>
+          <Button onClick={() => void save(false)} disabled={saving}>
+            {saving ? "Saving..." : "Save crop purchase"}
+          </Button>
+        </div>
       </div>
 
       <div className="mt-6">
@@ -321,7 +345,15 @@ export function CropPurchaseSlip({
             <div key={row.id} className="rounded-xl border border-[var(--border)] px-4 py-3 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="font-medium">{row.docNo} · {row.partyName} · {row.productName}</span>
-                <span className="tabular-nums">{formatMoney(row.netPayable)}</span>
+                <span className="flex items-center gap-2">
+                  <span className="tabular-nums">{formatMoney(row.netPayable)}</span>
+                  <PrintMenu
+                    defaultSize="a4"
+                    fileName={row.docNo}
+                    getHtml={(size) => purchaseHtml(row, size)}
+                    onError={setError}
+                  />
+                </span>
               </div>
               <div className="mt-1 text-[var(--text-muted)]">
                 {row.docDate} · safi {row.safiWeight} · kaat on {row.vehicles.length} vehicle{row.vehicles.length === 1 ? "" : "s"} · deductions {formatMoney(row.deductionAmount)}

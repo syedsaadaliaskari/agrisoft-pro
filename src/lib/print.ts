@@ -1,4 +1,13 @@
-import type { Purchase, PurchaseReturn, ReceiptSize, Sale, SaleReturn, Voucher } from "@shared/ipc";
+import type {
+  CropPurchase,
+  CropSale,
+  Purchase,
+  PurchaseReturn,
+  ReceiptSize,
+  Sale,
+  SaleReturn,
+  Voucher,
+} from "@shared/ipc";
 
 export type { ReceiptSize };
 
@@ -423,6 +432,160 @@ export function buildListPrintHtml(opts: {
       </div>`;
 
   return wrap(opts.title, size, body);
+}
+
+function cropChargeRows(
+  doc: {
+    grossAmount: number;
+    commission: number;
+    brokerage: number;
+    mazdoori: number;
+    fees: number;
+    bardana: number;
+    netPayable: number;
+    paidAmount: number;
+  },
+  currency: string
+) {
+  const left = doc.netPayable - doc.paidAmount;
+  return `
+    <div><span>Vehicle total</span><span>${money(doc.grossAmount, currency)}</span></div>
+    <div><span>Commission</span><span>${money(doc.commission, currency)}</span></div>
+    <div><span>Brokerage</span><span>${money(doc.brokerage, currency)}</span></div>
+    <div><span>Mazdoori</span><span>${money(doc.mazdoori, currency)}</span></div>
+    <div><span>Fees</span><span>${money(doc.fees, currency)}</span></div>
+    <div><span>Bardana</span><span>${money(doc.bardana, currency)}</span></div>
+    <div class="grand"><span>Net payable</span><span>${money(doc.netPayable, currency)}</span></div>
+    <div><span>Paid</span><span>${money(doc.paidAmount, currency)}</span></div>
+    <div><span>Left on khata</span><span>${money(left, currency)}</span></div>`;
+}
+
+export function buildCropPurchasePrintHtml(
+  doc: CropPurchase & ShopBits,
+  size: ReceiptSize = "a4",
+  currency = "Rs"
+): string {
+  const partyLabel = doc.partyType === "customer" ? "Farmer" : "Supplier";
+  const rows = (doc.vehicles ?? [])
+    .map(
+      (vehicle) => `<tr>
+      <td>${esc(vehicle.vehicleNo)}</td>
+      <td class="num">${vehicle.bags}</td>
+      <td class="num">${vehicle.totalWeight}</td>
+      <td class="num">${vehicle.kaat}</td>
+      <td class="num">${vehicle.safiWeight}</td>
+      <td class="num">${vehicle.rate.toFixed(2)}</td>
+      <td class="num">${vehicle.amount.toFixed(2)}</td>
+    </tr>`
+    )
+    .join("");
+  const totals = cropChargeRows(doc, currency);
+  const note = doc.remarks || doc.receiptFooter || "Crop purchase";
+
+  if (size === "thermal") {
+    return wrap(
+      doc.docNo,
+      size,
+      `${shopBlock(doc, size)}
+      <div class="badge">Crop purchase</div>
+      <div class="meta">
+        <div><span>Slip</span><strong>${esc(doc.docNo)}</strong></div>
+        <div><span>Date</span><span>${esc(doc.docDate)}</span></div>
+        <div><span>${partyLabel}</span><span>${esc(doc.partyName || "-")}</span></div>
+        <div><span>Crop</span><span>${esc(doc.productName)}</span></div>
+        <div><span>Safi</span><span>${doc.safiWeight}</span></div>
+      </div>
+      <table>
+        <thead><tr><th>Vehicle</th><th class="num">Bags</th><th class="num">Total</th><th class="num">Kaat</th><th class="num">Safi</th><th class="num">Rate</th><th class="num">Amt</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="totals">${totals}</div>
+      <div class="footer">${esc(note)}</div>`
+    );
+  }
+
+  return wrap(
+    doc.docNo,
+    size,
+    `<div class="sheet">
+      <div class="header">
+        ${shopBlock(doc, size)}
+        <div class="doc-title"><div class="label">Crop purchase</div><div class="no">${esc(doc.docNo)}</div></div>
+      </div>
+      <div class="meta-grid">
+        <div><div class="k">Date</div><div>${esc(doc.docDate)}</div></div>
+        <div><div class="k">${partyLabel}</div><div>${esc(doc.partyName || "-")}</div></div>
+        <div><div class="k">Crop</div><div>${esc(doc.productName)}</div></div>
+        <div><div class="k">Safi weight</div><div>${doc.safiWeight}</div></div>
+      </div>
+      <table>
+        <thead><tr><th>Vehicle</th><th class="num">Bags</th><th class="num">Total weight</th><th class="num">Kaat</th><th class="num">Safi</th><th class="num">Rate</th><th class="num">Amount</th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="7">No vehicles</td></tr>`}</tbody>
+      </table>
+      <div class="totals-wrap"><div class="totals">${totals}</div></div>
+      <div class="footer">${esc(note)}</div>
+    </div>`
+  );
+}
+
+export function buildCropSalePrintHtml(
+  doc: CropSale & ShopBits,
+  size: ReceiptSize = "thermal",
+  currency = "Rs"
+): string {
+  const left = doc.amount - doc.paidAmount;
+  const totals = `
+    <div class="grand"><span>Amount</span><span>${money(doc.amount, currency)}</span></div>
+    <div><span>Paid</span><span>${money(doc.paidAmount, currency)}</span></div>
+    <div><span>Left on khata</span><span>${money(left, currency)}</span></div>`;
+  const note = doc.remarks || doc.receiptFooter || "Crop sale";
+  const row = `<tr>
+      <td>${esc(doc.productName)}</td>
+      <td class="num">${doc.weight}</td>
+      <td class="num">${doc.rate.toFixed(2)}</td>
+      <td class="num">${doc.amount.toFixed(2)}</td>
+    </tr>`;
+
+  if (size === "thermal") {
+    return wrap(
+      doc.docNo,
+      size,
+      `${shopBlock(doc, size)}
+      <div class="badge">Crop sale</div>
+      <div class="meta">
+        <div><span>Slip</span><strong>${esc(doc.docNo)}</strong></div>
+        <div><span>Date</span><span>${esc(doc.docDate)}</span></div>
+        <div><span>Buyer</span><span>${esc(doc.customerName || "-")}</span></div>
+      </div>
+      <table>
+        <thead><tr><th>Crop</th><th class="num">Weight</th><th class="num">Rate</th><th class="num">Amt</th></tr></thead>
+        <tbody>${row}</tbody>
+      </table>
+      <div class="totals">${totals}</div>
+      <div class="footer">${esc(note)}</div>`
+    );
+  }
+
+  return wrap(
+    doc.docNo,
+    size,
+    `<div class="sheet">
+      <div class="header">
+        ${shopBlock(doc, size)}
+        <div class="doc-title"><div class="label">Crop sale</div><div class="no">${esc(doc.docNo)}</div></div>
+      </div>
+      <div class="meta-grid">
+        <div><div class="k">Date</div><div>${esc(doc.docDate)}</div></div>
+        <div><div class="k">Buyer</div><div>${esc(doc.customerName || "-")}</div></div>
+      </div>
+      <table>
+        <thead><tr><th>Crop</th><th class="num">Weight</th><th class="num">Rate</th><th class="num">Amount</th></tr></thead>
+        <tbody>${row}</tbody>
+      </table>
+      <div class="totals-wrap"><div class="totals">${totals}</div></div>
+      <div class="footer">${esc(note)}</div>
+    </div>`
+  );
 }
 
 /** @deprecated use buildSalePrintHtml */

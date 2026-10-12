@@ -3,10 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { SettlementPanel } from "@/components/ops/DocumentWorkspace";
+import { PrintMenu } from "@/components/PrintMenu";
 import { Alert, Button, Input, Select } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
+import { buildCropSalePrintHtml } from "@/lib/print";
+import { shopBits } from "@/lib/print-actions";
 import { formatMoney } from "@/lib/utils";
-import type { CropSale, Customer, InventoryRow } from "@shared/ipc";
+import type { CropSale, Customer, InventoryRow, ReceiptSize } from "@shared/ipc";
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -49,7 +52,22 @@ export default function SellCropPage() {
 
   const amount = Number(weight || 0) * Number(rate || 0);
 
-  const save = async () => {
+  const saleHtml = async (row: CropSale, size: ReceiptSize) => {
+    const shop = await shopBits();
+    return buildCropSalePrintHtml({ ...row, ...shop }, size);
+  };
+
+  const printSale = async (row: CropSale, size: ReceiptSize = "thermal") => {
+    try {
+      const html = await saleHtml(row, size);
+      const res = await getApi().printHtml(html);
+      if (!res.ok) setError(res.error);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Print failed");
+    }
+  };
+
+  const save = async (andPrint: boolean) => {
     setSaving(true);
     setError("");
     const res = await getApi().createCropSale({
@@ -72,6 +90,7 @@ export default function SellCropPage() {
     setCashPaid("0");
     setBankPaid("0");
     setRemarks("");
+    if (andPrint) await printSale(res.data);
     await load();
   };
 
@@ -126,9 +145,14 @@ export default function SellCropPage() {
             dueLabel="Left on khata"
           />
         </div>
-        <Button onClick={() => void save()} disabled={saving}>
-          {saving ? "Saving..." : "Save crop sale"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={() => void save(true)} disabled={saving}>
+            {saving ? "Saving..." : "Save & print"}
+          </Button>
+          <Button onClick={() => void save(false)} disabled={saving}>
+            {saving ? "Saving..." : "Save crop sale"}
+          </Button>
+        </div>
       </div>
       <div className="mt-6 space-y-2">
         <h2 className="text-sm font-semibold">Recent crop sales</h2>
@@ -138,7 +162,15 @@ export default function SellCropPage() {
           <div key={row.id} className="rounded-xl border border-[var(--border)] px-4 py-3 text-sm">
             <div className="flex justify-between gap-2">
               <span className="font-medium">{row.docNo} · {row.customerName} · {row.productName}</span>
-              <span className="tabular-nums">{formatMoney(row.amount)}</span>
+              <span className="flex items-center gap-2">
+                <span className="tabular-nums">{formatMoney(row.amount)}</span>
+                <PrintMenu
+                  defaultSize="thermal"
+                  fileName={row.docNo}
+                  getHtml={(size) => saleHtml(row, size)}
+                  onError={setError}
+                />
+              </span>
             </div>
             <div className="mt-1 text-[var(--text-muted)]">{row.docDate} · weight {row.weight} · rate {formatMoney(row.rate)}</div>
           </div>
