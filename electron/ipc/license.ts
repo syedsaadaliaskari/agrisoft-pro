@@ -44,8 +44,11 @@ export function registerLicenseHandlers(isDev: boolean): void {
 
   registerHandler(IPC.LICENSE_STATUS, async (): Promise<ActionResult<LicenseStatus>> => {
     try {
-      await syncDesktopShopLicense();
-      return { ok: true, data: getLicenseStatus(getDb(), isDevFlag) };
+      const data = getLicenseStatus(getDb(), isDevFlag);
+      void syncDesktopShopLicense().catch((err) =>
+        console.warn("Shop license sync failed:", err instanceof Error ? err.message : err)
+      );
+      return { ok: true, data };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : "License status failed" };
     }

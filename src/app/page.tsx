@@ -13,7 +13,11 @@ export default function HomePage() {
 
   useEffect(() => {
     void hydrate();
-  }, [hydrate]);
+    const timer = setTimeout(() => {
+      if (!useAuthStore.getState().hydrated) router.replace("/login");
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [hydrate, router]);
 
   useEffect(() => {
     if (!hydrated) return;

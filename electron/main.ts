@@ -649,11 +649,13 @@ app.whenReady().then(async () => {
 
   await createWindow();
 
-  try {
-    startCloudSyncScheduler();
-  } catch (err) {
-    console.warn("Cloud sync scheduler failed to start:", err);
-  }
+  setTimeout(() => {
+    try {
+      startCloudSyncScheduler();
+    } catch (err) {
+      console.warn("Cloud sync scheduler failed to start:", err);
+    }
+  }, 4000);
 
   setupAutoUpdater();
 
