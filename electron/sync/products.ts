@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "../db";
 import { categories, productVariants, products, stockMovements, units } from "../db/schema";
-import { supabaseUpsert, tenantId } from "./client";
+import { cloudColumnReady, supabaseUpsert, tenantId } from "./client";
 import { trySyncWrite } from "./constraints";
 import {
   beginTableDeletes,
@@ -35,6 +35,8 @@ type CloudProduct = {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  track_batch?: boolean | number | null;
+  is_crop?: boolean | number | null;
 };
 
 type CloudVariant = {
@@ -104,6 +106,8 @@ export async function syncProducts(): Promise<{
       taxId: row.tax_id,
       reorderLevel: Number(row.reorder_level || 0),
       isActive: Boolean(row.is_active),
+      trackBatch: row.track_batch == null ? (existing?.trackBatch ?? false) : Boolean(row.track_batch),
+      isCrop: row.is_crop == null ? (existing?.isCrop ?? false) : Boolean(row.is_crop),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -122,6 +126,7 @@ export async function syncProducts(): Promise<{
   }
 
   const remainingProducts = liveRows("products", db.select().from(products).all());
+  const sendFlags = await cloudColumnReady("products", "is_crop");
   const pushedProducts = await supabaseUpsert(
     "products",
     remainingProducts.map((row) => ({
@@ -145,6 +150,7 @@ export async function syncProducts(): Promise<{
       created_at: row.createdAt,
       updated_at: row.updatedAt,
       deleted_at: null,
+      ...(sendFlags ? { track_batch: row.trackBatch, is_crop: row.isCrop } : {}),
     }))
   );
   finishTableSnapshot("products", remainingProducts.map((row) => row.id));

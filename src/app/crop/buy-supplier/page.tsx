@@ -7,7 +7,6 @@ export default function BuyCropFromSupplierPage() {
     <CropPurchaseSlip
       partyType="vendor"
       title="Buy from supplier"
-      subtitle="Same crop slip, posted on the supplier khata."
     />
   );
 }

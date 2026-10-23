@@ -19,6 +19,7 @@ import { getSetting, recordSyncError, setSetting } from "./store";
 import { syncShopSettings } from "./shopSettings";
 import { syncUsers } from "./users";
 import { syncVendors } from "./vendors";
+import { syncCropTrading } from "./crops";
 import { syncVouchers } from "./vouchers";
 
 export type CloudSyncStatus = {
@@ -110,6 +111,7 @@ export async function runShopCloudSync(): Promise<CloudSyncResult> {
   const accountResult = await syncAccounts();
   const productResult = await syncProducts();
   const voucherResult = await syncVouchers();
+  await syncCropTrading();
   const saleResult = await syncSales();
   const purchaseResult = await syncPurchases();
   await syncReturns();

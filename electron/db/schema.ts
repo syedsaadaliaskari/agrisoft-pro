@@ -88,6 +88,8 @@ export const units = sqliteTable("units", {
   id: text("id").primaryKey(),
   name: text("name").notNull().unique(),
   shortName: text("short_name").notNull(),
+  /** How many kilograms one of this unit equals. Empty means it is not a weight. */
+  equalsKg: real("equals_kg"),
   isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
   ...timestamps,
 });
@@ -185,6 +187,7 @@ export const stockBatches = sqliteTable(
       .notNull()
       .references(() => productVariants.id),
     batchNo: text("batch_no").notNull(),
+    manufacturedDate: text("manufactured_date"),
     expiryDate: text("expiry_date"),
     qty: real("qty").notNull().default(0),
     ...timestamps,
@@ -459,6 +462,7 @@ export const purchaseItems = sqliteTable("purchase_items", {
   lineTotal: real("line_total").notNull(),
   lineOrder: integer("line_order").notNull().default(0),
   batchNo: text("batch_no"),
+  manufacturedDate: text("manufactured_date"),
   expiryDate: text("expiry_date"),
 });
 
@@ -583,6 +587,8 @@ export const cropPurchaseVehicles = sqliteTable("crop_purchase_vehicles", {
   safiWeight: real("safi_weight").notNull(),
   rate: real("rate").notNull(),
   amount: real("amount").notNull(),
+  stockFactor: real("stock_factor").notNull().default(1),
+  weighUnit: text("weigh_unit"),
   lineOrder: integer("line_order").notNull().default(0),
 });
 
@@ -602,7 +608,17 @@ export const cropSales = sqliteTable(
     productName: text("product_name").notNull(),
     weight: real("weight").notNull(),
     rate: real("rate").notNull(),
+    stockFactor: real("stock_factor").notNull().default(1),
+    weighUnit: text("weigh_unit"),
     amount: real("amount").notNull(),
+    commission: real("commission").notNull().default(0),
+    brokerage: real("brokerage").notNull().default(0),
+    mazdoori: real("mazdoori").notNull().default(0),
+    fees: real("fees").notNull().default(0),
+    bardana: real("bardana").notNull().default(0),
+    deductionAmount: real("deduction_amount").notNull().default(0),
+    netAmount: real("net_amount").notNull().default(0),
+    costAmount: real("cost_amount").notNull().default(0),
     paidAmount: real("paid_amount").notNull().default(0),
     remarks: text("remarks"),
     status: text("status").notNull().default("completed"),

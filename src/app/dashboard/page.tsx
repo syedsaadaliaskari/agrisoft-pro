@@ -716,6 +716,35 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
+                <div className="rounded-xl border border-red-200 bg-red-50 p-5">
+                  <div className="mb-3 flex items-center gap-2">
+                    <AlertTriangle size={16} className="text-red-600" />
+                    <p className="text-sm font-medium text-red-900">Expiring in 30 days</p>
+                  </div>
+                  <DataTable
+                    headers={["Product", "Batch", "Made", "Expiry", "Qty"]}
+                    empty={!summary?.expiringItems?.length}
+                  >
+                    {(summary?.expiringItems ?? []).map((row) => (
+                      <tr key={`${row.productName}-${row.batchNo}`} className="border-b border-red-100 last:border-0">
+                        <td className="px-4 py-3 font-medium text-red-900">
+                          <span className="inline-flex items-center gap-1.5">
+                            <AlertTriangle size={14} className="text-red-600" />
+                            {row.productName}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-red-800">{row.batchNo}</td>
+                        <td className="px-4 py-3 text-red-800">{row.manufacturedDate || "—"}</td>
+                        <td className="px-4 py-3 font-medium text-red-800">{row.expiryDate}</td>
+                        <td className="px-4 py-3 text-red-800">
+                          {row.qty}
+                          {row.unit ? ` ${row.unit}` : ""}
+                        </td>
+                      </tr>
+                    ))}
+                  </DataTable>
+                </div>
+
                 <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5">
                   <div className="mb-3 flex items-center gap-2">
                     <AlertTriangle size={16} className="text-[var(--danger)]" />

@@ -1,5 +1,5 @@
 import { registerHandler } from "./register";
-import { and, asc, count, desc, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import {
   IPC,
@@ -26,6 +26,7 @@ import {
 } from "../db/schema";
 import { requirePermission, requireAnyPermission, getCurrentSession, PermissionError } from "./session";
 import { rememberLocalDelete } from "../sync/deletes";
+import { allocateBatchNo, readBatchDates, receiveBatch } from "../db/batches";
 
 function ok<T>(data: T): ActionResult<T> {
   return { ok: true, data };
@@ -118,7 +119,81 @@ function enrichProduct(id: string): Product | null {
     taxName: tax?.name ?? null,
     variantCount,
     totalStock: Number(stockRow?.total ?? 0),
+    batches: batchesForProduct(id),
   };
+}
+
+function batchesForProduct(productId: string) {
+  const db = getDb();
+  const variantIds = db
+    .select({ id: productVariants.id })
+    .from(productVariants)
+    .where(eq(productVariants.productId, productId))
+    .all()
+    .map((row) => row.id);
+  if (!variantIds.length) return [];
+  return db
+    .select()
+    .from(stockBatches)
+    .where(inArray(stockBatches.variantId, variantIds))
+    .all()
+    .map((batch) => ({
+      id: batch.id,
+      batchNo: batch.batchNo,
+      manufacturedDate: batch.manufacturedDate,
+      expiryDate: batch.expiryDate,
+      qty: Number(batch.qty),
+    }))
+    .sort((a, b) => (a.expiryDate || "9999").localeCompare(b.expiryDate || "9999"));
+}
+
+/** Writes the batch asked for on the product form. Returns an error message, or null. */
+function saveTrackedBatch(
+  db: ReturnType<typeof getDb>,
+  productId: string,
+  input: ProductInput,
+  ts: string,
+  openingQty: number | null
+): string | null {
+  if (!(Boolean(input.trackBatch) && !input.isCrop)) return null;
+  const dates = readBatchDates(input, "This product");
+  if ("error" in dates) return dates.error;
+
+  const variants = db
+    .select()
+    .from(productVariants)
+    .where(eq(productVariants.productId, productId))
+    .orderBy(asc(productVariants.createdAt))
+    .all();
+  if (!variants.length) return "Add a pack before tracking a batch";
+  const variant = variants[0];
+  const batchNo = String(input.batchNo ?? "").trim() || allocateBatchNo(db);
+
+  if (input.batchId) {
+    const current = db.select().from(stockBatches).where(eq(stockBatches.id, input.batchId)).get();
+    if (!current || !variants.some((row) => row.id === current.variantId)) return "That batch was not found";
+    const clash = db
+      .select()
+      .from(stockBatches)
+      .where(and(eq(stockBatches.variantId, current.variantId), eq(stockBatches.batchNo, batchNo)))
+      .get();
+    if (clash && clash.id !== current.id) return "That batch number is already on this product";
+    db.update(stockBatches)
+      .set({
+        batchNo,
+        manufacturedDate: dates.manufacturedDate,
+        expiryDate: dates.expiryDate,
+        updatedAt: ts,
+      })
+      .where(eq(stockBatches.id, current.id))
+      .run();
+    return null;
+  }
+
+  const already = batchesForProduct(productId);
+  const qty = openingQty == null ? (already.length ? 0 : variant.stockQty) : openingQty;
+  receiveBatch(db, variant.id, batchNo, dates.expiryDate, qty, ts, dates.manufacturedDate);
+  return null;
 }
 
 function allocateSku(preferred?: string): string {
@@ -205,6 +280,11 @@ export function registerProductHandlers(): void {
         if (!tax) return fail("Tax not found");
       }
 
+      if (Boolean(input.trackBatch) && !input.isCrop) {
+        const dates = readBatchDates(input, "This product");
+        if ("error" in dates) return fail(dates.error);
+      }
+
       const id = randomUUID();
       const sku = allocateSku(input.sku);
       const ts = nowIso();
@@ -274,6 +354,9 @@ export function registerProductHandlers(): void {
           .run();
       }
 
+      const batchError = saveTrackedBatch(db, id, input, ts, initialStock);
+      if (batchError) return fail(batchError);
+
       return ok(enrichProduct(id)!);
     })
   );
@@ -313,6 +396,10 @@ export function registerProductHandlers(): void {
           if (!tax) return fail("Tax not found");
         }
 
+        const ts = nowIso();
+        const batchError = saveTrackedBatch(db, id, { ...input, isCrop: input.isCrop ?? current.isCrop }, ts, null);
+        if (batchError) return fail(batchError);
+
         db.update(products)
           .set({
             sku,
@@ -342,7 +429,7 @@ export function registerProductHandlers(): void {
               input.trackBatch === undefined ? current.trackBatch : Boolean(input.trackBatch) && !input.isCrop,
             isCrop: input.isCrop === undefined ? current.isCrop : Boolean(input.isCrop),
             isActive: input.isActive ?? current.isActive,
-            updatedAt: nowIso(),
+            updatedAt: ts,
           })
           .where(eq(products.id, id))
           .run();
@@ -699,6 +786,7 @@ export function registerProductHandlers(): void {
           variantId: stockBatches.variantId,
           productName: products.name,
           batchNo: stockBatches.batchNo,
+          manufacturedDate: stockBatches.manufacturedDate,
           expiryDate: stockBatches.expiryDate,
           qty: stockBatches.qty,
           unit: units.shortName,
@@ -715,6 +803,7 @@ export function registerProductHandlers(): void {
           variantId: row.variantId,
           productName: row.productName,
           batchNo: row.batchNo,
+          manufacturedDate: row.manufacturedDate,
           expiryDate: row.expiryDate,
           qty: Number(row.qty),
           unit: row.unit ?? null,

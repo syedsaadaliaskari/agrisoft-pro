@@ -533,9 +533,22 @@ export function buildCropSalePrintHtml(
   size: ReceiptSize = "thermal",
   currency = "Rs"
 ): string {
-  const left = doc.amount - doc.paidAmount;
+  const net = doc.netAmount || doc.amount;
+  const left = net - doc.paidAmount;
+  const chargeRows = [
+    ["Commission", doc.commission],
+    ["Brokerage", doc.brokerage],
+    ["Mazdoori", doc.mazdoori],
+    ["Fees", doc.fees],
+    ["Bardana", doc.bardana],
+  ]
+    .filter(([, value]) => Number(value) > 0)
+    .map(([label, value]) => `<div><span>${label}</span><span>${money(Number(value), currency)}</span></div>`)
+    .join("");
   const totals = `
-    <div class="grand"><span>Amount</span><span>${money(doc.amount, currency)}</span></div>
+    <div><span>Amount</span><span>${money(doc.amount, currency)}</span></div>
+    ${chargeRows}
+    <div class="grand"><span>Net</span><span>${money(net, currency)}</span></div>
     <div><span>Paid</span><span>${money(doc.paidAmount, currency)}</span></div>
     <div><span>Left on khata</span><span>${money(left, currency)}</span></div>`;
   const note = doc.remarks || doc.receiptFooter || "Crop sale";

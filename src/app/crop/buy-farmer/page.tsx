@@ -7,7 +7,6 @@ export default function BuyCropFromFarmerPage() {
     <CropPurchaseSlip
       partyType="customer"
       title="Buy from farmer"
-      subtitle="One slip for the trolley. Kaat is on each vehicle. The five charges sit under the vehicles."
     />
   );
 }

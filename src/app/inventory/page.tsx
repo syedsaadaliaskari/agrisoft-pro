@@ -15,6 +15,7 @@ import {
   Textarea,
 } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
+import { expirySoonCutoff } from "@/lib/expiry";
 import { cn } from "@/lib/utils";
 import type { InventoryRow, StockBatch } from "@shared/ipc";
 
@@ -62,10 +63,8 @@ export default function InventoryPage() {
   }, [rows, search, lowOnly]);
 
   const expiring = useMemo(() => {
-    const limit = new Date();
-    limit.setDate(limit.getDate() + 30);
-    const cutoff = limit.toISOString().slice(0, 10);
-    return batches.filter((batch) => batch.expiryDate && batch.expiryDate <= cutoff);
+    const cutoff = expirySoonCutoff();
+    return batches.filter((batch) => batch.expiryDate && batch.expiryDate <= cutoff && batch.qty > 0);
   }, [batches]);
 
   const openAdjust = (row: InventoryRow) => {
@@ -154,6 +153,7 @@ export default function InventoryPage() {
                 <tr>
                   <th className="py-1 pr-3">Product</th>
                   <th className="py-1 pr-3">Batch</th>
+                  <th className="py-1 pr-3">Made</th>
                   <th className="py-1 pr-3">Expiry</th>
                   <th className="py-1">Qty</th>
                 </tr>
@@ -163,6 +163,7 @@ export default function InventoryPage() {
                   <tr key={batch.id} className="border-t border-amber-100">
                     <td className="py-2 pr-3 font-medium text-amber-950">{batch.productName}</td>
                     <td className="py-2 pr-3">{batch.batchNo}</td>
+                    <td className="py-2 pr-3">{batch.manufacturedDate || "—"}</td>
                     <td className="py-2 pr-3">{batch.expiryDate}</td>
                     <td className="py-2">
                       {batch.qty}

@@ -1,16 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { Pencil, Plus, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
-import { SettlementPanel } from "@/components/ops/DocumentWorkspace";
+import { ComposerShell, LineItemsTable, SettlementPanel, TotalsPanel, money } from "@/components/ops/DocumentWorkspace";
 import { PrintMenu } from "@/components/PrintMenu";
-import { Alert, Button, Input, Select } from "@/components/ui/form";
+import { Alert, Button, Input, Modal, Select } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
 import { buildCropPurchasePrintHtml } from "@/lib/print";
 import { shopBits } from "@/lib/print-actions";
 import { formatMoney } from "@/lib/utils";
-import type { CropPurchase, Customer, InventoryRow, ReceiptSize, Vendor } from "@shared/ipc";
+import type { CropPurchase, Customer, InventoryRow, Product, ReceiptSize, Unit, Vendor } from "@shared/ipc";
 
 type Party = "customer" | "vendor";
 
@@ -18,6 +18,7 @@ type VehicleDraft = {
   key: string;
   vehicleNo: string;
   bags: string;
+  perBag: string;
   totalWeight: string;
   kaat: string;
   rate: string;
@@ -27,6 +28,7 @@ const emptyVehicle = (): VehicleDraft => ({
   key: `${Date.now()}-${Math.random()}`,
   vehicleNo: "",
   bags: "",
+  perBag: "",
   totalWeight: "",
   kaat: "0",
   rate: "",
@@ -41,22 +43,31 @@ function n(value: string) {
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
+function kilograms(unit: Unit | undefined) {
+  if (!unit) return null;
+  if (unit.equalsKg != null && unit.equalsKg > 0) return unit.equalsKg;
+  const label = `${unit.shortName} ${unit.name}`.toLowerCase();
+  if (label.includes("kg") || label.includes("kilogram")) return 1;
+  return null;
+}
+
 export function CropPurchaseSlip({
   partyType,
   title,
-  subtitle,
 }: {
   partyType: Party;
   title: string;
-  subtitle: string;
 }) {
   const [inventory, setInventory] = useState<InventoryRow[]>([]);
+  const [units, setUnits] = useState<Unit[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [rows, setRows] = useState<CropPurchase[]>([]);
   const [docDate, setDocDate] = useState(today());
   const [partyId, setPartyId] = useState("");
   const [variantId, setVariantId] = useState("");
+  const [weighUnitId, setWeighUnitId] = useState("");
   const [vehicles, setVehicles] = useState<VehicleDraft[]>([emptyVehicle()]);
   const [commission, setCommission] = useState("0");
   const [brokerage, setBrokerage] = useState("0");
@@ -66,6 +77,8 @@ export function CropPurchaseSlip({
   const [cashPaid, setCashPaid] = useState("0");
   const [bankPaid, setBankPaid] = useState("0");
   const [remarks, setRemarks] = useState("");
+  const [composer, setComposer] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -73,13 +86,17 @@ export function CropPurchaseSlip({
   const load = useCallback(async () => {
     setLoading(true);
     const api = getApi();
-    const [inv, cust, ven, list] = await Promise.all([
+    const [inv, cust, ven, list, unitRes, productRes] = await Promise.all([
       api.listInventory(),
       api.listCustomers(),
       api.listVendors(),
       api.listCropPurchases(partyType),
+      api.listUnits(),
+      api.listProducts(),
     ]);
     if (inv.ok) setInventory(inv.data.filter((row) => row.isActive && row.isCrop));
+    if (unitRes.ok) setUnits(unitRes.data.filter((row) => row.isActive));
+    if (productRes.ok) setProducts(productRes.data);
     if (cust.ok) setCustomers(cust.data.filter((row) => row.isActive));
     if (ven.ok) setVendors(ven.data.filter((row) => row.isActive));
     if (list.ok) setRows(list.data);
@@ -91,16 +108,29 @@ export function CropPurchaseSlip({
     void load();
   }, [load]);
 
+  const selected = inventory.find((row) => row.variantId === variantId);
+  const productUnit = units.find((unit) => unit.id === products.find((product) => product.id === selected?.productId)?.unitId);
+  const weighChoices = units.filter((unit) => unit.id === productUnit?.id || kilograms(unit) != null);
+  const chosenUnit = units.find((unit) => unit.id === weighUnitId) ?? productUnit;
+  const unit = chosenUnit?.shortName || selected?.unit?.trim() || "qty";
+  const chosenKg = kilograms(chosenUnit);
+  const productKg = kilograms(productUnit);
+  const factor =
+    chosenUnit && productUnit && chosenUnit.id !== productUnit.id && chosenKg && productKg ? chosenKg / productKg : 1;
+  const usePerBag = unit.toLowerCase() !== "bag";
   const priced = useMemo(
     () =>
       vehicles.map((vehicle) => {
-        const totalWeight = n(vehicle.totalWeight);
+        const bags = n(vehicle.bags);
+        const perBag = n(vehicle.perBag);
+        const typed = n(vehicle.totalWeight);
+        const total = usePerBag && bags > 0 && perBag > 0 ? bags * perBag : typed;
         const kaat = n(vehicle.kaat);
-        const safi = Math.max(0, totalWeight - kaat);
-        const amount = safi * n(vehicle.rate);
-        return { ...vehicle, safi, amount };
+        const safi = Math.max(0, total - kaat);
+        const amount = total * n(vehicle.rate);
+        return { ...vehicle, total, safi, amount };
       }),
-    [vehicles]
+    [usePerBag, vehicles]
   );
   const gross = priced.reduce((sum, vehicle) => sum + vehicle.amount, 0);
   const deductions = n(commission) + n(brokerage) + n(mazdoori) + n(fees) + n(bardana);
@@ -121,10 +151,61 @@ export function CropPurchaseSlip({
     }
   };
 
+  const resetForm = () => {
+    setDocDate(today());
+    setPartyId("");
+    setVariantId("");
+    setWeighUnitId("");
+    setVehicles([emptyVehicle()]);
+    setCommission("0");
+    setBrokerage("0");
+    setMazdoori("0");
+    setFees("0");
+    setBardana("0");
+    setCashPaid("0");
+    setBankPaid("0");
+    setRemarks("");
+    setEditingId(null);
+  };
+
+  const openNew = () => {
+    resetForm();
+    setComposer(true);
+  };
+
+  const openEdit = (row: CropPurchase) => {
+    setEditingId(row.id);
+    setDocDate(row.docDate);
+    setPartyId(row.partyId);
+    setVariantId(row.variantId);
+    const savedUnit = row.vehicles[0]?.weighUnit;
+    setWeighUnitId(units.find((unit) => unit.shortName === savedUnit)?.id ?? "");
+    setVehicles(
+      row.vehicles.map((vehicle) => ({
+        key: `${vehicle.vehicleNo}-${Math.random()}`,
+        vehicleNo: vehicle.vehicleNo,
+        bags: String(vehicle.bags || ""),
+        perBag: "",
+        totalWeight: String(vehicle.totalWeight),
+        kaat: String(vehicle.kaat),
+        rate: String(vehicle.rate),
+      }))
+    );
+    setCommission(String(row.commission));
+    setBrokerage(String(row.brokerage));
+    setMazdoori(String(row.mazdoori));
+    setFees(String(row.fees));
+    setBardana(String(row.bardana));
+    setCashPaid(String(row.paidAmount));
+    setBankPaid("0");
+    setRemarks(row.remarks || "");
+    setComposer(true);
+  };
+
   const save = async (andPrint: boolean) => {
     setSaving(true);
     setError("");
-    const res = await getApi().createCropPurchase({
+    const payload = {
       docDate,
       partyType,
       partyId,
@@ -137,40 +218,50 @@ export function CropPurchaseSlip({
       cashPaid: n(cashPaid),
       bankPaid: n(bankPaid),
       remarks: remarks || null,
-      vehicles: vehicles.map((vehicle) => ({
+      weighUnitId: weighUnitId || null,
+      vehicles: priced.map((vehicle) => ({
         vehicleNo: vehicle.vehicleNo,
         bags: n(vehicle.bags),
-        totalWeight: n(vehicle.totalWeight),
+        totalWeight: vehicle.total,
         kaat: n(vehicle.kaat),
         rate: n(vehicle.rate),
       })),
-    });
+    };
+    const res = editingId
+      ? await getApi().updateCropPurchase(editingId, payload)
+      : await getApi().createCropPurchase(payload);
     setSaving(false);
     if (!res.ok) {
       setError(res.error);
       return;
     }
-    setVehicles([emptyVehicle()]);
-    setCommission("0");
-    setBrokerage("0");
-    setMazdoori("0");
-    setFees("0");
-    setBardana("0");
-    setCashPaid("0");
-    setBankPaid("0");
-    setRemarks("");
+    setComposer(false);
+    resetForm();
     if (andPrint) await printPurchase(res.data);
+    await load();
+  };
+
+  const reverseSlip = async (row: CropPurchase) => {
+    if (!window.confirm(`Reverse ${row.docNo}? The safi quantity goes back out of stock and the khata entry is removed.`)) return;
+    setError("");
+    const res = await getApi().deleteCropPurchase(row.id);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
     await load();
   };
 
   const parties = partyType === "customer" ? customers : vendors;
 
   return (
-    <AppShell title={title} subtitle={subtitle} permission="purchases.view">
-      <div className="mb-4 rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] p-4 text-sm text-[var(--text-muted)]">
-        This slip is only for a crop. Kaat cuts the weight of each vehicle. Commission, brokerage, mazdoori, fees, and bardana cut the money once, under the vehicles. Seed and pesticide stay on Purchase.
+    <AppShell title={title} permission="purchases.view">
+      <div className="mb-4 flex justify-end">
+        <Button onClick={openNew}>
+          <Plus size={14} /> New crop purchase
+        </Button>
       </div>
-      {error ? (
+      {error && !composer ? (
         <div className="mb-4">
           <Alert>{error}</Alert>
         </div>
@@ -181,8 +272,40 @@ export function CropPurchaseSlip({
         </div>
       ) : null}
 
-      <div className="space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] p-4">
-        <div className="grid gap-3 md:grid-cols-3">
+      <Modal
+        open={composer}
+        size="full"
+        title={editingId ? "Edit crop purchase" : "New crop purchase"}
+        onClose={() => {
+          setComposer(false);
+          resetForm();
+        }}
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setComposer(false);
+                resetForm();
+              }}
+            >
+              Cancel
+            </Button>
+            {!editingId ? (
+              <Button variant="secondary" onClick={() => void save(true)} disabled={saving}>
+                {saving ? "Saving..." : "Save & print"}
+              </Button>
+            ) : null}
+            <Button onClick={() => void save(false)} disabled={saving}>
+              {saving ? "Saving..." : editingId ? "Update" : "Save"}
+            </Button>
+          </>
+        }
+      >
+        {error ? <Alert>{error}</Alert> : null}
+        <ComposerShell
+          header={
+        <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-4">
           <Input label="Date" type="date" value={docDate} onChange={(e) => setDocDate(e.target.value)} />
           <Select
             label={partyType === "customer" ? "Farmer" : "Supplier"}
@@ -205,26 +328,38 @@ export function CropPurchaseSlip({
               })),
             ]}
           />
+          <Select
+            label="Unit"
+            value={weighUnitId || productUnit?.id || ""}
+            onChange={(e) => setWeighUnitId(e.target.value)}
+            options={[
+              { value: "", label: "Unit" },
+              ...weighChoices.map((unitRow) => ({
+                value: unitRow.id,
+                label: unitRow.equalsKg ? `${unitRow.shortName} = ${unitRow.equalsKg} kg` : unitRow.shortName,
+              })),
+            ]}
+          />
+          <Input label="Commission" type="number" min={0} value={commission} onChange={(e) => setCommission(e.target.value)} />
+          <Input label="Brokerage" type="number" min={0} value={brokerage} onChange={(e) => setBrokerage(e.target.value)} />
+          <Input label="Mazdoori" type="number" min={0} value={mazdoori} onChange={(e) => setMazdoori(e.target.value)} />
+          <Input label="Fees" type="number" min={0} value={fees} onChange={(e) => setFees(e.target.value)} />
+          <Input label="Bardana" type="number" min={0} value={bardana} onChange={(e) => setBardana(e.target.value)} />
+          <Input label="Notes" value={remarks} onChange={(e) => setRemarks(e.target.value)} />
         </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-left text-xs text-[var(--text-muted)]">
-              <tr>
-                <th className="py-2 pr-2">Vehicle</th>
-                <th className="py-2 pr-2">Bags</th>
-                <th className="py-2 pr-2">Total weight</th>
-                <th className="py-2 pr-2">Kaat</th>
-                <th className="py-2 pr-2">Safi</th>
-                <th className="py-2 pr-2">Rate</th>
-                <th className="py-2 pr-2">Amount</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
+          }
+        >
+        <div className="space-y-4">
+        <LineItemsTable
+          headers={
+            usePerBag
+              ? ["Vehicle", "Bags", `${unit} / bag`, `Total ${unit}`, `Kaat ${unit}`, "Safi", `Rate / ${unit}`, "Amount", ""]
+              : ["Vehicle", "Bags", `Total ${unit}`, `Kaat ${unit}`, "Safi", `Rate / ${unit}`, "Amount", ""]
+          }
+        >
               {priced.map((vehicle) => (
-                <tr key={vehicle.key} className="border-t border-[var(--border)]">
-                  <td className="py-2 pr-2">
+                <tr key={vehicle.key}>
+                  <td className="px-3 py-2">
                     <input
                       value={vehicle.vehicleNo}
                       onChange={(e) =>
@@ -235,7 +370,7 @@ export function CropPurchaseSlip({
                       className="w-28 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5"
                     />
                   </td>
-                  <td className="py-2 pr-2">
+                  <td className="px-3 py-2">
                     <input
                       type="number"
                       min={0}
@@ -248,22 +383,37 @@ export function CropPurchaseSlip({
                       className="w-20 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5"
                     />
                   </td>
-                  <td className="py-2 pr-2">
+                  {usePerBag ? (
+                    <td className="px-3 py-2">
+                      <input
+                        type="number"
+                        min={0}
+                        value={vehicle.perBag}
+                        onChange={(e) =>
+                          setVehicles((prev) =>
+                            prev.map((row) => (row.key === vehicle.key ? { ...row, perBag: e.target.value } : row))
+                          )
+                        }
+                        className="w-24 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5"
+                      />
+                    </td>
+                  ) : null}
+                  <td className="px-3 py-2">
                     <input
                       type="number"
                       min={0}
-                      value={vehicle.totalWeight}
+                      value={usePerBag && n(vehicle.bags) > 0 && n(vehicle.perBag) > 0 ? String(vehicle.total) : vehicle.totalWeight}
                       onChange={(e) =>
                         setVehicles((prev) =>
                           prev.map((row) =>
-                            row.key === vehicle.key ? { ...row, totalWeight: e.target.value } : row
+                            row.key === vehicle.key ? { ...row, totalWeight: e.target.value, perBag: "" } : row
                           )
                         )
                       }
                       className="w-24 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5"
                     />
                   </td>
-                  <td className="py-2 pr-2">
+                  <td className="px-3 py-2">
                     <input
                       type="number"
                       min={0}
@@ -276,8 +426,11 @@ export function CropPurchaseSlip({
                       className="w-20 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5"
                     />
                   </td>
-                  <td className="py-2 pr-2 tabular-nums">{vehicle.safi}</td>
-                  <td className="py-2 pr-2">
+                  <td className="px-3 py-2 tabular-nums">
+                    {vehicle.safi}
+                    {factor !== 1 ? ` = ${Math.round(vehicle.safi * factor * 1000) / 1000} ${productUnit?.shortName || "kg"}` : ""}
+                  </td>
+                  <td className="px-3 py-2">
                     <input
                       type="number"
                       min={0}
@@ -290,51 +443,36 @@ export function CropPurchaseSlip({
                       className="w-24 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5"
                     />
                   </td>
-                  <td className="py-2 pr-2 font-medium tabular-nums">{formatMoney(vehicle.amount)}</td>
-                  <td className="py-2">
+                  <td className="px-3 py-2 font-medium tabular-nums">{money(vehicle.amount)}</td>
+                  <td className="px-3 py-2">
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => setVehicles((prev) => prev.filter((row) => row.key !== vehicle.key))}
+                      onClick={() => setVehicles((prev) => (prev.length === 1 ? prev : prev.filter((row) => row.key !== vehicle.key)))}
                     >
                       <X size={14} />
                     </Button>
                   </td>
                 </tr>
               ))}
-            </tbody>
-          </table>
-        </div>
+        </LineItemsTable>
         <Button size="sm" variant="secondary" onClick={() => setVehicles((prev) => [...prev, emptyVehicle()])}>
           <Plus size={14} /> Add vehicle
         </Button>
-
-        <div className="grid gap-3 md:grid-cols-5">
-          <Input label="Commission" type="number" min={0} value={commission} onChange={(e) => setCommission(e.target.value)} />
-          <Input label="Brokerage" type="number" min={0} value={brokerage} onChange={(e) => setBrokerage(e.target.value)} />
-          <Input label="Mazdoori" type="number" min={0} value={mazdoori} onChange={(e) => setMazdoori(e.target.value)} />
-          <Input label="Fees" type="number" min={0} value={fees} onChange={(e) => setFees(e.target.value)} />
-          <Input label="Bardana" type="number" min={0} value={bardana} onChange={(e) => setBardana(e.target.value)} />
-        </div>
-        <Input label="Remarks" value={remarks} onChange={(e) => setRemarks(e.target.value)} />
-
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_22rem]">
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span>Vehicle total</span><span className="tabular-nums">{formatMoney(gross)}</span></div>
-            <div className="flex justify-between"><span>Deductions</span><span className="tabular-nums">{formatMoney(deductions)}</span></div>
-            <div className="flex justify-between font-semibold"><span>Net payable</span><span className="tabular-nums">{formatMoney(net)}</span></div>
-          </div>
+          <TotalsPanel
+            rows={[
+              { label: "Full quantity", value: money(gross) },
+              { label: "Deductions", value: money(deductions), negative: deductions > 0 },
+            ]}
+            grandLabel="Net payable"
+            grand={money(Math.max(0, net))}
+          />
           <SettlementPanel compact grandTotal={Math.max(0, net)} cashPaid={cashPaid} bankPaid={bankPaid} onCashPaid={setCashPaid} onBankPaid={setBankPaid} dueLabel="Left on khata" />
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={() => void save(true)} disabled={saving}>
-            {saving ? "Saving..." : "Save & print"}
-          </Button>
-          <Button onClick={() => void save(false)} disabled={saving}>
-            {saving ? "Saving..." : "Save crop purchase"}
-          </Button>
         </div>
-      </div>
+        </ComposerShell>
+      </Modal>
 
       <div className="mt-6">
         <h2 className="mb-2 text-sm font-semibold">Recent slips</h2>
@@ -353,10 +491,13 @@ export function CropPurchaseSlip({
                     getHtml={(size) => purchaseHtml(row, size)}
                     onError={setError}
                   />
+                  <Button variant="ghost" size="sm" title="Edit" onClick={() => openEdit(row)}>
+                    <Pencil size={14} />
+                  </Button>
+                  <Button variant="ghost" size="sm" title="Reverse" onClick={() => void reverseSlip(row)}>
+                    <Trash2 size={14} />
+                  </Button>
                 </span>
-              </div>
-              <div className="mt-1 text-[var(--text-muted)]">
-                {row.docDate} · safi {row.safiWeight} · kaat on {row.vehicles.length} vehicle{row.vehicles.length === 1 ? "" : "s"} · deductions {formatMoney(row.deductionAmount)}
               </div>
             </div>
           ))}

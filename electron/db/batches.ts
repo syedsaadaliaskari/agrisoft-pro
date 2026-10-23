@@ -4,13 +4,50 @@ import type { Db } from "./index";
 import { money } from "./ledger";
 import { stockBatches } from "./schema";
 
+/** Local calendar day, plus `days`, as YYYY-MM-DD. */
+export function expirySoonCutoff(days = 30): string {
+  const limit = new Date();
+  limit.setDate(limit.getDate() + days);
+  const y = limit.getFullYear();
+  const m = String(limit.getMonth() + 1).padStart(2, "0");
+  const d = String(limit.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/** A number the shop can read when the pack has no printed batch. */
+export function allocateBatchNo(db: Db): string {
+  const now = new Date();
+  const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+  const prefix = `B-${stamp}-`;
+  const used = new Set(db.select({ batchNo: stockBatches.batchNo }).from(stockBatches).all().map((row) => row.batchNo));
+  let n = 1;
+  while (used.has(`${prefix}${String(n).padStart(3, "0")}`)) n += 1;
+  return `${prefix}${String(n).padStart(3, "0")}`;
+}
+
+export function readBatchDates(
+  input: { manufacturedDate?: string | null; expiryDate?: string | null },
+  label: string
+): { manufacturedDate: string; expiryDate: string } | { error: string } {
+  const manufacturedDate = String(input.manufacturedDate ?? "").trim();
+  const expiryDate = String(input.expiryDate ?? "").trim();
+  if (!manufacturedDate) return { error: `${label}: manufactured date is required` };
+  if (!expiryDate) return { error: `${label}: expiry date is required` };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(manufacturedDate) || !/^\d{4}-\d{2}-\d{2}$/.test(expiryDate)) {
+    return { error: `${label}: use a real date` };
+  }
+  if (manufacturedDate > expiryDate) return { error: `${label}: manufactured date is after the expiry date` };
+  return { manufacturedDate, expiryDate };
+}
+
 export function receiveBatch(
   db: Db,
   variantId: string,
   batchNo: string,
   expiryDate: string | null,
   qty: number,
-  ts: string
+  ts: string,
+  manufacturedDate?: string | null
 ) {
   const existing = db
     .select()
@@ -22,6 +59,7 @@ export function receiveBatch(
       .set({
         qty: money(existing.qty + qty),
         expiryDate: expiryDate || existing.expiryDate,
+        manufacturedDate: manufacturedDate || existing.manufacturedDate,
         updatedAt: ts,
       })
       .where(eq(stockBatches.id, existing.id))
@@ -33,6 +71,7 @@ export function receiveBatch(
       id: randomUUID(),
       variantId,
       batchNo,
+      manufacturedDate: manufacturedDate || null,
       expiryDate,
       qty: money(qty),
       createdAt: ts,

@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "../db";
 import { additions, categories, discounts, taxes, units } from "../db/schema";
-import { supabaseUpsert, tenantId } from "./client";
+import { cloudColumnReady, supabaseUpsert, tenantId } from "./client";
 import {
   beginTableDeletes,
   fetchCloudDeletedIds,
@@ -42,6 +42,7 @@ async function syncUnits(): Promise<SyncCounts> {
     id: string;
     name: string;
     short_name: string;
+    equals_kg?: number | null;
     is_active: boolean;
     created_at: string;
     updated_at: string;
@@ -56,6 +57,7 @@ async function syncUnits(): Promise<SyncCounts> {
       id: row.id,
       name: row.name,
       shortName: row.short_name,
+      equalsKg: row.equals_kg == null ? (existing?.equalsKg ?? null) : Number(row.equals_kg),
       isActive: Boolean(row.is_active),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -77,6 +79,7 @@ async function syncUnits(): Promise<SyncCounts> {
   }
 
   const remaining = liveRows(table, db.select().from(units).all());
+  const sendEquals = await cloudColumnReady(table, "equals_kg");
   const pushed = await supabaseUpsert(
     table,
     remaining.map((row) => ({
@@ -85,6 +88,7 @@ async function syncUnits(): Promise<SyncCounts> {
       name: row.name,
       short_name: row.shortName,
       is_active: row.isActive,
+      ...(sendEquals ? { equals_kg: row.equalsKg } : {}),
       created_at: row.createdAt,
       updated_at: row.updatedAt,
       deleted_at: null,

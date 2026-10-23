@@ -95,6 +95,18 @@ export async function supabaseRest<T = unknown>(
   }
 }
 
+/** True when PostgREST can see this column. Missing tables and columns return false. */
+export async function cloudColumnReady(table: string, column: string): Promise<boolean> {
+  try {
+    await supabaseRest(table, { query: `select=${encodeURIComponent(column)}&limit=0` });
+    return true;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "";
+    if (/PGRST204|PGRST205|42703|does not exist|schema cache|404/.test(message)) return false;
+    throw err;
+  }
+}
+
 export async function supabasePatch(table: string, query: string, body: unknown): Promise<void> {
   await supabaseRest(table, {
     method: "PATCH",

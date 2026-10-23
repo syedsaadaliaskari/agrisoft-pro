@@ -40,11 +40,19 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function readEqualsKg(value: number | null | undefined): number | null {
+  if (value == null || value === ("" as unknown)) return null;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) throw new Error("Equals kg must be greater than zero");
+  return n;
+}
+
 function mapUnit(row: typeof units.$inferSelect): Unit {
   return {
     id: row.id,
     name: row.name,
     shortName: row.shortName,
+    equalsKg: row.equalsKg ?? null,
     isActive: row.isActive,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -135,9 +143,10 @@ export function registerMasterHandlers(): void {
       const exists = db.select().from(units).where(eq(units.name, name)).get();
       if (exists) return fail("A unit with this name already exists");
 
+      const equalsKg = readEqualsKg(input.equalsKg);
       const id = randomUUID();
       db.insert(units)
-        .values({ id, name, shortName, isActive: input.isActive ?? true })
+        .values({ id, name, shortName, equalsKg, isActive: input.isActive ?? true })
         .run();
 
       const row = db.select().from(units).where(eq(units.id, id)).get()!;
@@ -158,10 +167,12 @@ export function registerMasterHandlers(): void {
       const clash = db.select().from(units).where(eq(units.name, name)).get();
       if (clash && clash.id !== id) return fail("A unit with this name already exists");
 
+      const equalsKg = readEqualsKg(input.equalsKg);
       db.update(units)
         .set({
           name,
           shortName,
+          equalsKg,
           isActive: input.isActive ?? current.isActive,
           updatedAt: nowIso(),
         })

@@ -62,6 +62,7 @@ type DraftLine = {
   unitCost: string;
   trackBatch: boolean;
   batchNo: string;
+  manufacturedDate: string;
   expiryDate: string;
 };
 
@@ -277,6 +278,7 @@ export default function PurchasesPage() {
           unitCost: String(it.unitCost),
           trackBatch: inv?.trackBatch ?? Boolean(it.batchNo),
           batchNo: it.batchNo ?? "",
+          manufacturedDate: it.manufacturedDate ?? "",
           expiryDate: it.expiryDate ?? "",
         };
       })
@@ -303,6 +305,7 @@ export default function PurchasesPage() {
         unitCost: String(row.costPrice),
         trackBatch: row.trackBatch,
         batchNo: "",
+        manufacturedDate: "",
         expiryDate: "",
       },
     ]);
@@ -340,6 +343,7 @@ export default function PurchasesPage() {
         unit: l.unit || null,
         unitCost: Number(l.unitCost),
         batchNo: l.trackBatch ? l.batchNo : null,
+        manufacturedDate: l.trackBatch ? l.manufacturedDate : null,
         expiryDate: l.trackBatch ? l.expiryDate : null,
       })),
     };
@@ -707,7 +711,7 @@ export default function PurchasesPage() {
             <LineItemsTable
                 headers={
                   lines.some((line) => line.trackBatch)
-                    ? ["Product", "In stock", "Qty", "Unit", "Unit cost", "Batch", "Expiry", "Line total", ""]
+                    ? ["Product", "In stock", "Qty", "Unit", "Unit cost", "Batch", "Made", "Expiry", "Line total", ""]
                     : ["Product", "In stock", "Qty", "Unit", "Unit cost", "Line total", ""]
                 }
                 empty={lines.length === 0}
@@ -785,10 +789,24 @@ export default function PurchasesPage() {
                             <td className="px-3 py-2.5 w-[120px]">
                               <input
                                 value={line.batchNo}
-                                placeholder="Batch"
+                                placeholder="Auto if empty"
                                 onChange={(e) =>
                                   setLines((prev) =>
                                     prev.map((l) => (l.key === line.key ? { ...l, batchNo: e.target.value } : l))
+                                  )
+                                }
+                                className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1.5 text-sm outline-none ring-[var(--accent)] focus:ring-1"
+                              />
+                            </td>
+                            <td className="px-3 py-2.5 w-[150px]">
+                              <input
+                                type="date"
+                                value={line.manufacturedDate}
+                                onChange={(e) =>
+                                  setLines((prev) =>
+                                    prev.map((l) =>
+                                      l.key === line.key ? { ...l, manufacturedDate: e.target.value } : l
+                                    )
                                   )
                                 }
                                 className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1.5 text-sm outline-none ring-[var(--accent)] focus:ring-1"
@@ -809,6 +827,7 @@ export default function PurchasesPage() {
                           </>
                         ) : (
                           <>
+                            <td className="px-3 py-2.5 text-[var(--text-muted)]">—</td>
                             <td className="px-3 py-2.5 text-[var(--text-muted)]">—</td>
                             <td className="px-3 py-2.5 text-[var(--text-muted)]">—</td>
                           </>

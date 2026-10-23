@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Layers, Pencil, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, Layers, Pencil, Plus, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { ExportMenu } from "@/components/ExportMenu";
 import {
@@ -17,6 +17,7 @@ import {
   Textarea,
 } from "@/components/ui/form";
 import { getApi } from "@/lib/api";
+import { batchIsAlarming } from "@/lib/expiry";
 import { formatMoney } from "@/lib/utils";
 import type { Category, Product, ProductVariant, Tax, Unit } from "@shared/ipc";
 
@@ -35,6 +36,10 @@ const emptyProduct = {
   trackBatch: false,
   isCrop: false,
   isActive: true,
+  batchId: "",
+  batchNo: "",
+  manufacturedDate: "",
+  expiryDate: "",
 };
 
 const emptyPack = {
@@ -70,7 +75,9 @@ export default function ProductsPage() {
   const [catalog, setCatalog] = useState<CatalogKind | null>(null);
   const [catalogError, setCatalogError] = useState("");
   const [catalogSaving, setCatalogSaving] = useState(false);
-  const [unitForm, setUnitForm] = useState({ name: "", shortName: "" });
+  const [unitForm, setUnitForm] = useState({ name: "", shortName: "", equalsKg: "" });
+  const [unitKg, setUnitKg] = useState("");
+  const [editingUnitId, setEditingUnitId] = useState<string | null>(null);
   const [categoryForm, setCategoryForm] = useState({ name: "" });
   const [taxForm, setTaxForm] = useState({ name: "", rate: "0" });
 
@@ -115,12 +122,16 @@ export default function ProductsPage() {
   const openCreate = () => {
     setEditing(null);
     setForm(emptyProduct);
+    setUnitKg("");
     setError("");
     setOpen(true);
   };
 
   const openEdit = (row: Product) => {
     setEditing(row);
+    const soonest = [...(row.batches ?? [])].sort((a, b) =>
+      (a.expiryDate || "9999").localeCompare(b.expiryDate || "9999")
+    )[0];
     setForm({
       name: row.name,
       description: row.description ?? "",
@@ -134,7 +145,13 @@ export default function ProductsPage() {
       trackBatch: row.trackBatch,
       isCrop: row.isCrop,
       isActive: row.isActive,
+      batchId: soonest?.id ?? "",
+      batchNo: soonest?.batchNo ?? "",
+      manufacturedDate: soonest?.manufacturedDate ?? "",
+      expiryDate: soonest?.expiryDate ?? "",
     });
+    const unit = units.find((item) => item.id === row.unitId);
+    setUnitKg(unit?.equalsKg == null ? "" : String(unit.equalsKg));
     setError("");
     setOpen(true);
   };
@@ -154,8 +171,37 @@ export default function ProductsPage() {
       trackBatch: form.isCrop ? false : form.trackBatch,
       isCrop: form.isCrop,
       isActive: form.isActive,
+      ...(form.trackBatch && !form.isCrop
+        ? {
+            batchId: form.batchId || null,
+            batchNo: form.batchNo.trim() || null,
+            manufacturedDate: form.manufacturedDate || null,
+            expiryDate: form.expiryDate || null,
+          }
+        : {}),
     };
     const api = getApi();
+    if (unitKg.trim() && !form.unitId) {
+      setSaving(false);
+      setError("Choose a unit before setting equals kg");
+      return;
+    }
+    if (form.unitId) {
+      const unit = units.find((item) => item.id === form.unitId);
+      const parsed = unitKg.trim() ? Number(unitKg) : null;
+      if (unit && parsed !== (unit.equalsKg ?? null)) {
+        const unitRes = await api.updateUnit(unit.id, {
+          name: unit.name,
+          shortName: unit.shortName,
+          equalsKg: parsed,
+        });
+        if (!unitRes.ok) {
+          setSaving(false);
+          setError(unitRes.error);
+          return;
+        }
+      }
+    }
     const res = editing
       ? await api.updateProduct(editing.id, payload)
       : await api.createProduct({
@@ -249,7 +295,8 @@ export default function ProductsPage() {
   const openCatalog = (kind: CatalogKind) => {
     setCatalog(kind);
     setCatalogError("");
-    setUnitForm({ name: "", shortName: "" });
+    setUnitForm({ name: "", shortName: "", equalsKg: "" });
+    setEditingUnitId(null);
     setCategoryForm({ name: "" });
     setTaxForm({ name: "", rate: "0" });
   };
@@ -271,10 +318,12 @@ export default function ProductsPage() {
     setCatalogError("");
     const api = getApi();
     if (catalog === "unit") {
-      const res = await api.createUnit({
+      const payload = {
         name: unitForm.name.trim(),
         shortName: unitForm.shortName.trim() || unitForm.name.trim(),
-      });
+        equalsKg: unitForm.equalsKg.trim() ? Number(unitForm.equalsKg) : null,
+      };
+      const res = editingUnitId ? await api.updateUnit(editingUnitId, payload) : await api.createUnit(payload);
       setCatalogSaving(false);
       if (!res.ok) {
         setCatalogError(res.error);
@@ -346,6 +395,9 @@ export default function ProductsPage() {
               { key: "stock", label: "Stock" },
               { key: "packs", label: "Packs" },
               { key: "status", label: "Status" },
+              { key: "batch", label: "Batch" },
+              { key: "manufactured", label: "Manufactured" },
+              { key: "expiry", label: "Expiry" },
             ]}
             rows={filtered.map((r) => ({
               name: r.name,
@@ -356,6 +408,9 @@ export default function ProductsPage() {
               stock: r.totalStock ?? 0,
               packs: r.variantCount ?? 0,
               status: r.isActive ? "Active" : "Inactive",
+              batch: (r.batches ?? []).map((batch) => batch.batchNo).join(", "),
+              manufactured: (r.batches ?? []).map((batch) => batch.manufacturedDate || "").join(", "),
+              expiry: (r.batches ?? []).map((batch) => batch.expiryDate || "").join(", "),
             }))}
           />
           </>
@@ -379,14 +434,37 @@ export default function ProductsPage() {
           ]}
           empty={filtered.length === 0}
         >
-          {filtered.map((row) => (
-            <tr key={row.id} className="border-b border-[var(--border)] last:border-0">
+          {filtered.map((row) => {
+            const alarming = (row.batches ?? []).some((batch) => batchIsAlarming(batch.expiryDate));
+            return (
+            <tr
+              key={row.id}
+              className={`border-b border-[var(--border)] last:border-0 ${alarming ? "bg-red-50" : ""}`}
+            >
               <td className="px-4 py-3 font-medium">
-                {row.name}
+                <div className="flex items-center gap-1.5">
+                  {alarming ? <AlertTriangle size={14} className="shrink-0 text-red-600" /> : null}
+                  <span className={alarming ? "text-red-800" : ""}>{row.name}</span>
+                </div>
                 {row.isCrop ? (
                   <div className="text-xs font-medium text-amber-700">Crop</div>
                 ) : row.trackBatch ? (
-                  <div className="text-xs font-medium text-sky-700">Batch and expiry</div>
+                  (row.batches ?? []).length ? (
+                    <div className="mt-1 space-y-0.5">
+                      {(row.batches ?? []).map((batch) => {
+                        const near = batchIsAlarming(batch.expiryDate);
+                        return (
+                          <div key={batch.id} className={`text-xs ${near ? "font-medium text-red-700" : "text-sky-800"}`}>
+                            Batch {batch.batchNo}
+                            {batch.manufacturedDate ? ` · Made ${batch.manufacturedDate}` : ""}
+                            {batch.expiryDate ? ` · Expires ${batch.expiryDate}` : ""}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-xs font-medium text-sky-700">Batch and expiry</div>
+                  )
                 ) : null}
               </td>
               <td className="px-4 py-3 text-[var(--text-muted)]">{row.categoryName || "—"}</td>
@@ -412,7 +490,8 @@ export default function ProductsPage() {
                 </div>
               </td>
             </tr>
-          ))}
+            );
+          })}
         </DataTable>
       )}
 
@@ -477,11 +556,27 @@ export default function ProductsPage() {
             </div>
             <Select
               value={form.unitId}
-              onChange={(e) => setForm((f) => ({ ...f, unitId: e.target.value }))}
+              onChange={(e) => {
+                const id = e.target.value;
+                const unit = units.find((item) => item.id === id);
+                setForm((f) => ({ ...f, unitId: id }));
+                setUnitKg(unit?.equalsKg == null ? "" : String(unit.equalsKg));
+              }}
               options={[
                 { value: "", label: "None" },
-                ...units.map((u) => ({ value: u.id, label: `${u.name} (${u.shortName})` })),
+                ...units.map((u) => ({
+                  value: u.id,
+                  label: u.equalsKg ? `${u.name} (${u.shortName}) = ${u.equalsKg} kg` : `${u.name} (${u.shortName})`,
+                })),
               ]}
+            />
+            <Input
+              label="Equals kg"
+              type="number"
+              min={0}
+              step="0.01"
+              value={unitKg}
+              onChange={(e) => setUnitKg(e.target.value)}
             />
           </div>
           <div className="space-y-1.5">
@@ -556,10 +651,34 @@ export default function ProductsPage() {
           checked={form.trackBatch}
           onChange={(checked) => setForm((f) => ({ ...f, trackBatch: f.isCrop ? false : checked }))}
         />
+        {form.trackBatch && !form.isCrop ? (
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Input
+              label="Batch number"
+              value={form.batchNo}
+              placeholder="Leave blank to make one"
+              onChange={(e) => setForm((f) => ({ ...f, batchNo: e.target.value }))}
+            />
+            <Input
+              label="Manufactured date"
+              type="date"
+              value={form.manufacturedDate}
+              onChange={(e) => setForm((f) => ({ ...f, manufacturedDate: e.target.value }))}
+            />
+            <Input
+              label="Expiry date"
+              type="date"
+              value={form.expiryDate}
+              onChange={(e) => setForm((f) => ({ ...f, expiryDate: e.target.value }))}
+            />
+          </div>
+        ) : null}
         <p className="text-xs text-[var(--text-muted)]">
           {form.isCrop
             ? "A crop opens its own slip: vehicles, kaat, then commission, brokerage, mazdoori, fees, and bardana."
-            : "Batch and expiry show on the normal purchase and sale. A crop does not use them."}
+            : form.trackBatch
+              ? "Leave the batch number empty and the software writes one. Manufactured date and expiry date are required. The product turns red when expiry is inside 30 days."
+              : "Tick this for a packed item such as fertilizer or pesticide. A crop does not use it."}
         </p>
         <Checkbox
           label="Active"
@@ -572,7 +691,7 @@ export default function ProductsPage() {
         nested
         open={catalog !== null}
         title={
-          catalog === "unit" ? "Add unit" : catalog === "category" ? "Add category" : "Add tax"
+          catalog === "unit" ? (editingUnitId ? "Edit unit" : "Add unit") : catalog === "category" ? "Add category" : "Add tax"
         }
         onClose={() => setCatalog(null)}
         footer={
@@ -608,6 +727,37 @@ export default function ProductsPage() {
                 value={unitForm.shortName}
                 onChange={(e) => setUnitForm((f) => ({ ...f, shortName: e.target.value }))}
               />
+              <Input
+                label="Equals kg"
+                type="number"
+                min={0}
+                step="0.01"
+                value={unitForm.equalsKg}
+                onChange={(e) => setUnitForm((f) => ({ ...f, equalsKg: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1">
+              {units.filter((unit) => unit.isActive).map((unit) => (
+                <button
+                  key={unit.id}
+                  type="button"
+                  className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-sm hover:bg-[var(--bg-soft)]"
+                  onClick={() => {
+                    setEditingUnitId(unit.id);
+                    setUnitForm({
+                      name: unit.name,
+                      shortName: unit.shortName,
+                      equalsKg: unit.equalsKg == null ? "" : String(unit.equalsKg),
+                    });
+                  }}
+                >
+                  <span>{unit.name}</span>
+                  <span className="text-[var(--text-muted)]">
+                    {unit.shortName}
+                    {unit.equalsKg ? ` · ${unit.equalsKg} kg` : ""}
+                  </span>
+                </button>
+              ))}
             </div>
           </div>
         ) : null}

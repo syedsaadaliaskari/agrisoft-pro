@@ -34,7 +34,11 @@ import {
   saleReturns,
   saleReturnItems,
   purchaseReturns,
+  cropSales,
+  stockBatches,
+  units,
 } from "../db/schema";
+import { expirySoonCutoff } from "../db/batches";
 import {
   netAmount,
   purchaseReturnedTotalsMap,
@@ -240,6 +244,25 @@ export function registerDashboardHandlers(): void {
         .limit(8)
         .all();
 
+      const expiryCutoff = expirySoonCutoff();
+      const expiringItems = db
+        .select({
+          productName: products.name,
+          batchNo: stockBatches.batchNo,
+          manufacturedDate: stockBatches.manufacturedDate,
+          expiryDate: stockBatches.expiryDate,
+          qty: stockBatches.qty,
+          unit: units.shortName,
+        })
+        .from(stockBatches)
+        .innerJoin(productVariants, eq(stockBatches.variantId, productVariants.id))
+        .innerJoin(products, eq(productVariants.productId, products.id))
+        .leftJoin(units, eq(products.unitId, units.id))
+        .all()
+        .filter((row) => row.expiryDate && row.expiryDate <= expiryCutoff && Number(row.qty) > 0)
+        .sort((a, b) => String(a.expiryDate).localeCompare(String(b.expiryDate)))
+        .slice(0, 12);
+
       const last7: DashboardSummary["last7Days"] = [];
       for (let i = 6; i >= 0; i--) last7.push(dayAgg(daysAgo(i)));
 
@@ -356,6 +379,14 @@ export function registerDashboardHandlers(): void {
           color: r.color,
           stockQty: r.stockQty,
           reorderLevel: r.reorderLevel,
+        })),
+        expiringItems: expiringItems.map((row) => ({
+          productName: row.productName,
+          batchNo: row.batchNo,
+          manufacturedDate: row.manufacturedDate,
+          expiryDate: row.expiryDate || "",
+          qty: Number(row.qty),
+          unit: row.unit ?? null,
         })),
         recentSales: recentSales.map((r) => {
           const cust = r.customerId
@@ -720,6 +751,39 @@ function seriesFromDays(days: Map<string, DayAgg>, dateKeys: string[]): ProductP
         grossSalesRevenue += revenue;
         grossCogs += lineCogs;
         take(r.productId, r.productName, r.categoryName ?? null, r.date, revenue, lineCogs, Number(r.qty));
+      }
+
+      const cropCond = [ne(cropSales.status, "deleted")];
+      if (query?.fromDate) cropCond.push(gte(cropSales.docDate, query.fromDate));
+      if (query?.toDate) cropCond.push(lte(cropSales.docDate, query.toDate));
+      const cropLines = db
+        .select({
+          productId: products.id,
+          productName: products.name,
+          categoryName: categories.name,
+          date: cropSales.docDate,
+          amount: cropSales.amount,
+          deductionAmount: cropSales.deductionAmount,
+          netAmount: cropSales.netAmount,
+          weight: cropSales.weight,
+          costAmount: cropSales.costAmount,
+          variantCost: productVariants.costPrice,
+        })
+        .from(cropSales)
+        .innerJoin(productVariants, eq(cropSales.variantId, productVariants.id))
+        .innerJoin(products, eq(productVariants.productId, products.id))
+        .leftJoin(categories, eq(products.categoryId, categories.id))
+        .where(and(...cropCond))
+        .all();
+      for (const r of cropLines) {
+        const deduction = Number(r.deductionAmount ?? 0);
+        const storedNet = Number(r.netAmount ?? 0);
+        const revenue = deduction > 0 || storedNet > 0 ? storedNet : Number(r.amount);
+        const storedCost = Number(r.costAmount ?? 0);
+        const lineCogs = storedCost > 0 ? storedCost : Number(r.weight) * Number(r.variantCost ?? 0);
+        grossSalesRevenue += revenue;
+        grossCogs += lineCogs;
+        take(r.productId, r.productName, r.categoryName ?? null, r.date, revenue, lineCogs, Number(r.weight));
       }
 
       let saleReturnsRevenue = 0;
