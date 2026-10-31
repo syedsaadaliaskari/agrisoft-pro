@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.4 — 2026-10-31
+
+### Crop trading
+- Kaat is kilograms from each mann or bag. Stock keeps the full load. The bill is only the safi.
+- Return part of a crop buy or crop sale. The original slip stays, and only that part’s safi money moves.
+
+### Shop screens
+- Stock, reorder, sale, and purchase show the product unit.
+- The purchase page fits a smaller window.
+- Help sits under Setup on the computer, with the same steps on the phone.
+
 ## 0.4.0 — 2026-09-27
 
 ### Cloud sync

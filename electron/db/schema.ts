@@ -632,3 +632,63 @@ export const cropSales = sqliteTable(
   },
   (t) => [index("crop_sales_date_idx").on(t.docDate)]
 );
+
+/** Part of a crop buy sent back. The original slip stays. */
+export const cropPurchaseReturns = sqliteTable("crop_purchase_returns", {
+  id: text("id").primaryKey(),
+  voucherId: text("voucher_id")
+    .notNull()
+    .references(() => vouchers.id),
+  docNo: text("doc_no").notNull().unique(),
+  docDate: text("doc_date").notNull(),
+  purchaseId: text("purchase_id")
+    .notNull()
+    .references(() => cropPurchases.id),
+  partyType: text("party_type").notNull(),
+  partyId: text("party_id").notNull(),
+  partyName: text("party_name"),
+  variantId: text("variant_id")
+    .notNull()
+    .references(() => productVariants.id),
+  productName: text("product_name").notNull(),
+  quantity: real("quantity").notNull(),
+  unitName: text("unit_name"),
+  safiWeight: real("safi_weight").notNull().default(0),
+  stockQty: real("stock_qty").notNull().default(0),
+  amount: real("amount").notNull().default(0),
+  paidAmount: real("paid_amount").notNull().default(0),
+  remarks: text("remarks"),
+  status: text("status").notNull().default("completed"),
+  createdBy: text("created_by").references(() => users.id),
+  ...timestamps,
+});
+
+/** Part of a crop sale the buyer brought back. The original slip stays. */
+export const cropSaleReturns = sqliteTable("crop_sale_returns", {
+  id: text("id").primaryKey(),
+  voucherId: text("voucher_id")
+    .notNull()
+    .references(() => vouchers.id),
+  docNo: text("doc_no").notNull().unique(),
+  docDate: text("doc_date").notNull(),
+  saleId: text("sale_id")
+    .notNull()
+    .references(() => cropSales.id),
+  customerId: text("customer_id").references(() => customers.id),
+  customerName: text("customer_name"),
+  variantId: text("variant_id")
+    .notNull()
+    .references(() => productVariants.id),
+  productName: text("product_name").notNull(),
+  quantity: real("quantity").notNull(),
+  unitName: text("unit_name"),
+  safiWeight: real("safi_weight").notNull().default(0),
+  stockQty: real("stock_qty").notNull().default(0),
+  amount: real("amount").notNull().default(0),
+  costAmount: real("cost_amount").notNull().default(0),
+  paidAmount: real("paid_amount").notNull().default(0),
+  remarks: text("remarks"),
+  status: text("status").notNull().default("completed"),
+  createdBy: text("created_by").references(() => users.id),
+  ...timestamps,
+});

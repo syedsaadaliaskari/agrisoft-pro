@@ -4,19 +4,23 @@ import {
   IPC,
   type ActionResult,
   type CreateCropPurchaseInput,
+  type CreateCropReturnInput,
   type CreateCropSaleInput,
   type CropPurchase,
   type CropSale,
+  type CropSlipReturn,
   type CropVehicle,
 } from "../../shared/ipc";
 import { getDb } from "../db";
 import { nextDocumentNumber } from "../db/counters";
 import { requireAccountByCode } from "../db/accounts";
 import { insertVoucherEntry, money } from "../db/ledger";
-import { resolveSettlement } from "../db/settlement";
+import { resolveRefundSettlement, resolveSettlement } from "../db/settlement";
 import {
   cropPurchases,
+  cropPurchaseReturns,
   cropPurchaseVehicles,
+  cropSaleReturns,
   cropSales,
   customers,
   productVariants,
@@ -146,6 +150,43 @@ function priceCropVehicles(
 
 function purchaseStockQty(row: { stockWeight?: number | null; safiWeight: number }) {
   return row.stockWeight != null ? Number(row.stockWeight) : Number(row.safiWeight);
+}
+
+function returnedQty(rows: { quantity: number; status: string }[]) {
+  return money(rows.filter((row) => row.status !== "deleted").reduce((sum, row) => sum + Number(row.quantity), 0));
+}
+
+function sliceSlip(load: number, taken: number, already: number, gross: number, safi: number, stock: number) {
+  const quantity = money(taken);
+  if (!(quantity > 0)) throw new Error("Quantity must be greater than 0");
+  if (!(load > 0)) throw new Error("This slip has no quantity");
+  const left = money(load - already);
+  if (quantity > left + 0.0001) throw new Error(`Only ${left} can still be returned`);
+  const ratio = quantity / load;
+  return {
+    quantity,
+    amount: money(gross * ratio),
+    safiWeight: money(safi * ratio),
+    stockQty: money(stock * ratio),
+  };
+}
+
+function assertNoPurchaseReturn(purchaseId: string) {
+  const hit = getDb()
+    .select()
+    .from(cropPurchaseReturns)
+    .all()
+    .some((row) => row.purchaseId === purchaseId && row.status !== "deleted");
+  if (hit) throw new Error("This slip has a return. Reverse that return first.");
+}
+
+function assertNoSaleReturn(saleId: string) {
+  const hit = getDb()
+    .select()
+    .from(cropSaleReturns)
+    .all()
+    .some((row) => row.saleId === saleId && row.status !== "deleted");
+  if (hit) throw new Error("This slip has a return. Reverse that return first.");
 }
 
 function cancelPosted(voucherId: string, ts: string) {
@@ -584,6 +625,7 @@ export function registerCropHandlers() {
       const db = getDb();
       const existing = db.select().from(cropPurchases).where(eq(cropPurchases.id, id)).get();
       if (!existing || existing.status === "deleted") throw new Error("Slip was not found");
+      assertNoPurchaseReturn(existing.id);
       if (!input?.docDate?.trim()) throw new Error("Date is required");
       if (input.partyType !== "customer" && input.partyType !== "vendor") throw new Error("Choose a farmer or a supplier");
       if (!input.partyId) throw new Error(input.partyType === "customer" ? "Farmer is required" : "Supplier is required");
@@ -714,6 +756,7 @@ export function registerCropHandlers() {
       const db = getDb();
       const existing = db.select().from(cropPurchases).where(eq(cropPurchases.id, id)).get();
       if (!existing || existing.status === "deleted") throw new Error("Slip was not found");
+      assertNoPurchaseReturn(existing.id);
       const variant = db.select().from(productVariants).where(eq(productVariants.id, existing.variantId)).get();
       if (!variant) throw new Error("The crop pack was not found");
       const held = purchaseStockQty(existing);
@@ -749,6 +792,7 @@ export function registerCropHandlers() {
       const db = getDb();
       const existing = db.select().from(cropSales).where(eq(cropSales.id, id)).get();
       if (!existing || existing.status === "deleted") throw new Error("Slip was not found");
+      assertNoSaleReturn(existing.id);
       if (!input?.docDate?.trim()) throw new Error("Date is required");
       if (!input.customerId) throw new Error("Buyer is required");
       if (!input.variantId) throw new Error("Crop is required");
@@ -861,6 +905,7 @@ export function registerCropHandlers() {
       const db = getDb();
       const existing = db.select().from(cropSales).where(eq(cropSales.id, id)).get();
       if (!existing || existing.status === "deleted") throw new Error("Slip was not found");
+      assertNoSaleReturn(existing.id);
       const variant = db.select().from(productVariants).where(eq(productVariants.id, existing.variantId)).get();
       if (!variant) throw new Error("The crop pack was not found");
       const ts = nowIso();
@@ -886,6 +931,418 @@ export function registerCropHandlers() {
       return { id: existing.id };
     })
   );
+
+  registerHandler(IPC.CROP_PURCHASE_RETURNS_LIST, async () =>
+    guardedList(async () => {
+      requirePermission("purchases.return");
+      return listPurchaseReturns();
+    })
+  );
+
+  registerHandler(IPC.CROP_PURCHASE_RETURNS_CREATE, async (_e, input: CreateCropReturnInput) =>
+    guardedList(async () => {
+      requirePermission("purchases.return");
+      return createPurchaseReturn(input);
+    })
+  );
+
+  registerHandler(IPC.CROP_PURCHASE_RETURNS_DELETE, async (_e, id: string) =>
+    guardedList(async () => {
+      requirePermission("purchases.return");
+      return reversePurchaseReturn(id);
+    })
+  );
+
+  registerHandler(IPC.CROP_SALE_RETURNS_LIST, async () =>
+    guardedList(async () => {
+      requirePermission("sales.return");
+      return listSaleReturns();
+    })
+  );
+
+  registerHandler(IPC.CROP_SALE_RETURNS_CREATE, async (_e, input: CreateCropReturnInput) =>
+    guardedList(async () => {
+      requirePermission("sales.return");
+      return createSaleReturn(input);
+    })
+  );
+
+  registerHandler(IPC.CROP_SALE_RETURNS_DELETE, async (_e, id: string) =>
+    guardedList(async () => {
+      requirePermission("sales.return");
+      return reverseSaleReturn(id);
+    })
+  );
+}
+
+function listPurchaseReturns(): CropSlipReturn[] {
+  const db = getDb();
+  return db
+    .select()
+    .from(cropPurchaseReturns)
+    .orderBy(desc(cropPurchaseReturns.createdAt))
+    .all()
+    .filter((row) => row.status !== "deleted")
+    .map((row) => {
+      const source = db.select().from(cropPurchases).where(eq(cropPurchases.id, row.purchaseId)).get();
+      return {
+        id: row.id,
+        docNo: row.docNo,
+        docDate: row.docDate,
+        sourceId: row.purchaseId,
+        sourceNo: source?.docNo ?? "",
+        partyName: row.partyName,
+        productName: row.productName,
+        quantity: Number(row.quantity),
+        unitName: row.unitName,
+        safiWeight: Number(row.safiWeight),
+        stockQty: Number(row.stockQty),
+        amount: Number(row.amount),
+        paidAmount: Number(row.paidAmount),
+        remarks: row.remarks,
+      };
+    });
+}
+
+function listSaleReturns(): CropSlipReturn[] {
+  const db = getDb();
+  return db
+    .select()
+    .from(cropSaleReturns)
+    .orderBy(desc(cropSaleReturns.createdAt))
+    .all()
+    .filter((row) => row.status !== "deleted")
+    .map((row) => {
+      const source = db.select().from(cropSales).where(eq(cropSales.id, row.saleId)).get();
+      return {
+        id: row.id,
+        docNo: row.docNo,
+        docDate: row.docDate,
+        sourceId: row.saleId,
+        sourceNo: source?.docNo ?? "",
+        partyName: row.customerName,
+        productName: row.productName,
+        quantity: Number(row.quantity),
+        unitName: row.unitName,
+        safiWeight: Number(row.safiWeight),
+        stockQty: Number(row.stockQty),
+        amount: Number(row.amount),
+        paidAmount: Number(row.paidAmount),
+        remarks: row.remarks,
+      };
+    });
+}
+
+function purchaseBasis(purchaseId: string) {
+  const db = getDb();
+  const row = db.select().from(cropPurchases).where(eq(cropPurchases.id, purchaseId)).get();
+  if (!row || row.status === "deleted") throw new Error("Slip was not found");
+  const vehicles = db
+    .select()
+    .from(cropPurchaseVehicles)
+    .all()
+    .filter((vehicle) => vehicle.cropPurchaseId === row.id);
+  const typed = money(vehicles.reduce((sum, vehicle) => sum + Number(vehicle.totalWeight), 0));
+  const stock = purchaseStockQty(row);
+  const load = typed > 0 ? typed : stock;
+  const safi = typed > 0 && stock > 0 ? money((Number(row.safiWeight) * load) / stock) : Number(row.safiWeight);
+  const already = returnedQty(
+    db
+      .select()
+      .from(cropPurchaseReturns)
+      .all()
+      .filter((item) => item.purchaseId === row.id)
+  );
+  return { row, load, safi, stock, already, unit: vehicles[0]?.weighUnit ?? null };
+}
+
+function saleBasis(saleId: string) {
+  const db = getDb();
+  const row = db.select().from(cropSales).where(eq(cropSales.id, saleId)).get();
+  if (!row || row.status === "deleted") throw new Error("Slip was not found");
+  const load = Number(row.weight);
+  const factor = Number(row.stockFactor ?? 1) || 1;
+  const stock = money(load * factor);
+  const safiStored = row.safiWeight != null ? Number(row.safiWeight) : load;
+  const safi = factor > 0 ? money(safiStored / factor) : safiStored;
+  const already = returnedQty(
+    db
+      .select()
+      .from(cropSaleReturns)
+      .all()
+      .filter((item) => item.saleId === row.id)
+  );
+  return { row, load, safi, stock, already, unit: row.weighUnit ?? null };
+}
+
+function createPurchaseReturn(input: CreateCropReturnInput): CropSlipReturn {
+  if (!input?.docDate?.trim()) throw new Error("Date is required");
+  if (!input.sourceId) throw new Error("Choose the slip");
+  const db = getDb();
+  const basis = purchaseBasis(input.sourceId);
+  const part = sliceSlip(basis.load, num(input.quantity), basis.already, Number(basis.row.grossAmount), basis.safi, basis.stock);
+  const variant = db.select().from(productVariants).where(eq(productVariants.id, basis.row.variantId)).get();
+  if (!variant) throw new Error("The crop pack was not found");
+  if (variant.stockQty + 0.0001 < part.stockQty) {
+    throw new Error("This quantity is not in stock, so it cannot be returned");
+  }
+  const refund = resolveRefundSettlement(db, {
+    cashPaid: input.cashPaid,
+    bankPaid: input.bankPaid,
+    grandTotal: part.amount,
+  });
+  if ("error" in refund) throw new Error(refund.error);
+  const party =
+    basis.row.partyType === "customer"
+      ? db.select().from(customers).where(eq(customers.id, basis.row.partyId)).get()
+      : db.select().from(vendors).where(eq(vendors.id, basis.row.partyId)).get();
+  const dueAccount =
+    basis.row.partyType === "customer"
+      ? requireAccountByCode(db, "1300", "Accounts Receivable")
+      : requireAccountByCode(db, "2100", "Accounts Payable");
+  const invAcct = requireAccountByCode(db, "1400", "Inventory Asset");
+  const session = getCurrentSession();
+  const ts = nowIso();
+  const docNo = nextDocumentNumber(db, "crop_purchase_return");
+  const voucherId = randomUUID();
+  const returnId = randomUUID();
+  db.insert(vouchers)
+    .values({
+      id: voucherId,
+      voucherNo: docNo,
+      voucherType: "crop_purchase_return",
+      voucherDate: input.docDate,
+      partyType: basis.row.partyType,
+      partyId: basis.row.partyId,
+      accountId: refund.headerAccountId,
+      notes: input.remarks?.trim() || `Return of ${basis.row.docNo}`,
+      subtotal: part.amount,
+      grandTotal: part.amount,
+      paidAmount: money(refund.cashPart + refund.bankPart),
+      status: "posted",
+      createdBy: session?.id ?? null,
+      createdAt: ts,
+      updatedAt: ts,
+    })
+    .run();
+  let order = 0;
+  if (refund.cashPart > 0 && refund.cashAccountId) {
+    insertVoucherEntry(db, voucherId, refund.cashAccountId, refund.cashPart, 0, `Crop buy return ${docNo} cash`, order++);
+  }
+  if (refund.bankPart > 0 && refund.bankAccountId) {
+    insertVoucherEntry(db, voucherId, refund.bankAccountId, refund.bankPart, 0, `Crop buy return ${docNo} bank`, order++);
+  }
+  if (refund.creditPart > 0) {
+    insertVoucherEntry(db, voucherId, dueAccount.id, refund.creditPart, 0, `Crop buy return ${docNo} khata`, order++);
+  }
+  insertVoucherEntry(db, voucherId, invAcct.id, 0, part.amount, `Crop buy return ${docNo} stock`, order++);
+  db.insert(cropPurchaseReturns)
+    .values({
+      id: returnId,
+      voucherId,
+      docNo,
+      docDate: input.docDate,
+      purchaseId: basis.row.id,
+      partyType: basis.row.partyType,
+      partyId: basis.row.partyId,
+      partyName: party?.name ?? null,
+      variantId: basis.row.variantId,
+      productName: basis.row.productName,
+      quantity: part.quantity,
+      unitName: basis.unit,
+      safiWeight: part.safiWeight,
+      stockQty: part.stockQty,
+      amount: part.amount,
+      paidAmount: money(refund.cashPart + refund.bankPart),
+      remarks: input.remarks?.trim() || null,
+      status: "completed",
+      createdBy: session?.id ?? null,
+      createdAt: ts,
+      updatedAt: ts,
+    })
+    .run();
+  db.update(productVariants)
+    .set({ stockQty: money(variant.stockQty - part.stockQty), updatedAt: ts })
+    .where(eq(productVariants.id, variant.id))
+    .run();
+  db.insert(stockMovements)
+    .values({
+      id: randomUUID(),
+      variantId: variant.id,
+      movementType: "out",
+      quantity: part.stockQty,
+      referenceType: "crop_purchase_return",
+      referenceId: returnId,
+      notes: docNo,
+      createdBy: session?.id ?? null,
+    })
+    .run();
+  const saved = listPurchaseReturns().find((row) => row.id === returnId);
+  if (!saved) throw new Error("Crop return could not be read back");
+  return saved;
+}
+
+function reversePurchaseReturn(id: string) {
+  const db = getDb();
+  const existing = db.select().from(cropPurchaseReturns).where(eq(cropPurchaseReturns.id, id)).get();
+  if (!existing || existing.status === "deleted") throw new Error("Return was not found");
+  const variant = db.select().from(productVariants).where(eq(productVariants.id, existing.variantId)).get();
+  if (!variant) throw new Error("The crop pack was not found");
+  const ts = nowIso();
+  cancelPosted(existing.voucherId, ts);
+  db.update(productVariants)
+    .set({ stockQty: money(variant.stockQty + Number(existing.stockQty)), updatedAt: ts })
+    .where(eq(productVariants.id, variant.id))
+    .run();
+  db.update(cropPurchaseReturns).set({ status: "deleted", updatedAt: ts }).where(eq(cropPurchaseReturns.id, existing.id)).run();
+  db.insert(stockMovements)
+    .values({
+      id: randomUUID(),
+      variantId: variant.id,
+      movementType: "in",
+      quantity: Number(existing.stockQty),
+      referenceType: "crop_purchase_return",
+      referenceId: existing.id,
+      notes: `Reversed ${existing.docNo}`,
+      createdBy: getCurrentSession()?.id ?? null,
+    })
+    .run();
+  return { id: existing.id };
+}
+
+function createSaleReturn(input: CreateCropReturnInput): CropSlipReturn {
+  if (!input?.docDate?.trim()) throw new Error("Date is required");
+  if (!input.sourceId) throw new Error("Choose the slip");
+  const db = getDb();
+  const basis = saleBasis(input.sourceId);
+  const part = sliceSlip(basis.load, num(input.quantity), basis.already, Number(basis.row.amount), basis.safi, basis.stock);
+  const variant = db.select().from(productVariants).where(eq(productVariants.id, basis.row.variantId)).get();
+  if (!variant) throw new Error("The crop pack was not found");
+  const refund = resolveRefundSettlement(db, {
+    cashPaid: input.cashPaid,
+    bankPaid: input.bankPaid,
+    grandTotal: part.amount,
+  });
+  if ("error" in refund) throw new Error(refund.error);
+  const cost = basis.load > 0 ? money((Number(basis.row.costAmount ?? 0) * part.quantity) / basis.load) : 0;
+  const session = getCurrentSession();
+  const ts = nowIso();
+  const docNo = nextDocumentNumber(db, "crop_sale_return");
+  const voucherId = randomUUID();
+  const returnId = randomUUID();
+  const salesAcct = requireAccountByCode(db, "4100", "Sales Revenue");
+  const arAcct = requireAccountByCode(db, "1300", "Accounts Receivable");
+  const invAcct = requireAccountByCode(db, "1400", "Inventory Asset");
+  const cogsAcct = requireAccountByCode(db, "5100", "Cost of Goods Sold");
+  db.insert(vouchers)
+    .values({
+      id: voucherId,
+      voucherNo: docNo,
+      voucherType: "crop_sale_return",
+      voucherDate: input.docDate,
+      partyType: "customer",
+      partyId: basis.row.customerId,
+      accountId: refund.headerAccountId,
+      notes: input.remarks?.trim() || `Return of ${basis.row.docNo}`,
+      subtotal: part.amount,
+      grandTotal: part.amount,
+      paidAmount: money(refund.cashPart + refund.bankPart),
+      status: "posted",
+      createdBy: session?.id ?? null,
+      createdAt: ts,
+      updatedAt: ts,
+    })
+    .run();
+  let order = 0;
+  insertVoucherEntry(db, voucherId, salesAcct.id, part.amount, 0, `Crop sale return ${docNo}`, order++);
+  if (refund.cashPart > 0 && refund.cashAccountId) {
+    insertVoucherEntry(db, voucherId, refund.cashAccountId, 0, refund.cashPart, `Crop sale return ${docNo} cash`, order++);
+  }
+  if (refund.bankPart > 0 && refund.bankAccountId) {
+    insertVoucherEntry(db, voucherId, refund.bankAccountId, 0, refund.bankPart, `Crop sale return ${docNo} bank`, order++);
+  }
+  if (refund.creditPart > 0) {
+    insertVoucherEntry(db, voucherId, arAcct.id, 0, refund.creditPart, `Crop sale return ${docNo} khata`, order++);
+  }
+  if (cost > 0) {
+    insertVoucherEntry(db, voucherId, invAcct.id, cost, 0, `Crop sale return ${docNo} stock`, order++);
+    insertVoucherEntry(db, voucherId, cogsAcct.id, 0, cost, `Crop sale return ${docNo} cost`, order++);
+  }
+  db.insert(cropSaleReturns)
+    .values({
+      id: returnId,
+      voucherId,
+      docNo,
+      docDate: input.docDate,
+      saleId: basis.row.id,
+      customerId: basis.row.customerId,
+      customerName: db.select().from(customers).where(eq(customers.id, basis.row.customerId ?? "")).get()?.name ?? null,
+      variantId: basis.row.variantId,
+      productName: basis.row.productName,
+      quantity: part.quantity,
+      unitName: basis.unit,
+      safiWeight: part.safiWeight,
+      stockQty: part.stockQty,
+      amount: part.amount,
+      costAmount: cost,
+      paidAmount: money(refund.cashPart + refund.bankPart),
+      remarks: input.remarks?.trim() || null,
+      status: "completed",
+      createdBy: session?.id ?? null,
+      createdAt: ts,
+      updatedAt: ts,
+    })
+    .run();
+  db.update(productVariants)
+    .set({ stockQty: money(variant.stockQty + part.stockQty), updatedAt: ts })
+    .where(eq(productVariants.id, variant.id))
+    .run();
+  db.insert(stockMovements)
+    .values({
+      id: randomUUID(),
+      variantId: variant.id,
+      movementType: "in",
+      quantity: part.stockQty,
+      referenceType: "crop_sale_return",
+      referenceId: returnId,
+      notes: docNo,
+      createdBy: session?.id ?? null,
+    })
+    .run();
+  const saved = listSaleReturns().find((row) => row.id === returnId);
+  if (!saved) throw new Error("Crop return could not be read back");
+  return saved;
+}
+
+function reverseSaleReturn(id: string) {
+  const db = getDb();
+  const existing = db.select().from(cropSaleReturns).where(eq(cropSaleReturns.id, id)).get();
+  if (!existing || existing.status === "deleted") throw new Error("Return was not found");
+  const variant = db.select().from(productVariants).where(eq(productVariants.id, existing.variantId)).get();
+  if (!variant) throw new Error("The crop pack was not found");
+  if (variant.stockQty + 0.0001 < Number(existing.stockQty)) {
+    throw new Error("This quantity has already been sold, so the return cannot be reversed");
+  }
+  const ts = nowIso();
+  cancelPosted(existing.voucherId, ts);
+  db.update(productVariants)
+    .set({ stockQty: money(variant.stockQty - Number(existing.stockQty)), updatedAt: ts })
+    .where(eq(productVariants.id, variant.id))
+    .run();
+  db.update(cropSaleReturns).set({ status: "deleted", updatedAt: ts }).where(eq(cropSaleReturns.id, existing.id)).run();
+  db.insert(stockMovements)
+    .values({
+      id: randomUUID(),
+      variantId: variant.id,
+      movementType: "out",
+      quantity: Number(existing.stockQty),
+      referenceType: "crop_sale_return",
+      referenceId: existing.id,
+      notes: `Reversed ${existing.docNo}`,
+      createdBy: getCurrentSession()?.id ?? null,
+    })
+    .run();
+  return { id: existing.id };
 }
 
 async function guardedList<T>(fn: () => Promise<T> | T): Promise<ActionResult<T>> {

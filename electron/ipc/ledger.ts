@@ -496,12 +496,15 @@ export function registerLedgerHandlers(): void {
             if (t === "receipt") return { debit: 0, credit: money(v.paidAmount || v.grandTotal) };
             if (t === "income") return { debit: 0, credit: 0 };
             if (t === "crop_purchase") return { debit: 0, credit: creditPart };
+            if (t === "crop_purchase_return") return { debit: creditPart, credit: 0 };
             if (t === "crop_sale") return { debit: amt, credit: cashSettled };
+            if (t === "crop_sale_return") return { debit: 0, credit: creditPart };
             return { debit: 0, credit: 0 };
           }
           // vendor
           if (t === "purchase") return { debit: cashSettled, credit: amt };
           if (t === "purchase_return") return { debit: creditPart, credit: 0 };
+          if (t === "crop_purchase_return") return { debit: creditPart, credit: 0 };
           if (t === "payment") return { debit: money(v.paidAmount || v.grandTotal), credit: 0 };
           return { debit: 0, credit: 0 };
         };

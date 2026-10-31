@@ -62,6 +62,8 @@ export const ur: Dict = {
   "nav.cropBuyFarmer": "کسان سے خرید",
   "nav.cropBuySupplier": "سپلائر سے خرید",
   "nav.cropSell": "فصل کی فروخت",
+  "nav.cropBuyReturn": "فصل خرید کی واپسی",
+  "nav.cropSellReturn": "فصل سیل کی واپسی",
   "nav.units": "یونٹس",
   "nav.categories": "کیٹگریز",
   "nav.products": "پروڈکٹس",

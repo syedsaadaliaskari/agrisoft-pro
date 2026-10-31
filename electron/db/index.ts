@@ -601,6 +601,54 @@ export async function initDatabase(): Promise<Db> {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
     CREATE INDEX IF NOT EXISTS crop_sales_date_idx ON crop_sales(doc_date);
+
+    CREATE TABLE IF NOT EXISTS crop_purchase_returns (
+      id TEXT PRIMARY KEY,
+      voucher_id TEXT NOT NULL REFERENCES vouchers(id),
+      doc_no TEXT NOT NULL UNIQUE,
+      doc_date TEXT NOT NULL,
+      purchase_id TEXT NOT NULL REFERENCES crop_purchases(id),
+      party_type TEXT NOT NULL,
+      party_id TEXT NOT NULL,
+      party_name TEXT,
+      variant_id TEXT NOT NULL REFERENCES product_variants(id),
+      product_name TEXT NOT NULL,
+      quantity REAL NOT NULL,
+      unit_name TEXT,
+      safi_weight REAL NOT NULL DEFAULT 0,
+      stock_qty REAL NOT NULL DEFAULT 0,
+      amount REAL NOT NULL DEFAULT 0,
+      paid_amount REAL NOT NULL DEFAULT 0,
+      remarks TEXT,
+      status TEXT NOT NULL DEFAULT 'completed',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS crop_sale_returns (
+      id TEXT PRIMARY KEY,
+      voucher_id TEXT NOT NULL REFERENCES vouchers(id),
+      doc_no TEXT NOT NULL UNIQUE,
+      doc_date TEXT NOT NULL,
+      sale_id TEXT NOT NULL REFERENCES crop_sales(id),
+      customer_id TEXT REFERENCES customers(id),
+      customer_name TEXT,
+      variant_id TEXT NOT NULL REFERENCES product_variants(id),
+      product_name TEXT NOT NULL,
+      quantity REAL NOT NULL,
+      unit_name TEXT,
+      safi_weight REAL NOT NULL DEFAULT 0,
+      stock_qty REAL NOT NULL DEFAULT 0,
+      amount REAL NOT NULL DEFAULT 0,
+      cost_amount REAL NOT NULL DEFAULT 0,
+      paid_amount REAL NOT NULL DEFAULT 0,
+      remarks TEXT,
+      status TEXT NOT NULL DEFAULT 'completed',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   db = drizzle(sqlite, { schema });

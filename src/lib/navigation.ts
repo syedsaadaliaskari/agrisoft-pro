@@ -129,6 +129,18 @@ export const navigation: NavGroup[] = [
         icon: ShoppingCart,
         permission: "sales.view",
       },
+      {
+        labelKey: "nav.cropBuyReturn",
+        href: "/crop/return-buy",
+        icon: Undo2,
+        permission: "purchases.return",
+      },
+      {
+        labelKey: "nav.cropSellReturn",
+        href: "/crop/return-sell",
+        icon: Undo2,
+        permission: "sales.return",
+      },
     ],
   },
   {

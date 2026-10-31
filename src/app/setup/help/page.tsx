@@ -1,6 +1,6 @@
 "use client";
 
-import { PackagePlus, ShoppingCart, Wheat, WheatOff } from "lucide-react";
+import { PackagePlus, ShoppingCart, Undo2, Wheat, WheatOff } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 
 const sections = [
@@ -111,6 +111,46 @@ const sections = [
       "40 ضرب 4 برابر 160 کلو۔ صافی 36 من ہے۔",
       "اسٹاک سے پورا وزن نکلے گا، سارے 40 من۔",
       "خریدار صرف صافی کی رقم دے گا۔",
+      "محفوظ کریں۔",
+    ],
+  },
+  {
+    title: "How to return part of a crop buy",
+    urdu: "فصل کی خرید کا کچھ حصہ واپس کیسے کریں",
+    icon: Undo2,
+    steps: [
+      "Open Return crop buy.",
+      "Choose the buy slip. The slip itself stays.",
+      "Write only the part coming back, such as 20 mann from 40.",
+      "Stock goes out by that 20 mann. The money is the safi of that part, 18 mann times the rate.",
+      "Cash or bank is money you get back. What you leave empty stays on the khata.",
+      "Save. You can return more later until the 40 mann is used up.",
+    ],
+    urduSteps: [
+      "فصل خرید کی واپسی کھولیں۔",
+      "خرید کی سلپ چنیں۔ سلپ اپنی جگہ رہے گی۔",
+      "صرف واپس آنے والا حصہ لکھیں، جیسے 40 میں سے 20 من۔",
+      "اسٹاک سے 20 من نکلیں گے۔ رقم اس حصے کی صافی ہے، 18 من ضرب ریٹ۔",
+      "کیش یا بینک وہ رقم ہے جو واپس ملے گی۔ جو خالی چھوڑیں وہ کھاتے پر رہے گی۔",
+      "محفوظ کریں۔ بعد میں مزید واپس کر سکتے ہیں، جب تک 40 من ختم نہ ہوں۔",
+    ],
+  },
+  {
+    title: "How to return part of a crop sale",
+    urdu: "فصل کی سیل کا کچھ حصہ واپس کیسے کریں",
+    icon: Undo2,
+    steps: [
+      "Open Return crop sale and choose the sale slip.",
+      "Write the part the buyer brought back.",
+      "That quantity comes back into stock.",
+      "You give back only the safi money of that part.",
+      "Save.",
+    ],
+    urduSteps: [
+      "فصل سیل کی واپسی کھولیں اور سیل کی سلپ چنیں۔",
+      "جو حصہ خریدار واپس لایا وہ لکھیں۔",
+      "اتنی مقدار اسٹاک میں واپس آئے گی۔",
+      "آپ صرف اس حصے کی صافی کی رقم واپس دیں گے۔",
       "محفوظ کریں۔",
     ],
   },

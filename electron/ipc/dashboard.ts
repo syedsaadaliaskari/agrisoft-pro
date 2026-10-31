@@ -35,6 +35,7 @@ import {
   saleReturnItems,
   purchaseReturns,
   cropSales,
+  cropSaleReturns,
   stockBatches,
   units,
 } from "../db/schema";
@@ -789,6 +790,26 @@ function seriesFromDays(days: Map<string, DayAgg>, dateKeys: string[]): ProductP
         take(r.productId, r.productName, r.categoryName ?? null, r.date, revenue, lineCogs, Number(r.weight));
       }
 
+      const cropReturnCond = [ne(cropSaleReturns.status, "deleted")];
+      if (query?.fromDate) cropReturnCond.push(gte(cropSaleReturns.docDate, query.fromDate));
+      if (query?.toDate) cropReturnCond.push(lte(cropSaleReturns.docDate, query.toDate));
+      const cropReturnLines = db
+        .select({
+          productId: products.id,
+          productName: products.name,
+          categoryName: categories.name,
+          date: cropSaleReturns.docDate,
+          amount: cropSaleReturns.amount,
+          quantity: cropSaleReturns.quantity,
+          costAmount: cropSaleReturns.costAmount,
+        })
+        .from(cropSaleReturns)
+        .innerJoin(productVariants, eq(cropSaleReturns.variantId, productVariants.id))
+        .innerJoin(products, eq(productVariants.productId, products.id))
+        .leftJoin(categories, eq(products.categoryId, categories.id))
+        .where(and(...cropReturnCond))
+        .all();
+
       let saleReturnsRevenue = 0;
       let saleReturnsCogs = 0;
       for (const r of returnLines) {
@@ -809,6 +830,14 @@ function seriesFromDays(days: Map<string, DayAgg>, dateKeys: string[]): ProductP
         saleReturnsRevenue += revenue;
         saleReturnsCogs += lineCogs;
         take(r.productId, r.productName, r.categoryName ?? null, applyDate, -revenue, -lineCogs, -qty);
+      }
+
+      for (const r of cropReturnLines) {
+        const revenue = Number(r.amount);
+        const lineCogs = Number(r.costAmount ?? 0);
+        saleReturnsRevenue += revenue;
+        saleReturnsCogs += lineCogs;
+        take(r.productId, r.productName, r.categoryName ?? null, r.date, -revenue, -lineCogs, -Number(r.quantity));
       }
 
       const dataDates = [...shopDays.keys()].sort();

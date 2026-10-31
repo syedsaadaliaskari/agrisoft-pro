@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "export",
-  generateBuildId: () => "asp043",
+  generateBuildId: () => "asp044",
   images: {
     unoptimized: true,
   },

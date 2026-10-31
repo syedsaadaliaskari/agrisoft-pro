@@ -68,6 +68,12 @@ export const IPC = {
   CROP_SALES_CREATE: "crop:sales:create",
   CROP_SALES_UPDATE: "crop:sales:update",
   CROP_SALES_DELETE: "crop:sales:delete",
+  CROP_PURCHASE_RETURNS_LIST: "crop:purchaseReturns:list",
+  CROP_PURCHASE_RETURNS_CREATE: "crop:purchaseReturns:create",
+  CROP_PURCHASE_RETURNS_DELETE: "crop:purchaseReturns:delete",
+  CROP_SALE_RETURNS_LIST: "crop:saleReturns:list",
+  CROP_SALE_RETURNS_CREATE: "crop:saleReturns:create",
+  CROP_SALE_RETURNS_DELETE: "crop:saleReturns:delete",
   // Customers
   CUSTOMERS_LIST: "customers:list",
   CUSTOMERS_CREATE: "customers:create",
@@ -238,7 +244,9 @@ export type DocType =
   | "vendor"
   | "product"
   | "crop_purchase"
-  | "crop_sale";
+  | "crop_sale"
+  | "crop_purchase_return"
+  | "crop_sale_return";
 
 export type Unit = {
   id: string;
@@ -567,7 +575,9 @@ export type VoucherType =
   | "income"
   | "owner_draw"
   | "crop_purchase"
-  | "crop_sale";
+  | "crop_sale"
+  | "crop_purchase_return"
+  | "crop_sale_return";
 
 export type VoucherStatus = "draft" | "posted" | "cancelled";
 
@@ -1654,6 +1664,32 @@ export type CropSale = {
   remarks: string | null;
 };
 
+export type CropSlipReturn = {
+  id: string;
+  docNo: string;
+  docDate: string;
+  sourceId: string;
+  sourceNo: string;
+  partyName: string | null;
+  productName: string;
+  quantity: number;
+  unitName: string | null;
+  safiWeight: number;
+  stockQty: number;
+  amount: number;
+  paidAmount: number;
+  remarks: string | null;
+};
+
+export type CreateCropReturnInput = {
+  docDate: string;
+  sourceId: string;
+  quantity: number;
+  cashPaid?: number;
+  bankPaid?: number;
+  remarks?: string | null;
+};
+
 export type ElectronAPI = {
   ping: () => Promise<string>;
   getAppInfo: () => Promise<AppInfo>;
@@ -1714,6 +1750,12 @@ export type ElectronAPI = {
   createCropSale: (input: CreateCropSaleInput) => Promise<ActionResult<CropSale>>;
   updateCropSale: (id: string, input: CreateCropSaleInput) => Promise<ActionResult<CropSale>>;
   deleteCropSale: (id: string) => Promise<ActionResult>;
+  listCropPurchaseReturns: () => Promise<ActionResult<CropSlipReturn[]>>;
+  createCropPurchaseReturn: (input: CreateCropReturnInput) => Promise<ActionResult<CropSlipReturn>>;
+  deleteCropPurchaseReturn: (id: string) => Promise<ActionResult>;
+  listCropSaleReturns: () => Promise<ActionResult<CropSlipReturn[]>>;
+  createCropSaleReturn: (input: CreateCropReturnInput) => Promise<ActionResult<CropSlipReturn>>;
+  deleteCropSaleReturn: (id: string) => Promise<ActionResult>;
   listCustomers: () => Promise<ActionResult<Customer[]>>;
   createCustomer: (input: CustomerInput) => Promise<ActionResult<Customer>>;
   updateCustomer: (id: string, input: CustomerInput) => Promise<ActionResult<Customer>>;

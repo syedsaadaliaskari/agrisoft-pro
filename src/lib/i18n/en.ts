@@ -62,6 +62,8 @@ export const en: Dict = {
   "nav.cropBuyFarmer": "Buy from farmer",
   "nav.cropBuySupplier": "Buy from supplier",
   "nav.cropSell": "Sell crop",
+  "nav.cropBuyReturn": "Return crop buy",
+  "nav.cropSellReturn": "Return crop sale",
   "nav.units": "Units",
   "nav.categories": "Categories",
   "nav.products": "Products",
