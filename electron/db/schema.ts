@@ -558,6 +558,7 @@ export const cropPurchases = sqliteTable(
       .references(() => productVariants.id),
     productName: text("product_name").notNull(),
     safiWeight: real("safi_weight").notNull().default(0),
+    stockWeight: real("stock_weight"),
     grossAmount: real("gross_amount").notNull().default(0),
     commission: real("commission").notNull().default(0),
     brokerage: real("brokerage").notNull().default(0),
@@ -589,6 +590,8 @@ export const cropPurchaseVehicles = sqliteTable("crop_purchase_vehicles", {
   amount: real("amount").notNull(),
   stockFactor: real("stock_factor").notNull().default(1),
   weighUnit: text("weigh_unit"),
+  kaatFactor: real("kaat_factor").notNull().default(1),
+  kaatUnit: text("kaat_unit"),
   lineOrder: integer("line_order").notNull().default(0),
 });
 
@@ -607,6 +610,8 @@ export const cropSales = sqliteTable(
       .references(() => productVariants.id),
     productName: text("product_name").notNull(),
     weight: real("weight").notNull(),
+    kaat: real("kaat").notNull().default(0),
+    safiWeight: real("safi_weight"),
     rate: real("rate").notNull(),
     stockFactor: real("stock_factor").notNull().default(1),
     weighUnit: text("weigh_unit"),

@@ -87,6 +87,7 @@ export const en: Dict = {
   "nav.taxes": "Taxes",
   "nav.discounts": "Discounts",
   "nav.additions": "Additions",
+  "nav.help": "Help",
   "nav.users": "Users",
   "nav.changePassword": "Change password",
   "nav.licenseInfo": "License",

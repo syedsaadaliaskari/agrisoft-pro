@@ -53,7 +53,7 @@ export default function StockReportPage() {
               sku: r.sku,
               productName: r.productName,
               pack: `${r.size} / ${r.color}`,
-              stockQty: r.stockQty,
+              stockQty: r.unit ? `${r.stockQty} ${r.unit}` : r.stockQty,
               costPrice: r.costPrice,
               valuation: r.valuation,
               lowStock: r.isLowStock ? "Yes" : "",
@@ -78,7 +78,10 @@ export default function StockReportPage() {
                 <td className="px-4 py-3 text-[var(--text-muted)]">
                   {r.size} / {r.color}
                 </td>
-                <td className="px-4 py-3">{r.stockQty}</td>
+                <td className="px-4 py-3">
+                  {r.stockQty}
+                  {r.unit ? ` ${r.unit}` : ""}
+                </td>
                 <td className="px-4 py-3">{r.costPrice.toLocaleString()}</td>
                 <td className="px-4 py-3">{r.valuation.toLocaleString()}</td>
                 <td className="px-4 py-3">{r.isLowStock ? "Yes" : ""}</td>

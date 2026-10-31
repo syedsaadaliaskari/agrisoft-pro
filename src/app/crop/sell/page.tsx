@@ -42,6 +42,7 @@ export default function SellCropPage() {
   const [bags, setBags] = useState("");
   const [perBag, setPerBag] = useState("");
   const [weight, setWeight] = useState("");
+  const [kaat, setKaat] = useState("0");
   const [rate, setRate] = useState("");
   const [commission, setCommission] = useState("0");
   const [brokerage, setBrokerage] = useState("0");
@@ -91,7 +92,13 @@ export default function SellCropPage() {
     chosenUnit && productUnit && chosenUnit.id !== productUnit.id && chosenKg && productKg ? chosenKg / productKg : 1;
   const usePerBag = unit.toLowerCase() !== "bag";
   const quantity = usePerBag && n(bags) > 0 && n(perBag) > 0 ? n(bags) * n(perBag) : n(weight);
-  const amount = quantity * n(rate);
+  const unitKg = chosenKg;
+  const kaatKg = n(kaat);
+  const totalKaatKg = quantity * kaatKg;
+  const kaatUnits = unitKg && unitKg > 0 ? totalKaatKg / unitKg : 0;
+  const safi = Math.max(0, quantity - kaatUnits);
+  const amount = safi * n(rate);
+  const stockOut = quantity * factor;
   const deductions = n(commission) + n(brokerage) + n(mazdoori) + n(fees) + n(bardana);
   const net = amount - deductions;
 
@@ -118,6 +125,7 @@ export default function SellCropPage() {
     setBags("");
     setPerBag("");
     setWeight("");
+    setKaat("0");
     setRate("");
     setCommission("0");
     setBrokerage("0");
@@ -139,6 +147,7 @@ export default function SellCropPage() {
     setBags("");
     setPerBag("");
     setWeight(String(row.weight));
+    setKaat(String(row.kaat || 0));
     setRate(String(row.rate));
     setCommission(String(row.commission || 0));
     setBrokerage(String(row.brokerage || 0));
@@ -159,6 +168,7 @@ export default function SellCropPage() {
       customerId,
       variantId,
       weight: quantity,
+      kaat: n(kaat),
       rate: n(rate),
       commission: n(commission),
       brokerage: n(brokerage),
@@ -305,16 +315,17 @@ export default function SellCropPage() {
                   }}
                 />
                 <Input label={`Rate / ${unit}`} type="number" min={0} value={rate} onChange={(e) => setRate(e.target.value)} />
-                {factor !== 1 ? (
-                  <div className="self-end pb-2 text-sm tabular-nums">
-                    {quantity} {unit} = {Math.round(quantity * factor * 1000) / 1000} {productUnit?.shortName || "kg"}
-                  </div>
-                ) : null}
+                <Input label={`Kaat kg / ${unit}`} type="number" min={0} value={kaat} onChange={(e) => setKaat(e.target.value)} />
+                <div className="self-end pb-2 text-sm tabular-nums">
+                  Safi {Math.round(safi * 1000) / 1000} {unit}
+                  {totalKaatKg > 0 ? ` · ${Math.round(totalKaatKg * 1000) / 1000} kg cut` : ""}
+                  {" · "}Stock out {Math.round(stockOut * 1000) / 1000} {productUnit?.shortName || unit}
+                </div>
               </div>
               <div className="space-y-3">
                 <TotalsPanel
                   rows={[
-                    { label: "Amount", value: money(amount) },
+                    { label: "Safi", value: money(amount) },
                     { label: "Deductions", value: money(deductions), negative: deductions > 0 },
                   ]}
                   grandLabel="Net"

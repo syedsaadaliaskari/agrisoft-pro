@@ -88,7 +88,33 @@ function stockFactorFor(productUnitId: string | null, weighUnitId: string | null
   return { factor: chosenKg / productKg, name: chosen.shortName };
 }
 
-function priceCropVehicles(rows: CreateCropPurchaseInput["vehicles"], factor = 1, weighUnit: string | null = null): CropVehicle[] {
+function weighBundle(productUnitId: string | null, weighUnitId: string | null | undefined) {
+  const weighed = stockFactorFor(productUnitId, weighUnitId);
+  const db = getDb();
+  const chosen = weighUnitId
+    ? db.select().from(units).where(eq(units.id, weighUnitId)).get()
+    : productUnitId
+      ? db.select().from(units).where(eq(units.id, productUnitId)).get()
+      : undefined;
+  return { ...weighed, unitKg: unitKilograms(chosen) };
+}
+
+/** Kaat is kilograms taken from each one mann or bag. Money uses what is left. */
+function safiWeighOf(total: number, kaatPerKg: number, unitKg: number | null, label: string) {
+  if (Number.isNaN(kaatPerKg) || kaatPerKg < 0) throw new Error(`${label}: kaat cannot be negative`);
+  if (!(kaatPerKg > 0)) return money(total);
+  if (!(unitKg != null && unitKg > 0)) throw new Error("This unit has no kilogram number");
+  const safi = money(total - (total * kaatPerKg) / unitKg);
+  if (!(safi > 0)) throw new Error(`${label}: kaat is not less than the quantity`);
+  return safi;
+}
+
+function priceCropVehicles(
+  rows: CreateCropPurchaseInput["vehicles"],
+  factor = 1,
+  weighUnit: string | null = null,
+  unitKg: number | null = null
+): CropVehicle[] {
   const vehicles: CropVehicle[] = [];
   for (let i = 0; i < rows.length; i++) {
     const vehicle = rows[i];
@@ -99,23 +125,27 @@ function priceCropVehicles(rows: CreateCropPurchaseInput["vehicles"], factor = 1
     const rate = num(vehicle.rate);
     if (!vehicleNo) throw new Error(`Vehicle ${i + 1}: number is required`);
     if (!(totalWeight > 0)) throw new Error(`Vehicle ${i + 1}: quantity must be greater than 0`);
-    if (Number.isNaN(kaat) || kaat < 0) throw new Error(`Vehicle ${i + 1}: kaat cannot be negative`);
-    if (kaat >= totalWeight) throw new Error(`Vehicle ${i + 1}: kaat must be less than the quantity`);
     if (Number.isNaN(rate) || rate < 0) throw new Error(`Vehicle ${i + 1}: rate is invalid`);
-    const safiWeight = money((totalWeight - kaat) * factor);
+    const safiWeigh = safiWeighOf(totalWeight, kaat, unitKg, `Vehicle ${i + 1}`);
     vehicles.push({
       vehicleNo,
       bags: money(Number.isNaN(bags) ? 0 : bags),
       totalWeight: money(totalWeight),
       kaat: money(kaat),
-      safiWeight,
+      safiWeight: money(safiWeigh * factor),
       rate: money(rate),
-      amount: money(totalWeight * rate),
+      amount: money(safiWeigh * rate),
       stockFactor: factor,
       weighUnit,
+      kaatFactor: unitKg ?? 1,
+      kaatUnit: null,
     });
   }
   return vehicles;
+}
+
+function purchaseStockQty(row: { stockWeight?: number | null; safiWeight: number }) {
+  return row.stockWeight != null ? Number(row.stockWeight) : Number(row.safiWeight);
 }
 
 function cancelPosted(voucherId: string, ts: string) {
@@ -144,6 +174,8 @@ function mapSale(id: string): CropSale | null {
     variantId: row.variantId,
     productName: row.productName,
     weight: row.weight,
+    kaat: Number(row.kaat ?? 0),
+    safiWeight: row.safiWeight != null ? Number(row.safiWeight) : row.weight,
     rate: row.rate,
     amount: row.amount,
     stockFactor: row.stockFactor ?? 1,
@@ -189,6 +221,8 @@ function mapPurchase(id: string): CropPurchase | null {
         amount: vehicle.amount,
         stockFactor: vehicle.stockFactor ?? 1,
         weighUnit: vehicle.weighUnit ?? null,
+        kaatFactor: vehicle.kaatFactor ?? vehicle.stockFactor ?? 1,
+        kaatUnit: vehicle.kaatUnit ?? null,
       })
     );
   return {
@@ -201,6 +235,7 @@ function mapPurchase(id: string): CropPurchase | null {
     variantId: row.variantId,
     productName: row.productName,
     safiWeight: row.safiWeight,
+    stockWeight: row.stockWeight ?? null,
     grossAmount: row.grossAmount,
     commission: row.commission,
     brokerage: row.brokerage,
@@ -249,8 +284,8 @@ export function registerCropHandlers() {
           : db.select().from(vendors).where(eq(vendors.id, input.partyId)).get();
       if (!party || !party.isActive) throw new Error("That person was not found");
 
-      const weighed = stockFactorFor(product.unitId, input.weighUnitId);
-      const vehicles = priceCropVehicles(input.vehicles, weighed.factor, weighed.name);
+      const weighed = weighBundle(product.unitId, input.weighUnitId);
+      const vehicles = priceCropVehicles(input.vehicles, weighed.factor, weighed.name, weighed.unitKg);
 
       const charges = {
         commission: money(num(input.commission)),
@@ -269,6 +304,7 @@ export function registerCropHandlers() {
       const netPayable = money(grossAmount - deductionAmount);
       if (netPayable < 0) throw new Error("Deductions are higher than the crop amount");
       const safiWeight = money(vehicles.reduce((sum, vehicle) => sum + vehicle.safiWeight, 0));
+      const stockWeight = money(vehicles.reduce((sum, vehicle) => sum + vehicle.totalWeight * vehicle.stockFactor, 0));
 
       const settled = resolveSettlement(db, {
         cashPaid: input.cashPaid,
@@ -335,6 +371,7 @@ export function registerCropHandlers() {
           variantId: variant.id,
           productName: product.name,
           safiWeight,
+          stockWeight,
           grossAmount,
           ...charges,
           deductionAmount,
@@ -362,13 +399,15 @@ export function registerCropHandlers() {
             amount: vehicle.amount,
             stockFactor: vehicle.stockFactor,
             weighUnit: vehicle.weighUnit,
+            kaatFactor: vehicle.kaatFactor,
+            kaatUnit: vehicle.kaatUnit,
             lineOrder: index,
           })
           .run();
       });
 
       db.update(productVariants)
-        .set({ stockQty: money(variant.stockQty + safiWeight), costPrice: safiWeight > 0 ? money(netPayable / safiWeight) : variant.costPrice, updatedAt: ts })
+        .set({ stockQty: money(variant.stockQty + stockWeight), costPrice: stockWeight > 0 ? money(netPayable / stockWeight) : variant.costPrice, updatedAt: ts })
         .where(eq(productVariants.id, variant.id))
         .run();
       db.insert(stockMovements)
@@ -376,7 +415,7 @@ export function registerCropHandlers() {
           id: randomUUID(),
           variantId: variant.id,
           movementType: "in",
-          quantity: safiWeight,
+          quantity: stockWeight,
           referenceType: "crop_purchase",
           referenceId: purchaseId,
           notes: docNo,
@@ -421,13 +460,14 @@ export function registerCropHandlers() {
       if (!variant || !variant.isActive) throw new Error("Crop pack was not found");
       const product = db.select().from(products).where(eq(products.id, variant.productId)).get();
       if (!product?.isCrop) throw new Error("Mark this product as a crop on the product page first");
-      const weighed = stockFactorFor(product.unitId, input.weighUnitId);
+      const weighed = weighBundle(product.unitId, input.weighUnitId);
       const stockOut = money(weight * weighed.factor);
       if (variant.stockQty + 0.0001 < stockOut) throw new Error(`Only ${money(variant.stockQty)} is in stock`);
       const customer = db.select().from(customers).where(eq(customers.id, input.customerId)).get();
       if (!customer || !customer.isActive) throw new Error("Buyer was not found");
 
-      const amount = money(weight * rate);
+      const safiWeigh = safiWeighOf(weight, num(input.kaat), weighed.unitKg, "Sale");
+      const amount = money(safiWeigh * rate);
       const charges = chargeBag(input);
       if (charges.deductionAmount > amount) throw new Error("Charges are higher than the crop amount");
       const netAmount = money(amount - charges.deductionAmount);
@@ -498,6 +538,8 @@ export function registerCropHandlers() {
           variantId: variant.id,
           productName: product.name,
           weight: money(weight),
+          kaat: money(num(input.kaat)),
+          safiWeight: money(safiWeigh * weighed.factor),
           rate: money(rate),
           stockFactor: weighed.factor,
           weighUnit: weighed.name,
@@ -551,16 +593,18 @@ export function registerCropHandlers() {
       if (!variant || !variant.isActive) throw new Error("Crop pack was not found");
       const product = db.select().from(products).where(eq(products.id, variant.productId)).get();
       if (!product?.isCrop) throw new Error("Mark this product as a crop on the product page first");
-      const weighed = stockFactorFor(product.unitId, input.weighUnitId);
-      const vehicles = priceCropVehicles(input.vehicles, weighed.factor, weighed.name);
+      const weighed = weighBundle(product.unitId, input.weighUnitId);
+      const vehicles = priceCropVehicles(input.vehicles, weighed.factor, weighed.name, weighed.unitKg);
       const charges = chargeBag(input);
       const grossAmount = money(vehicles.reduce((sum, vehicle) => sum + vehicle.amount, 0));
       const netPayable = money(grossAmount - charges.deductionAmount);
       if (netPayable < 0) throw new Error("Deductions are higher than the crop amount");
       const safiWeight = money(vehicles.reduce((sum, vehicle) => sum + vehicle.safiWeight, 0));
+      const stockWeight = money(vehicles.reduce((sum, vehicle) => sum + vehicle.totalWeight * vehicle.stockFactor, 0));
       const oldVariant = db.select().from(productVariants).where(eq(productVariants.id, existing.variantId)).get();
       if (!oldVariant) throw new Error("The old crop pack was not found");
-      if (oldVariant.stockQty + 0.0001 < existing.safiWeight) {
+      const held = purchaseStockQty(existing);
+      if (oldVariant.stockQty + 0.0001 < held) {
         throw new Error("This quantity has already been sold, so the slip cannot be changed");
       }
       const party =
@@ -622,6 +666,7 @@ export function registerCropHandlers() {
           variantId: variant.id,
           productName: product.name,
           safiWeight,
+          stockWeight,
           grossAmount,
           ...charges,
           netPayable,
@@ -642,17 +687,17 @@ export function registerCropHandlers() {
           })
           .run();
       });
-      const released = money(oldVariant.stockQty - existing.safiWeight);
+      const released = money(oldVariant.stockQty - held);
       db.update(productVariants)
         .set({ stockQty: released, updatedAt: ts })
         .where(eq(productVariants.id, oldVariant.id))
         .run();
       const targetQty =
-        oldVariant.id === variant.id ? money(released + safiWeight) : money(variant.stockQty + safiWeight);
+        oldVariant.id === variant.id ? money(released + stockWeight) : money(variant.stockQty + stockWeight);
       db.update(productVariants)
         .set({
           stockQty: targetQty,
-          costPrice: safiWeight > 0 ? money(netPayable / safiWeight) : variant.costPrice,
+          costPrice: stockWeight > 0 ? money(netPayable / stockWeight) : variant.costPrice,
           updatedAt: ts,
         })
         .where(eq(productVariants.id, variant.id))
@@ -671,13 +716,14 @@ export function registerCropHandlers() {
       if (!existing || existing.status === "deleted") throw new Error("Slip was not found");
       const variant = db.select().from(productVariants).where(eq(productVariants.id, existing.variantId)).get();
       if (!variant) throw new Error("The crop pack was not found");
-      if (variant.stockQty + 0.0001 < existing.safiWeight) {
+      const held = purchaseStockQty(existing);
+      if (variant.stockQty + 0.0001 < held) {
         throw new Error("This quantity has already been sold, so the slip cannot be reversed");
       }
       const ts = nowIso();
       cancelPosted(existing.voucherId, ts);
       db.update(productVariants)
-        .set({ stockQty: money(variant.stockQty - existing.safiWeight), updatedAt: ts })
+        .set({ stockQty: money(variant.stockQty - held), updatedAt: ts })
         .where(eq(productVariants.id, variant.id))
         .run();
       db.update(cropPurchases).set({ status: "deleted", updatedAt: ts }).where(eq(cropPurchases.id, existing.id)).run();
@@ -686,7 +732,7 @@ export function registerCropHandlers() {
           id: randomUUID(),
           variantId: variant.id,
           movementType: "out",
-          quantity: existing.safiWeight,
+          quantity: held,
           referenceType: "crop_purchase",
           referenceId: existing.id,
           notes: `Reversed ${existing.docNo}`,
@@ -710,17 +756,18 @@ export function registerCropHandlers() {
       const rate = num(input.rate);
       if (!(weight > 0)) throw new Error("Quantity must be greater than 0");
       if (Number.isNaN(rate) || rate < 0) throw new Error("Rate is invalid");
-      const charges = chargeBag(input);
-      const amount = money(weight * rate);
-      if (charges.deductionAmount > amount) throw new Error("Charges are higher than the crop amount");
-      const netAmount = money(amount - charges.deductionAmount);
       const variant = db.select().from(productVariants).where(eq(productVariants.id, input.variantId)).get();
       if (!variant || !variant.isActive) throw new Error("Crop pack was not found");
       const product = db.select().from(products).where(eq(products.id, variant.productId)).get();
       if (!product?.isCrop) throw new Error("Mark this product as a crop on the product page first");
       const oldVariant = db.select().from(productVariants).where(eq(productVariants.id, existing.variantId)).get();
       if (!oldVariant) throw new Error("The old crop pack was not found");
-      const weighed = stockFactorFor(product.unitId, input.weighUnitId);
+      const weighed = weighBundle(product.unitId, input.weighUnitId);
+      const safiWeigh = safiWeighOf(weight, num(input.kaat), weighed.unitKg, "Sale");
+      const amount = money(safiWeigh * rate);
+      const charges = chargeBag(input);
+      if (charges.deductionAmount > amount) throw new Error("Charges are higher than the crop amount");
+      const netAmount = money(amount - charges.deductionAmount);
       const stockOut = money(weight * weighed.factor);
       const oldStock = money(existing.weight * Number(existing.stockFactor ?? 1));
       const available = oldVariant.id === variant.id ? oldVariant.stockQty + oldStock : variant.stockQty;
@@ -783,6 +830,8 @@ export function registerCropHandlers() {
           variantId: variant.id,
           productName: product.name,
           weight: money(weight),
+          kaat: money(num(input.kaat)),
+          safiWeight: money(safiWeigh * weighed.factor),
           rate: money(rate),
           stockFactor: weighed.factor,
           weighUnit: weighed.name,

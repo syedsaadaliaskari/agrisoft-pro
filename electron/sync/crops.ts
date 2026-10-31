@@ -61,6 +61,8 @@ type CloudVehicle = {
   amount: number;
   stock_factor?: number | null;
   weigh_unit?: string | null;
+  kaat_factor?: number | null;
+  kaat_unit?: string | null;
   line_order: number;
 };
 
@@ -229,6 +231,8 @@ async function syncCropPurchases() {
             amount: num(vehicle.amount),
             stockFactor: num(vehicle.stock_factor) || 1,
             weighUnit: vehicle.weigh_unit || null,
+            kaatFactor: vehicle.kaat_factor == null ? num(vehicle.stock_factor) || 1 : num(vehicle.kaat_factor) || 1,
+            kaatUnit: vehicle.kaat_unit || null,
             lineOrder: num(vehicle.line_order),
           })
           .run()
@@ -237,6 +241,7 @@ async function syncCropPurchases() {
   }
 
   const sendFactor = await cloudColumnReady("crop_purchase_vehicles", "stock_factor");
+  const sendKaatUnit = await cloudColumnReady("crop_purchase_vehicles", "kaat_unit");
   const local = db.select().from(cropPurchases).all();
   await supabaseUpsert(
     "crop_purchases",
@@ -288,6 +293,7 @@ async function syncCropPurchases() {
         amount: row.amount,
         line_order: row.lineOrder,
         ...(sendFactor ? { stock_factor: row.stockFactor ?? 1, weigh_unit: row.weighUnit } : {}),
+        ...(sendKaatUnit ? { kaat_factor: row.kaatFactor ?? row.stockFactor ?? 1, kaat_unit: row.kaatUnit } : {}),
         deleted_at: null,
       }))
   );

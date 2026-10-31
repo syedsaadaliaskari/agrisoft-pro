@@ -760,8 +760,14 @@ export default function DashboardPage() {
                         <td className="px-4 py-2.5 text-[var(--text-muted)]">
                           {[row.size, row.color].filter(Boolean).join(" / ") || "-"}
                         </td>
-                        <td className="px-4 py-2.5 font-medium text-[var(--danger)]">{row.stockQty}</td>
-                        <td className="px-4 py-2.5 text-[var(--text-muted)]">{row.reorderLevel}</td>
+                        <td className="px-4 py-2.5 font-medium text-[var(--danger)]">
+                          {row.stockQty}
+                          {row.unit ? ` ${row.unit}` : ""}
+                        </td>
+                        <td className="px-4 py-2.5 text-[var(--text-muted)]">
+                          {row.reorderLevel}
+                          {row.unit ? ` ${row.unit}` : ""}
+                        </td>
                       </tr>
                     ))}
                   </DataTable>

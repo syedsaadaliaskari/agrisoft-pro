@@ -117,6 +117,7 @@ export function CropPurchaseSlip({
   const productKg = kilograms(productUnit);
   const factor =
     chosenUnit && productUnit && chosenUnit.id !== productUnit.id && chosenKg && productKg ? chosenKg / productKg : 1;
+  const unitKg = chosenKg;
   const usePerBag = unit.toLowerCase() !== "bag";
   const priced = useMemo(
     () =>
@@ -126,12 +127,15 @@ export function CropPurchaseSlip({
         const typed = n(vehicle.totalWeight);
         const total = usePerBag && bags > 0 && perBag > 0 ? bags * perBag : typed;
         const kaat = n(vehicle.kaat);
-        const safi = Math.max(0, total - kaat);
-        const amount = total * n(vehicle.rate);
-        return { ...vehicle, total, safi, amount };
+        const totalKaatKg = total * kaat;
+        const kaatUnits = unitKg && unitKg > 0 ? totalKaatKg / unitKg : 0;
+        const safi = Math.max(0, total - kaatUnits);
+        const amount = safi * n(vehicle.rate);
+        return { ...vehicle, total, safi, totalKaatKg, amount, stock: total * factor };
       }),
-    [usePerBag, vehicles]
+    [usePerBag, vehicles, factor, unitKg]
   );
+  const stockIn = priced.reduce((sum, vehicle) => sum + vehicle.stock, 0);
   const gross = priced.reduce((sum, vehicle) => sum + vehicle.amount, 0);
   const deductions = n(commission) + n(brokerage) + n(mazdoori) + n(fees) + n(bardana);
   const net = gross - deductions;
@@ -242,7 +246,7 @@ export function CropPurchaseSlip({
   };
 
   const reverseSlip = async (row: CropPurchase) => {
-    if (!window.confirm(`Reverse ${row.docNo}? The safi quantity goes back out of stock and the khata entry is removed.`)) return;
+    if (!window.confirm(`Reverse ${row.docNo}? The full quantity goes back out of stock and the khata entry is removed.`)) return;
     setError("");
     const res = await getApi().deleteCropPurchase(row.id);
     if (!res.ok) {
@@ -353,8 +357,8 @@ export function CropPurchaseSlip({
         <LineItemsTable
           headers={
             usePerBag
-              ? ["Vehicle", "Bags", `${unit} / bag`, `Total ${unit}`, `Kaat ${unit}`, "Safi", `Rate / ${unit}`, "Amount", ""]
-              : ["Vehicle", "Bags", `Total ${unit}`, `Kaat ${unit}`, "Safi", `Rate / ${unit}`, "Amount", ""]
+              ? ["Vehicle", "Bags", `${unit} / bag`, `Total ${unit}`, `kg / ${unit}`, "Safi", `Rate / ${unit}`, "Amount", ""]
+              : ["Vehicle", "Bags", `Total ${unit}`, `kg / ${unit}`, "Safi", `Rate / ${unit}`, "Amount", ""]
           }
         >
               {priced.map((vehicle) => (
@@ -427,8 +431,12 @@ export function CropPurchaseSlip({
                     />
                   </td>
                   <td className="px-3 py-2 tabular-nums">
-                    {vehicle.safi}
-                    {factor !== 1 ? ` = ${Math.round(vehicle.safi * factor * 1000) / 1000} ${productUnit?.shortName || "kg"}` : ""}
+                    <div>
+                      {Math.round(vehicle.safi * 1000) / 1000} {unit}
+                    </div>
+                    {vehicle.totalKaatKg > 0 ? (
+                      <div className="text-xs text-[var(--text-muted)]">{Math.round(vehicle.totalKaatKg * 1000) / 1000} kg cut</div>
+                    ) : null}
                   </td>
                   <td className="px-3 py-2">
                     <input
@@ -462,7 +470,11 @@ export function CropPurchaseSlip({
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <TotalsPanel
             rows={[
-              { label: "Full quantity", value: money(gross) },
+              { label: "Safi", value: money(gross) },
+              {
+                label: "Stock in",
+                value: `${Math.round(stockIn * 1000) / 1000} ${productUnit?.shortName || unit}`,
+              },
               { label: "Deductions", value: money(deductions), negative: deductions > 0 },
             ]}
             grandLabel="Net payable"

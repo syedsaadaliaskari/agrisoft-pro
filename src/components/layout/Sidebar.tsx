@@ -132,6 +132,26 @@ export function Sidebar() {
             if (!items.length) return null;
 
             const GroupIcon = group.icon;
+            if (group.href) {
+              const active = isNavHrefActive(pathname, group.href);
+              return (
+                <li key={group.titleKey}>
+                  <Link
+                    href={group.href}
+                    prefetch
+                    className={cn(
+                      "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] font-medium transition-colors",
+                      active
+                        ? "bg-[var(--accent-soft)] text-[var(--accent)]"
+                        : "text-[var(--text)] hover:bg-[var(--bg-soft)]"
+                    )}
+                  >
+                    <GroupIcon size={16} strokeWidth={1.75} />
+                    <span className="flex-1 truncate text-start">{t(group.titleKey)}</span>
+                  </Link>
+                </li>
+              );
+            }
             const open = isOpen(group);
             const groupActive = isNavGroupActive(pathname, group);
 

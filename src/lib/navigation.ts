@@ -29,6 +29,7 @@ import {
   Lock,
   MessageCircle,
   Info,
+  CircleHelp,
   type LucideIcon,
 } from "lucide-react";
 
@@ -53,6 +54,8 @@ export type NavGroup = {
   titleKey: string;
   icon: LucideIcon;
   items: NavItem[];
+  /** When set, this is one link under the other groups, not a folder. */
+  href?: string;
 };
 
 export const navigation: NavGroup[] = [
@@ -259,6 +262,12 @@ export const navigation: NavGroup[] = [
         audience: "shop",
       },
     ],
+  },
+  {
+    titleKey: "nav.help",
+    icon: CircleHelp,
+    href: "/setup/help",
+    items: [{ labelKey: "nav.help", href: "/setup/help", icon: CircleHelp, audience: "shop" }],
   },
 ];
 

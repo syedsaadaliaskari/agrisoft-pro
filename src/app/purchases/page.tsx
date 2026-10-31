@@ -185,7 +185,7 @@ export default function PurchasesPage() {
       { value: "", label: "Select product" },
       ...inventory.filter((r) => !r.isCrop).map((r) => ({
         value: r.variantId,
-        label: `${r.productName} (${r.size}/${r.color}) — ${r.stockQty} in stock`,
+        label: `${r.productName} (${r.size}/${r.color}) — ${r.stockQty}${r.unit ? ` ${r.unit}` : ""} in stock`,
       })),
     ],
     [inventory]
@@ -709,10 +709,16 @@ export default function PurchasesPage() {
           }
         >
             <LineItemsTable
+                fit
                 headers={
                   lines.some((line) => line.trackBatch)
                     ? ["Product", "In stock", "Qty", "Unit", "Unit cost", "Batch", "Made", "Expiry", "Line total", ""]
                     : ["Product", "In stock", "Qty", "Unit", "Unit cost", "Line total", ""]
+                }
+                widths={
+                  lines.some((line) => line.trackBatch)
+                    ? ["16%", "9%", "9%", "8%", "10%", "12%", "13%", "13%", "6%", "4%"]
+                    : ["26%", "12%", "14%", "12%", "14%", "14%", "8%"]
                 }
                 empty={lines.length === 0}
               >
@@ -721,14 +727,16 @@ export default function PurchasesPage() {
                   const showBatch = lines.some((item) => item.trackBatch);
                   return (
                     <tr key={line.key}>
-                      <td className="px-3 py-2.5 font-medium">{line.label}</td>
-                      <td className="px-3 py-2.5">
+                      <td className="truncate px-2 py-2 font-medium" title={line.label}>
+                        {line.label}
+                      </td>
+                      <td className="px-2 py-2">
                         <span className="text-xs tabular-nums text-[var(--text-muted)]">
                           {line.stockQty}
                           {line.unit ? ` ${line.unit}` : ""}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5 w-[100px]">
+                      <td className="px-2 py-2">
                         <input
                           type="number"
                           min={0.01}
@@ -744,7 +752,7 @@ export default function PurchasesPage() {
                           className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1.5 text-sm outline-none ring-[var(--accent)] focus:ring-1"
                         />
                       </td>
-                      <td className="px-3 py-2.5 w-[96px]">
+                      <td className="px-2 py-2">
                         <select
                           value={line.unit}
                           onChange={(e) =>
@@ -767,7 +775,7 @@ export default function PurchasesPage() {
                           ))}
                         </select>
                       </td>
-                      <td className="px-3 py-2.5 w-[120px]">
+                      <td className="px-2 py-2">
                         <input
                           type="number"
                           min={0}
@@ -786,7 +794,7 @@ export default function PurchasesPage() {
                       {showBatch ? (
                         line.trackBatch ? (
                           <>
-                            <td className="px-3 py-2.5 w-[120px]">
+                            <td className="px-2 py-2">
                               <input
                                 value={line.batchNo}
                                 placeholder="Auto if empty"
@@ -798,7 +806,7 @@ export default function PurchasesPage() {
                                 className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1.5 text-sm outline-none ring-[var(--accent)] focus:ring-1"
                               />
                             </td>
-                            <td className="px-3 py-2.5 w-[150px]">
+                            <td className="px-2 py-2">
                               <input
                                 type="date"
                                 value={line.manufacturedDate}
@@ -812,7 +820,7 @@ export default function PurchasesPage() {
                                 className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1.5 text-sm outline-none ring-[var(--accent)] focus:ring-1"
                               />
                             </td>
-                            <td className="px-3 py-2.5 w-[150px]">
+                            <td className="px-2 py-2">
                               <input
                                 type="date"
                                 value={line.expiryDate}
@@ -833,8 +841,8 @@ export default function PurchasesPage() {
                           </>
                         )
                       ) : null}
-                      <td className="px-3 py-2.5 font-medium tabular-nums">{money(lineTotal)}</td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-2 py-2 font-medium tabular-nums">{money(lineTotal)}</td>
+                      <td className="px-1 py-2">
                         <Button
                           variant="ghost"
                           size="sm"

@@ -236,9 +236,11 @@ export function registerDashboardHandlers(): void {
           color: productVariants.color,
           stockQty: productVariants.stockQty,
           reorderLevel: products.reorderLevel,
+          unit: units.shortName,
         })
         .from(productVariants)
         .innerJoin(products, eq(productVariants.productId, products.id))
+        .leftJoin(units, eq(products.unitId, units.id))
         .where(sql`${productVariants.stockQty} <= ${products.reorderLevel}`)
         .orderBy(asc(productVariants.stockQty))
         .limit(8)
@@ -379,6 +381,7 @@ export function registerDashboardHandlers(): void {
           color: r.color,
           stockQty: r.stockQty,
           reorderLevel: r.reorderLevel,
+          unit: r.unit ?? null,
         })),
         expiringItems: expiringItems.map((row) => ({
           productName: row.productName,
@@ -877,9 +880,11 @@ function seriesFromDays(days: Map<string, DayAgg>, dateKeys: string[]): ProductP
           costPrice: sql<number>`coalesce(${productVariants.costPrice}, ${products.costPrice})`,
           salePrice: sql<number>`coalesce(${productVariants.salePrice}, ${products.salePrice})`,
           reorderLevel: products.reorderLevel,
+          unit: units.shortName,
         })
         .from(productVariants)
         .innerJoin(products, eq(productVariants.productId, products.id))
+        .leftJoin(units, eq(products.unitId, units.id))
         .orderBy(desc(products.createdAt), asc(products.name), asc(productVariants.size))
         .all();
 
@@ -902,6 +907,7 @@ function seriesFromDays(days: Map<string, DayAgg>, dateKeys: string[]): ProductP
           valuation: money(qty * cost),
           reorderLevel: Number(r.reorderLevel),
           isLowStock: qty <= Number(r.reorderLevel),
+          unit: r.unit ?? null,
         };
       });
 

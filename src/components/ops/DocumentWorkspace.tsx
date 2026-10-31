@@ -637,12 +637,18 @@ export function TotalsPanel({
 
 export function LineItemsTable({
   headers,
+  widths,
+  fit = false,
   empty,
   emptyTitle = "No items yet",
   emptyHint,
   children,
 }: {
   headers: string[];
+  /** Column widths used when fit is on, so the row stays inside the window. */
+  widths?: string[];
+  /** Keep every column on one row and stop the sideways scrollbar. */
+  fit?: boolean;
   empty?: boolean;
   emptyTitle?: string;
   emptyHint?: string;
@@ -658,8 +664,21 @@ export function LineItemsTable({
   }
   return (
     <div className="overflow-hidden rounded-xl border border-[var(--border)]">
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-left text-sm">
+      <div className={fit ? "overflow-x-hidden" : "overflow-x-auto"}>
+        <table
+          className={
+            fit
+              ? "w-full table-fixed text-left text-sm [&_input]:min-w-0 [&_input]:max-w-full [&_select]:min-w-0 [&_select]:max-w-full [&_td]:overflow-hidden"
+              : "min-w-full text-left text-sm"
+          }
+        >
+          {fit && widths?.length ? (
+            <colgroup>
+              {widths.map((width, i) => (
+                <col key={`${width}-${i}`} style={{ width }} />
+              ))}
+            </colgroup>
+          ) : null}
           <thead className="border-b border-[var(--border)] bg-[var(--bg-soft)] text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
             <tr>
               {headers.map((h, i) => (

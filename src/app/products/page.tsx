@@ -359,6 +359,8 @@ export default function ProductsPage() {
     setCatalog(null);
   };
 
+  const chosenUnit = units.find((unit) => unit.id === form.unitId)?.shortName ?? "";
+
   return (
     <AppShell title="Products" permission="products.view">
       {error && !open ? (
@@ -405,7 +407,7 @@ export default function ProductsPage() {
               unit: r.unitName ?? "",
               costPrice: r.costPrice,
               salePrice: r.salePrice,
-              stock: r.totalStock ?? 0,
+              stock: r.unitName ? `${r.totalStock ?? 0} ${r.unitName}` : (r.totalStock ?? 0),
               packs: r.variantCount ?? 0,
               status: r.isActive ? "Active" : "Inactive",
               batch: (r.batches ?? []).map((batch) => batch.batchNo).join(", "),
@@ -471,7 +473,10 @@ export default function ProductsPage() {
               <td className="px-4 py-3 text-[var(--text-muted)]">{row.unitName || "—"}</td>
               <td className="px-4 py-3">{row.costPrice.toLocaleString()}</td>
               <td className="px-4 py-3">{row.salePrice.toLocaleString()}</td>
-              <td className="px-4 py-3">{(row.totalStock ?? 0).toLocaleString()}</td>
+              <td className="px-4 py-3">
+                {(row.totalStock ?? 0).toLocaleString()}
+                {row.unitName ? ` ${row.unitName}` : ""}
+              </td>
               <td className="px-4 py-3">{row.variantCount ?? 0}</td>
               <td className="px-4 py-3">
                 <StatusBadge active={row.isActive} />
@@ -616,7 +621,7 @@ export default function ProductsPage() {
             onChange={(e) => setForm((f) => ({ ...f, salePrice: e.target.value }))}
           />
           <Input
-            label="Reorder level"
+            label={chosenUnit ? `Reorder level (${chosenUnit})` : "Reorder level"}
             type="number"
             min={0}
             step="0.01"
@@ -625,7 +630,7 @@ export default function ProductsPage() {
           />
           {!editing ? (
             <Input
-              label="Initial stock"
+              label={chosenUnit ? `Initial stock (${chosenUnit})` : "Initial stock"}
               type="number"
               min={0}
               step="0.01"
@@ -820,8 +825,8 @@ export default function ProductsPage() {
               onChange={(e) => setPackForm((f) => ({ ...f, color: e.target.value }))}
             />
             {!editingPack ? (
-              <Input
-                label="Initial stock"
+            <Input
+              label={packProduct?.unitName ? `Initial stock (${packProduct.unitName})` : "Initial stock"}
                 type="number"
                 min={0}
                 step="0.01"
@@ -881,7 +886,10 @@ export default function ProductsPage() {
             <tr key={pack.id} className="border-b border-[var(--border)] last:border-0">
               <td className="px-4 py-3 font-medium">{pack.size}</td>
               <td className="px-4 py-3">{pack.color}</td>
-              <td className="px-4 py-3">{pack.stockQty.toLocaleString()}</td>
+              <td className="px-4 py-3">
+                {pack.stockQty.toLocaleString()}
+                {packProduct?.unitName ? ` ${packProduct.unitName}` : ""}
+              </td>
               <td className="px-4 py-3">
                 <StatusBadge active={pack.isActive} />
               </td>

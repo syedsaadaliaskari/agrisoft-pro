@@ -126,8 +126,8 @@ export default function InventoryPage() {
                 product: r.productName,
                 size: r.size,
                 color: r.color,
-                stockQty: r.stockQty,
-                reorderLevel: r.reorderLevel,
+                stockQty: r.unit ? `${r.stockQty} ${r.unit}` : r.stockQty,
+                reorderLevel: r.unit ? `${r.reorderLevel} ${r.unit}` : r.reorderLevel,
                 costPrice: r.costPrice,
                 salePrice: r.salePrice,
                 status: r.isActive ? "Active" : "Inactive",
@@ -206,8 +206,12 @@ export default function InventoryPage() {
                 )}
               >
                 {row.stockQty.toLocaleString()}
+                {row.unit ? ` ${row.unit}` : ""}
               </td>
-              <td className="px-4 py-3 text-[var(--text-muted)]">{row.reorderLevel}</td>
+              <td className="px-4 py-3 text-[var(--text-muted)]">
+                {row.reorderLevel}
+                {row.unit ? ` ${row.unit}` : ""}
+              </td>
               <td className="px-4 py-3">{row.costPrice.toLocaleString()}</td>
               <td className="px-4 py-3">{row.salePrice.toLocaleString()}</td>
               <td className="px-4 py-3">
@@ -242,7 +246,10 @@ export default function InventoryPage() {
         {editing ? (
           <p className="text-sm text-[var(--text-muted)]">
             Pack {editing.size} / {editing.color} · current{" "}
-            <span className="font-medium text-[var(--text)]">{editing.stockQty}</span>
+            <span className="font-medium text-[var(--text)]">
+              {editing.stockQty}
+              {editing.unit ? ` ${editing.unit}` : ""}
+            </span>
           </p>
         ) : null}
         <Input

@@ -87,6 +87,7 @@ export const ur: Dict = {
   "nav.taxes": "ٹیکسز",
   "nav.discounts": "ڈسکاؤنٹس",
   "nav.additions": "اضافات",
+  "nav.help": "مدد",
   "nav.users": "صارفین",
   "nav.changePassword": "پاس ورڈ تبدیل کریں",
   "nav.licenseInfo": "لائسنس",

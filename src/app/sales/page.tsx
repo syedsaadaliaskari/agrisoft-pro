@@ -184,8 +184,8 @@ export default function SalesPage() {
         value: r.variantId,
         label:
           r.costPrice > 0 && r.salePrice < r.costPrice
-            ? `${r.productName} (${r.size}/${r.color}) — ${r.stockQty} in stock — selling at a loss`
-            : `${r.productName} (${r.size}/${r.color}) — ${r.stockQty} in stock`,
+            ? `${r.productName} (${r.size}/${r.color}) — ${r.stockQty}${r.unit ? ` ${r.unit}` : ""} in stock — selling at a loss`
+            : `${r.productName} (${r.size}/${r.color}) — ${r.stockQty}${r.unit ? ` ${r.unit}` : ""} in stock`,
       })),
     ],
     [inventory]
@@ -798,6 +798,7 @@ export default function SalesPage() {
                           className={`text-xs tabular-nums ${overStock ? "font-semibold text-[var(--danger)]" : "text-[var(--text-muted)]"}`}
                         >
                           {line.stockQty}
+                          {line.unit ? ` ${line.unit}` : ""}
                         </span>
                       </td>
                       <td className="px-3 py-2.5 w-[100px]">

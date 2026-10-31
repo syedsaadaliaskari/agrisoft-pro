@@ -1078,6 +1078,7 @@ export type DashboardLowStockItem = {
   color: string | null;
   stockQty: number;
   reorderLevel: number;
+  unit: string | null;
 };
 
 export type DashboardExpiringItem = {
@@ -1321,6 +1322,7 @@ export type StockReportRow = {
   valuation: number;
   reorderLevel: number;
   isLowStock: boolean;
+  unit: string | null;
 };
 
 export type StockReport = {
@@ -1562,6 +1564,8 @@ export type CropVehicle = CropVehicleInput & {
   amount: number;
   stockFactor: number;
   weighUnit: string | null;
+  kaatFactor: number;
+  kaatUnit: string | null;
 };
 
 export type CreateCropPurchaseInput = {
@@ -1578,6 +1582,7 @@ export type CreateCropPurchaseInput = {
   bankPaid?: number;
   remarks?: string | null;
   weighUnitId?: string | null;
+  kaatUnitId?: string | null;
   vehicles: CropVehicleInput[];
 };
 
@@ -1591,6 +1596,7 @@ export type CropPurchase = {
   variantId: string;
   productName: string;
   safiWeight: number;
+  stockWeight?: number | null;
   grossAmount: number;
   commission: number;
   brokerage: number;
@@ -1619,6 +1625,7 @@ export type CreateCropSaleInput = {
   bankPaid?: number;
   remarks?: string | null;
   weighUnitId?: string | null;
+  kaat?: number;
 };
 
 export type CropSale = {
@@ -1630,6 +1637,8 @@ export type CropSale = {
   variantId: string;
   productName: string;
   weight: number;
+  kaat: number;
+  safiWeight: number;
   rate: number;
   amount: number;
   stockFactor: number;

@@ -512,8 +512,13 @@ export async function initDatabase(): Promise<Db> {
     "ALTER TABLE units ADD COLUMN equals_kg REAL",
     "ALTER TABLE crop_purchase_vehicles ADD COLUMN stock_factor REAL NOT NULL DEFAULT 1",
     "ALTER TABLE crop_purchase_vehicles ADD COLUMN weigh_unit TEXT",
+    "ALTER TABLE crop_purchase_vehicles ADD COLUMN kaat_factor REAL NOT NULL DEFAULT 1",
+    "ALTER TABLE crop_purchase_vehicles ADD COLUMN kaat_unit TEXT",
     "ALTER TABLE crop_sales ADD COLUMN stock_factor REAL NOT NULL DEFAULT 1",
     "ALTER TABLE crop_sales ADD COLUMN weigh_unit TEXT",
+    "ALTER TABLE crop_purchases ADD COLUMN stock_weight REAL",
+    "ALTER TABLE crop_sales ADD COLUMN kaat REAL NOT NULL DEFAULT 0",
+    "ALTER TABLE crop_sales ADD COLUMN safi_weight REAL",
   ]) {
     try {
       sqlite.exec(statement);
