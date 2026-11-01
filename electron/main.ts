@@ -553,12 +553,6 @@ app.whenReady().then(async () => {
   await initDatabase();
   registerIpcHandlers(app.getVersion(), isDev);
 
-  try {
-    await runAutoBackup(false);
-  } catch (err) {
-    console.warn("Auto backup on start failed:", err);
-  }
-
   // n8n WhatsApp queue: scan reminders + flush (needs internet to send)
   const runN8nPass = async () => {
     try {
@@ -648,6 +642,14 @@ app.whenReady().then(async () => {
   );
 
   await createWindow();
+
+  void (async () => {
+    try {
+      await runAutoBackup(false);
+    } catch (err) {
+      console.warn("Auto backup on start failed:", err);
+    }
+  })();
 
   setTimeout(() => {
     try {
